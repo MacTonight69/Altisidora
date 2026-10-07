@@ -160,6 +160,8 @@ ApplicationWindow {
                             Layout.preferredHeight: 38
                             radius: 6
 
+                            required property int index
+                            required property var modelData
                             property int navIndex: index
                             property string label: modelData
 

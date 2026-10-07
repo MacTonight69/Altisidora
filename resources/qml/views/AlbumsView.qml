@@ -45,6 +45,7 @@ Rectangle {
         ScrollBar.vertical: ScrollBar { }
 
         delegate: Rectangle {
+            required property var modelData
             width: albumGrid.cellWidth
             height: albumGrid.cellHeight
             color: "transparent"

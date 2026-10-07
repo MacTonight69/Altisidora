@@ -20,6 +20,7 @@ Rectangle {
 
         delegate: Rectangle {
             id: artistRow
+            required property var modelData
             width: artistList.width
             height: 52
             radius: 6

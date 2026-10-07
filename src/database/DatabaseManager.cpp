@@ -92,7 +92,15 @@ qint64 resolveAlbum(QSqlDatabase &db, const QString &title, qint64 artistId, int
 
 DatabaseManager::DatabaseManager()
 {
-    m_db = QSqlDatabase::addDatabase("QSQLITE");
+    // Share the process-wide default SQLite connection instead of re-adding it:
+    // re-adding a connection name that already exists invalidates the other
+    // manager's handle ("old connection removed"), breaking the controllers
+    // (library, playlists) that each own a DatabaseManager for the same file.
+    if (QSqlDatabase::contains()) {
+        m_db = QSqlDatabase::database();
+    } else {
+        m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"));
+    }
 }
 
 DatabaseManager::~DatabaseManager()

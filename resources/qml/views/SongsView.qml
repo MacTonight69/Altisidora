@@ -81,6 +81,7 @@ Rectangle {
                 height: 40
                 radius: 6
 
+                required property var modelData
                 property var song: modelData
                 property bool isCurrent: Player.currentSong !== undefined
                                          && Player.currentSong !== null
@@ -184,6 +185,7 @@ Rectangle {
         Instantiator {
             model: Playlists.playlists
             delegate: MenuItem {
+                required property var modelData
                 text: modelData.name
                 onTriggered: Playlists.addSong(modelData.id, songsView.targetSongId)
             }
