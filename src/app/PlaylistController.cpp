@@ -75,6 +75,7 @@ QVector<QVariant> PlaylistController::getPlaylistSongs(qint64 playlistId) const
         map["title"] = song.title;
         map["artist"] = song.artist;
         map["album"] = song.album;
+        map["duration"] = song.duration;
         result.append(map);
     }
     return result;

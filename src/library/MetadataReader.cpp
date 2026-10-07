@@ -36,6 +36,12 @@ Song MetadataReader::read(const QString &filePath) const
         song.duration = properties->lengthInMilliseconds();
     }
 
+    // Fall back to the file name so songs without tags are still
+    // identifiable in the library view.
+    if (song.title.isEmpty()) {
+        song.title = QFileInfo(filePath).completeBaseName();
+    }
+
     return song;
 }
 
