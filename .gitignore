@@ -1,0 +1,39 @@
+# Build directories
+build/
+build-*/
+cmake-build-*/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Qt
+*.user
+*.user.*
+CMakeLists.txt.user
+
+# Compiled files
+*.o
+*.obj
+*.so
+*.so.*
+*.a
+*.lib
+*.dll
+*.dylib
+*.exe
+
+# Test outputs
+test-results/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package
+*.pkg.tar.zst
+*.pkg.tar.xz

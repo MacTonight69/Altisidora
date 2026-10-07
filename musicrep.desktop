@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=MusicRep
+Comment=Native Linux music player
+Exec=musicrep
+Icon=musicrep
+Categories=Audio;Music;Player;
+Terminal=false
+StartupNotify=true
