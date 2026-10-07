@@ -6,6 +6,23 @@
 
 #include <QFileInfo>
 
+namespace {
+
+// Converts a TagLib::String to a QString using its UTF-8 representation.
+// NOTE: TagLib::String::toCString() is unreliable in TagLib 2.x (it can
+// return a pointer to a not-yet-initialised internal buffer, i.e. garbage
+// that even starts with the ID3v2 text-encoding byte). to8Bit(true) always
+// returns correct UTF-8 bytes, so we decode from that buffer by size.
+QString tagStringToQString(const TagLib::String &str)
+{
+    if (str.isEmpty())
+        return {};
+    const std::string utf8 = str.to8Bit(true);
+    return QString::fromUtf8(utf8.data(), static_cast<qsizetype>(utf8.size()));
+}
+
+} // namespace
+
 MetadataReader::MetadataReader()
 {
 }
@@ -23,10 +40,10 @@ Song MetadataReader::read(const QString &filePath) const
 
     TagLib::Tag *tag = file.tag();
     if (tag) {
-        song.title = QString::fromStdString(tag->title().toCString() ? tag->title().toCString() : "");
-        song.artist = QString::fromStdString(tag->artist().toCString() ? tag->artist().toCString() : "");
-        song.album = QString::fromStdString(tag->album().toCString() ? tag->album().toCString() : "");
-        song.genre = QString::fromStdString(tag->genre().toCString() ? tag->genre().toCString() : "");
+        song.title = tagStringToQString(tag->title());
+        song.artist = tagStringToQString(tag->artist());
+        song.album = tagStringToQString(tag->album());
+        song.genre = tagStringToQString(tag->genre());
         song.year = tag->year();
         song.trackNumber = tag->track();
     }

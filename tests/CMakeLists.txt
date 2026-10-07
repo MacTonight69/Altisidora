@@ -56,6 +56,9 @@ set(UNIT_TESTS
 set(tst_settings_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/app/SettingsController.cpp
 )
+set(tst_metadata_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
+)
 set(tst_playlist_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/app/PlaylistController.cpp
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp

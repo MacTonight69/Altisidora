@@ -4,6 +4,13 @@
 
 #include "../TestHelpers.h"
 
+#include "../../src/library/MetadataReader.h"
+
+#include <taglib/mpegfile.h>
+#include <taglib/id3v2tag.h>
+#include <taglib/tag.h>
+#include <taglib/tstring.h>
+
 /**
  * @brief Tests for metadata reader
  *
@@ -43,6 +50,9 @@ private slots:
     void testReadFileWithNoMetadata();
     void testReadFileWithPartialMetadata();
     void testReadFileWithUnicodeMetadata();
+
+    // Encoding regression tests
+    void testReadUtf8JapaneseTags();
 
 private:
     QTemporaryDir m_tempDir;
@@ -248,6 +258,41 @@ void TestMetadata::testReadFileWithUnicodeMetadata()
                                               QStringLiteral("アルバム")));
 
     QVERIFY(QFile::exists(filePath));
+}
+
+// Regression test: TagLib::String::toCString() returned garbage for UTF-8
+// ID3v2 text (the returned buffer started with the frame's encoding byte 0x03
+// followed by uninitialised memory), so Japanese/UTF-8 tags were stored as
+// '^C\uFFFDn\u01A3...' in the database. MetadataReader must decode tags via
+// to8Bit(true) (which yields correct UTF-8) instead of toCString().
+void TestMetadata::testReadUtf8JapaneseTags()
+{
+    const QString filePath = m_tempDir.filePath(QStringLiteral("japanese.mp3"));
+    QVERIFY(TestHelpers::createDummyAudioFile(filePath,
+                                              QStringLiteral("x"),
+                                              QStringLiteral("y"),
+                                              QStringLiteral("z")));
+
+    // Write a real ID3v2 tag with UTF-8 Japanese text via TagLib.
+    {
+        TagLib::MPEG::File mf(filePath.toStdString().c_str());
+        QVERIFY(mf.isValid());
+        TagLib::ID3v2::Tag *tag = mf.ID3v2Tag(true);
+        QVERIFY(tag != nullptr);
+        tag->setTitle(TagLib::String("七人のティータイム", TagLib::String::UTF8));
+        tag->setArtist(TagLib::String("ShibayanRecords", TagLib::String::UTF8));
+        tag->setAlbum(TagLib::String("TOHO BOSSA NOVA 12", TagLib::String::UTF8));
+        QVERIFY(mf.save());
+    }
+
+    MetadataReader reader;
+    const Song song = reader.read(filePath);
+
+    QCOMPARE(song.title, QStringLiteral("七人のティータイム"));
+    QCOMPARE(song.artist, QStringLiteral("ShibayanRecords"));
+    QCOMPARE(song.album, QStringLiteral("TOHO BOSSA NOVA 12"));
+    QVERIFY(!song.title.contains(QChar(0xFFFD))); // no replacement chars
+    QVERIFY(!song.title.contains(QChar(0x03)));   // no raw encoding byte
 }
 
 QTEST_MAIN(TestMetadata)
