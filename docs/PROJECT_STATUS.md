@@ -69,6 +69,9 @@ Test isolation:
   scan itself blocks). Background scanning (threading) is not implemented yet.
 - `MetadataReader` does not extract embedded artwork yet; album cards use a
   generated placeholder color.
+- `MetadataReader` stores non-UTF-8 tag text (e.g. some Japanese ID3 tags read
+  by TagLib as raw bytes) verbatim, so such titles/artists show as mojibake.
+  Encoding normalization/detection is not implemented yet.
 - No playback queue: `next()`/`previous()` are placeholders; one song must be
   double-clicked at a time.
 - `tst_playback` is a stub; a real playback workflow test requires an audio
