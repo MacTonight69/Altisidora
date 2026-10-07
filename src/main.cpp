@@ -13,9 +13,9 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
 
-    app.setApplicationName("MusicRep");
-    app.setApplicationDisplayName("MusicRep");
-    app.setOrganizationName("MusicRep");
+    app.setApplicationName("Benzaiten");
+    app.setApplicationDisplayName("Benzaiten");
+    app.setOrganizationName("Benzaiten");
 
     // Register C++ types so QML can use them if needed
     qmlRegisterType<PlayerController>("com.musicrep.audio", 1, 0, "PlayerController");

@@ -1,4 +1,4 @@
-# Maintainer: MusicRep Team
+# Maintainer: Benzaiten
 pkgname=musicrep
 pkgver=0.1.0
 pkgrel=1

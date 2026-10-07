@@ -54,15 +54,11 @@ Rectangle {
                 anchors.fill: parent
                 anchors.margins: 8
                 radius: 6
-                color: albumMouse.containsMouse ? "#20212f" : "#181825"
+                color: albumMouse.containsMouse ? "#e7dfd0" : "#f3efe7"
                 border.width: 1
-                border.color: albumMouse.containsMouse ? "#89b4fa" : "#313244"
+                border.color: albumMouse.containsMouse ? "#b9a06c" : "#d9c9b3"
 
-                Behavior on color {
-                    ColorAnimation { duration: 120 }
-                }
-                Behavior on border.color {
-                    ColorAnimation { duration: 120 }
+                
                 }
 
                 MouseArea {
@@ -94,7 +90,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: modelData.title ? modelData.title : qsTr("Unknown album")
-                        color: "#cdd6f4"
+                        color: "#4f3f2f"
                         font.pixelSize: 13
                         font.bold: true
                         elide: Text.ElideRight
@@ -103,7 +99,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: modelData.artist ? modelData.artist : ""
-                        color: "#a6adc8"
+                        color: "#7a6a55"
                         font.pixelSize: 11
                         elide: Text.ElideRight
                     }

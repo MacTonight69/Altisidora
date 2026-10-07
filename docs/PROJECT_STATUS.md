@@ -4,7 +4,7 @@ Last updated: 2026-10-07
 
 ## Summary
 
-MusicRep has a working core **and a functional GUI**: the full module
+Benzaiten has a working core **and a functional GUI**: the full module
 structure, build system, implementations, tests and a QML interface wired to
 the controllers are in place. All tests pass.
 

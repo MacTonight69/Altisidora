@@ -40,7 +40,7 @@ Rectangle {
 
         Text {
             text: qsTr("Settings")
-            color: "#cdd6f4"
+            color: "#4f3f2f"
             font.pixelSize: 20
             font.bold: true
         }
@@ -51,9 +51,9 @@ Rectangle {
             Layout.maximumWidth: 640
             implicitHeight: folderColumn.implicitHeight + 32
             radius: 6
-            color: "#181825"
+            color: "#f3efe7"
             border.width: 1
-            border.color: "#313244"
+            border.color: "#d9c9b3"
 
             ColumnLayout {
                 id: folderColumn
@@ -63,7 +63,7 @@ Rectangle {
 
                 Text {
                     text: qsTr("Music folder")
-                    color: "#cdd6f4"
+                    color: "#4f3f2f"
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -75,7 +75,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: settingsView.prettyPath(AppSettings.musicDirectory)
-                        color: "#a6adc8"
+                        color: "#7a6a55"
                         font.pixelSize: 13
                         elide: Text.ElideMiddle
                     }
@@ -104,9 +104,9 @@ Rectangle {
             Layout.maximumWidth: 640
             implicitHeight: playbackColumn.implicitHeight + 32
             radius: 6
-            color: "#181825"
+            color: "#f3efe7"
             border.width: 1
-            border.color: "#313244"
+            border.color: "#d9c9b3"
 
             ColumnLayout {
                 id: playbackColumn
@@ -116,7 +116,7 @@ Rectangle {
 
                 Text {
                     text: qsTr("Playback")
-                    color: "#cdd6f4"
+                    color: "#4f3f2f"
                     font.pixelSize: 14
                     font.bold: true
                 }

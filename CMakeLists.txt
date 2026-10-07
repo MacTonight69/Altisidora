@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(MusicRep
+project(Benzaiten
     VERSION 0.1.0
     DESCRIPTION "Native Linux Music Player"
     LANGUAGES CXX

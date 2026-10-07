@@ -16,21 +16,21 @@ ApplicationWindow {
     minimumWidth: 800
     minimumHeight: 600
     visible: true
-    title: qsTr("MusicRep")
-    color: "#1e1e2e"
+    title: qsTr("Benzaiten")
+    color: "#f8f6f1"
 
-    palette.window: "#1e1e2e"
-    palette.windowText: "#cdd6f4"
-    palette.base: "#181825"
-    palette.alternateBase: "#232435"
-    palette.text: "#cdd6f4"
-    palette.placeholderText: "#6c7086"
-    palette.button: "#313244"
-    palette.buttonText: "#cdd6f4"
-    palette.highlight: "#89b4fa"
-    palette.highlightedText: "#1e1e2e"
-    palette.toolTipBase: "#313244"
-    palette.toolTipText: "#cdd6f4"
+    palette.window: "#f8f6f1"
+    palette.windowText: "#4f3f2f"
+    palette.base: "#f3efe7"
+    palette.alternateBase: "#e7dfd0"
+    palette.text: "#4f3f2f"
+    palette.placeholderText: "#7a6a55"
+    palette.button: "#d9c9b3"
+    palette.buttonText: "#4f3f2f"
+    palette.highlight: "#b9a06c"
+    palette.highlightedText: "#f8f6f1"
+    palette.toolTipBase: "#d9c9b3"
+    palette.toolTipText: "#4f3f2f"
 
     // ---- state ----
     property int currentNav: 0
@@ -116,14 +116,14 @@ ApplicationWindow {
             Rectangle {
                 Layout.preferredWidth: 210
                 Layout.fillHeight: true
-                color: "#181825"
+                color: "#f3efe7"
 
                 Rectangle {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.right: parent.right
                     width: 1
-                    color: "#313244"
+                    color: "#d9c9b3"
                 }
 
                 ColumnLayout {
@@ -134,14 +134,16 @@ ApplicationWindow {
                     RowLayout {
                         spacing: 8
 
-                        Text {
-                            text: "\u266A"
-                            color: "#89b4fa"
-                            font.pixelSize: 22
+                        Image {
+                            source: "qrc:/benzaiten.png"
+                            Layout.preferredWidth: 26
+                            Layout.preferredHeight: 26
+                            fillMode: Image.PreserveAspectFit
+                            opacity: 0.95
                         }
                         Text {
-                            text: "MusicRep"
-                            color: "#cdd6f4"
+                            text: "Benzaiten" // title
+                            color: "#4f3f2f"
                             font.pixelSize: 20
                             font.bold: true
                         }
@@ -165,10 +167,9 @@ ApplicationWindow {
                             property int navIndex: index
                             property string label: modelData
 
-                            color: root.currentNav === navIndex ? "#252637"
-                                   : navMouse.containsMouse ? "#20212f" : "transparent"
-                            Behavior on color {
-                                ColorAnimation { duration: 120 }
+                            color: root.currentNav === navIndex ? "#e7dfd0"
+                                   : navMouse.containsMouse ? "#e7dfd0" : "transparent"
+                            
                             }
 
                             Rectangle {
@@ -178,7 +179,7 @@ ApplicationWindow {
                                 width: 3
                                 height: parent.height - 16
                                 radius: 2
-                                color: "#89b4fa"
+                                color: "#4f3f2f"
                                 visible: root.currentNav === navRow.navIndex
                             }
 
@@ -187,7 +188,7 @@ ApplicationWindow {
                                 anchors.leftMargin: 14
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: navRow.label
-                                color: root.currentNav === navRow.navIndex ? "#89b4fa" : "#cdd6f4"
+                                color: root.currentNav === navRow.navIndex ? "#b9a06c" : "#4f3f2f"
                                 font.pixelSize: 14
                                 font.bold: root.currentNav === navRow.navIndex
                             }
@@ -209,7 +210,7 @@ ApplicationWindow {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
-                        color: "#313244"
+                        color: "#d9c9b3"
                     }
 
                     Item {
@@ -228,16 +229,15 @@ ApplicationWindow {
                         contentItem: Text {
                             text: scanButton.text
                             font: scanButton.font
-                            color: "#1e1e2e"
+                            color: "#f8f6f1"
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             radius: 6
-                            color: scanButton.down ? "#74a8f7"
-                                   : scanButton.hovered ? "#9cc7fb" : "#89b4fa"
-                            Behavior on color {
-                                ColorAnimation { duration: 120 }
+                            color: scanButton.down ? "#a8905c"
+                                   : scanButton.hovered ? "#c9b38a" : "#b9a06c"
+                            
                             }
                         }
                     }
@@ -254,14 +254,14 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 56
-                    color: "#1e1e2e"
+                    color: "#f8f6f1"
 
                     Rectangle {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
                         height: 1
-                        color: "#313244"
+                        color: "#d9c9b3"
                     }
 
                     RowLayout {
@@ -272,7 +272,7 @@ ApplicationWindow {
 
                         Text {
                             text: root.navLabels[root.currentNav]
-                            color: "#cdd6f4"
+                            color: "#4f3f2f"
                             font.pixelSize: 17
                             font.bold: true
                         }
@@ -337,7 +337,7 @@ ApplicationWindow {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Scanning library…")
-                color: "#cdd6f4"
+                color: "#4f3f2f"
                 font.pixelSize: 15
             }
             Text {

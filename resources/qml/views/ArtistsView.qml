@@ -24,9 +24,8 @@ Rectangle {
             width: artistList.width
             height: 52
             radius: 6
-            color: artistMouse.containsMouse ? "#232435" : "transparent"
-            Behavior on color {
-                ColorAnimation { duration: 100 }
+            color: artistMouse.containsMouse ? "#e7dfd0" : "transparent"
+            
             }
 
             MouseArea {
@@ -51,7 +50,7 @@ Rectangle {
                         anchors.centerIn: parent
                         text: modelData.name && modelData.name.length > 0
                               ? modelData.name.charAt(0).toUpperCase() : "?"
-                        color: "#89b4fa"
+                        color: "#b9a06c"
                         font.pixelSize: 15
                         font.bold: true
                     }
@@ -60,7 +59,7 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     text: modelData.name
-                    color: "#cdd6f4"
+                    color: "#4f3f2f"
                     font.pixelSize: 14
                     elide: Text.ElideRight
                 }
@@ -69,7 +68,7 @@ Rectangle {
                     horizontalAlignment: Text.AlignRight
                     text: modelData.songCount + (modelData.songCount === 1
                                                   ? qsTr(" song") : qsTr(" songs"))
-                    color: "#a6adc8"
+                    color: "#7a6a55"
                     font.pixelSize: 12
                 }
             }

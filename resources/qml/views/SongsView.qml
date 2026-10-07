@@ -61,7 +61,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
-            color: "#313244"
+            color: "#d9c9b3"
         }
 
         // ---- song list ----
@@ -88,10 +88,9 @@ Rectangle {
                                          && Player.currentSong.id !== undefined
                                          && Player.currentSong.id === song.id
 
-                color: isCurrent ? "#252637"
-                       : songMouse.containsMouse ? "#232435" : "transparent"
-                Behavior on color {
-                    ColorAnimation { duration: 100 }
+                color: isCurrent ? "#e7dfd0"
+                       : songMouse.containsMouse ? "#e7dfd0" : "transparent"
+                
                 }
 
                 MouseArea {
@@ -113,21 +112,21 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: songRow.song.title ? songRow.song.title : qsTr("Unknown title")
-                        color: "#cdd6f4"
+                        color: "#4f3f2f"
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
                     Text {
                         Layout.preferredWidth: 160
                         text: songRow.song.artist ? songRow.song.artist : ""
-                        color: "#a6adc8"
+                        color: "#7a6a55"
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
                     Text {
                         Layout.preferredWidth: 160
                         text: songRow.song.album ? songRow.song.album : ""
-                        color: "#a6adc8"
+                        color: "#7a6a55"
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
@@ -148,14 +147,14 @@ Rectangle {
 
                         contentItem: Text {
                             text: qsTr("+ Playlist")
-                            color: addToButton.hovered ? "#89b4fa" : "#a6adc8"
+                            color: addToButton.hovered ? "#b9a06c" : "#7a6a55"
                             font.pixelSize: 11
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             radius: 4
-                            color: addToButton.hovered ? "#313244" : "transparent"
+                            color: addToButton.hovered ? "#d9c9b3" : "transparent"
                         }
                         onClicked: {
                             songsView.targetSongId = songRow.song.id

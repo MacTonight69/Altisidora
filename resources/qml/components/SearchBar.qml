@@ -12,13 +12,10 @@ Rectangle {
     implicitWidth: 320
     implicitHeight: 34
     radius: 6
-    color: field.activeFocus ? "#232435" : "#181825"
+    color: field.activeFocus ? "#e7dfd0" : "#f3efe7"
     border.width: 1
-    border.color: field.activeFocus ? "#89b4fa" : "#313244"
+    border.color: field.activeFocus ? "#b9a06c" : "#d9c9b3"
 
-    Behavior on border.color {
-        ColorAnimation { duration: 120 }
-    }
 
     RowLayout {
         anchors.fill: parent
@@ -34,7 +31,7 @@ Rectangle {
             background: Item { }
             placeholderText: qsTr("Search songs…")
             placeholderTextColor: "#6c7086"
-            color: "#cdd6f4"
+            color: "#4f3f2f"
             selectionColor: "#45475a"
             selectedTextColor: "#11111b"
             font.pixelSize: 13
@@ -55,14 +52,14 @@ Rectangle {
 
             contentItem: Text {
                 text: "\u2715"
-                color: clearButton.hovered ? "#cdd6f4" : "#a6adc8"
+                color: clearButton.hovered ? "#4f3f2f" : "#7a6a55"
                 font.pixelSize: 11
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
                 radius: 4
-                color: clearButton.hovered ? "#313244" : "transparent"
+                color: clearButton.hovered ? "#d9c9b3" : "transparent"
             }
             onClicked: {
                 field.text = ""

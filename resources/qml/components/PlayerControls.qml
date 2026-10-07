@@ -6,7 +6,7 @@ Rectangle {
     id: controls
 
     implicitHeight: 80
-    color: "#181825"
+    color: "#f3efe7"
 
     property string errorText: ""
 
@@ -34,7 +34,7 @@ Rectangle {
 
         contentItem: Text {
             text: tButton.iconText
-            color: tButton.primary ? "#1e1e2e" : "#cdd6f4"
+            color: tButton.primary ? "#f8f6f1" : "#4f3f2f"
             font.pixelSize: tButton.primary ? 17 : 14
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -42,10 +42,9 @@ Rectangle {
         background: Rectangle {
             radius: tButton.primary ? 17 : 6
             color: tButton.primary
-                   ? (tButton.down ? "#74a8f7" : tButton.hovered ? "#9cc7fb" : "#89b4fa")
-                   : (tButton.down ? "#3b3d55" : tButton.hovered ? "#313244" : "transparent")
-            Behavior on color {
-                ColorAnimation { duration: 100 }
+                   ? (tButton.down ? "#a8905c" : tButton.hovered ? "#c9b38a" : "#b9a06c")
+                   : (tButton.down ? "#d9c9b3" : tButton.hovered ? "#d9c9b3" : "transparent")
+            
             }
         }
     }
@@ -107,7 +106,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 text: controls.songTitle
-                color: "#cdd6f4"
+                color: "#4f3f2f"
                 font.pixelSize: 13
                 font.bold: true
                 elide: Text.ElideRight
@@ -116,7 +115,7 @@ Rectangle {
                 Layout.fillWidth: true
                 visible: controls.songArtist !== ""
                 text: controls.songArtist
-                color: "#a6adc8"
+                color: "#7a6a55"
                 font.pixelSize: 11
                 elide: Text.ElideRight
             }
@@ -163,7 +162,7 @@ Rectangle {
                     Layout.preferredWidth: 44
                     horizontalAlignment: Text.AlignRight
                     text: controls.formatTime(Player.position)
-                    color: "#a6adc8"
+                    color: "#7a6a55"
                     font.pixelSize: 11
                 }
 
@@ -191,7 +190,7 @@ Rectangle {
                     Layout.preferredWidth: 44
                     horizontalAlignment: Text.AlignLeft
                     text: controls.formatTime(Player.duration)
-                    color: "#a6adc8"
+                    color: "#7a6a55"
                     font.pixelSize: 11
                 }
             }
@@ -205,7 +204,7 @@ Rectangle {
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
                 text: Math.round(Player.volume * 100) + "%"
-                color: "#a6adc8"
+                color: "#7a6a55"
                 font.pixelSize: 11
             }
 
