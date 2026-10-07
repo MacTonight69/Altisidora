@@ -122,8 +122,28 @@ void PlayerController::load(const QUrl &url)
         return;
     }
 
+    // Leave the Error state before the backend starts loading so an
+    // immediate play() after load() is not rejected.
+    setPlaybackState(PlaybackState::Loading);
     m_player->setSource(url);
     updateCurrentSong();
+}
+
+void PlayerController::loadSong(const QVariantMap &song)
+{
+    const QString path = song.value(QStringLiteral("path")).toString();
+    if (path.isEmpty()) {
+        setPlaybackState(PlaybackState::Error);
+        emit errorOccurred(tr("Invalid media URL"));
+        return;
+    }
+
+    load(QUrl::fromLocalFile(path));
+
+    // load() resets currentSong to the bare URL; restore the full
+    // metadata map so the UI can display the song details.
+    m_currentSong = song;
+    emit currentSongChanged(m_currentSong);
 }
 
 void PlayerController::handlePlaybackStateChanged()

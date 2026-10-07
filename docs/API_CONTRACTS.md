@@ -20,7 +20,13 @@ next()
 previous()
 seek(position)
 setVolume(volume)
+load(url)
+loadSong(songMap)
 ```
+
+`loadSong()` receives the QVariantMap of a library song (as exposed by
+`LibraryController`/`PlaylistController`) so the UI can display title, artist
+and highlight the current row without touching the database.
 
 State information should include:
 
@@ -41,16 +47,22 @@ The GUI should interact with the PlayerController rather than directly with the 
 Responsibilities:
 
 ```text
-scan()
+scan(directory)
 refresh()
-search()
-getSongs()
-getAlbums()
-getArtists()
-getGenres()
+search(query)
+songs        (Q_PROPERTY)
+albums       (Q_PROPERTY)
+artists      (Q_PROPERTY)
+genres       (Q_PROPERTY)
 ```
 
-The controller should expose models suitable for consumption by QML.
+The controller exposes models suitable for consumption by QML: properties are
+arrays of QVariantMap keyed with the `Song`/`Album`/`Artist`/`Genre` field
+names (`id`, `path`, `title`, `artist`, `album`, `duration`, `songCount`, …)
+and are notified through `libraryChanged()`.
+
+Artist, album and genre names stored on songs are resolved from normalized
+tables (`artists`, `albums`, `genres`) at scan time and joined back on read.
 
 ---
 

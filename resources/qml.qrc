@@ -1,5 +1,12 @@
 <RCC>
     <qresource prefix="/">
         <file>qml/main.qml</file>
+        <file>qml/components/PlayerControls.qml</file>
+        <file>qml/components/SearchBar.qml</file>
+        <file>qml/views/SongsView.qml</file>
+        <file>qml/views/AlbumsView.qml</file>
+        <file>qml/views/ArtistsView.qml</file>
+        <file>qml/views/PlaylistsView.qml</file>
+        <file>qml/views/SettingsView.qml</file>
     </qresource>
 </RCC>

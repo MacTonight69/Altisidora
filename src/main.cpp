@@ -17,14 +17,27 @@ int main(int argc, char *argv[])
     app.setApplicationDisplayName("MusicRep");
     app.setOrganizationName("MusicRep");
 
-    // Register C++ types with QML
+    // Register C++ types so QML can use them if needed
     qmlRegisterType<PlayerController>("com.musicrep.audio", 1, 0, "PlayerController");
     qmlRegisterType<PlaybackState>("com.musicrep.audio", 1, 0, "PlaybackState");
     qmlRegisterType<LibraryController>("com.musicrep.library", 1, 0, "LibraryController");
     qmlRegisterType<PlaylistController>("com.musicrep.app", 1, 0, "PlaylistController");
     qmlRegisterType<SettingsController>("com.musicrep.app", 1, 0, "SettingsController");
 
+    // Controller instances shared with QML as context properties
+    PlayerController player;
+    LibraryController library;
+    PlaylistController playlists;
+    SettingsController appSettings;
+
+    // Load persisted library data on startup (scan happens explicitly)
+    library.refresh();
+
     QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty(QStringLiteral("Player"), &player);
+    engine.rootContext()->setContextProperty(QStringLiteral("Library"), &library);
+    engine.rootContext()->setContextProperty(QStringLiteral("Playlists"), &playlists);
+    engine.rootContext()->setContextProperty(QStringLiteral("AppSettings"), &appSettings);
 
     engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
 

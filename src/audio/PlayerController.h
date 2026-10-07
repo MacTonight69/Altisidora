@@ -58,6 +58,13 @@ public slots:
 
     // Media loading
     void load(const QUrl &url);
+    /**
+     * @brief Load a song keeping its library metadata.
+     *
+     * QML passes the song map from Library/Playlists so the UI can show
+     * title, artist and highlight the current row without a DB lookup.
+     */
+    void loadSong(const QVariantMap &song);
 
 signals:
     void stateChanged(PlaybackState::State newState);
