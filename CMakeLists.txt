@@ -23,6 +23,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Multimedia
     Sql
     Concurrent
+    DBus
     Test
 )
 
@@ -41,6 +42,8 @@ set(SOURCES
     src/library/Scanner.cpp
     src/library/MetadataReader.cpp
     src/database/DatabaseManager.cpp
+    src/mpris/MprisPlayer.cpp
+    src/mpris/MprisPlayer.h
     src/models/Song.cpp
     src/models/Artist.cpp
     src/models/Album.cpp
@@ -69,6 +72,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Multimedia
     Qt6::Sql
     Qt6::Concurrent
+    Qt6::DBus
     ${TAGLIB_LIBRARIES}
 )
 

@@ -50,6 +50,7 @@ set(UNIT_TESTS
     tst_library
     tst_playlist
     tst_settings
+    tst_mpris
 )
 
 # Production sources exercised by specific tests
@@ -86,6 +87,13 @@ set(tst_library_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
 )
+set(tst_mpris_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/mpris/MprisPlayer.cpp
+    ${CMAKE_SOURCE_DIR}/src/mpris/MprisPlayer.h
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.cpp
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.h
+    ${CMAKE_SOURCE_DIR}/src/audio/PlaybackState.h
+)
 
 foreach(test_name ${UNIT_TESTS})
     add_executable(${test_name}
@@ -118,10 +126,22 @@ foreach(test_name ${UNIT_TESTS})
         TestMocks
     )
 
-    add_test(
-        NAME ${test_name}
-        COMMAND ${test_name}
-    )
+    if(test_name STREQUAL "tst_mpris")
+        target_link_libraries(${test_name} PRIVATE Qt6::DBus)
+    endif()
+
+    # tst_mpris registers a D-Bus service: run it inside a private bus.
+    if(test_name STREQUAL "tst_mpris")
+        add_test(
+            NAME ${test_name}
+            COMMAND dbus-run-session -- $<TARGET_FILE:${test_name}>
+        )
+    else()
+        add_test(
+            NAME ${test_name}
+            COMMAND ${test_name}
+        )
+    endif()
 
     set_tests_properties(${test_name} PROPERTIES
         TIMEOUT 60

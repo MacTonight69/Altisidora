@@ -8,6 +8,7 @@
 #include "library/LibraryController.h"
 #include "app/PlaylistController.h"
 #include "app/SettingsController.h"
+#include "mpris/MprisPlayer.h"
 
 int main(int argc, char *argv[])
 {
@@ -33,6 +34,11 @@ int main(int argc, char *argv[])
     if (appSettings.musicDirectory().isEmpty() || library.songCount() == 0) {
         library.scanPersonalMusic();
     }
+
+    // Expose playback to the desktop as an MPRIS media player, so MangoWM /
+    // system media controls see the audio while it is playing.
+    MprisPlayer mpris(&player);
+    mpris.registerService();
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("Player"), &player);
