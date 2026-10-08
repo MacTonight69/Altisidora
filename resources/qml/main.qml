@@ -41,6 +41,14 @@ ApplicationWindow {
     readonly property var navLabels: [qsTr("Songs"), qsTr("Albums"), qsTr("Artists"),
                                       qsTr("Playlists"), qsTr("Settings")]
 
+    // Alt+1..Alt+5 jump between sections (leave the window-scope to the
+    // Shortcut items below so they work regardless of the focused widget).
+    Shortcut { sequence: "Alt+1"; enabled: root.visible; onActivated: root.selectNav(0) }
+    Shortcut { sequence: "Alt+2"; enabled: root.visible; onActivated: root.selectNav(1) }
+    Shortcut { sequence: "Alt+3"; enabled: root.visible; onActivated: root.selectNav(2) }
+    Shortcut { sequence: "Alt+4"; enabled: root.visible; onActivated: root.selectNav(3) }
+    Shortcut { sequence: "Alt+5"; enabled: root.visible; onActivated: root.selectNav(4) }
+
     function selectNav(index) {
         currentNav = index
         if (index === 0)
@@ -184,7 +192,8 @@ ApplicationWindow {
                                 anchors.left: parent.left
                                 anchors.leftMargin: 14
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: navRow.label
+                                // Show the "Alt+N" number hint next to the label.
+                                text: (navRow.navIndex + 1) + "\u2002\u2002" + navRow.label
                                 color: root.currentNav === navRow.navIndex ? "#89b4fa" : "#cdd6f4"
                                 font.pixelSize: 14
                                 font.bold: root.currentNav === navRow.navIndex
