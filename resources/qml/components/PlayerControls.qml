@@ -81,16 +81,19 @@ Rectangle {
                 var ctx = getContext("2d")
                 ctx.clearRect(0, 0, width, height)
                 ctx.fillStyle = fillColor
+                // Optical nudge: the drawn icons sit slightly right-heavy
+                // inside the circle, move both states a couple of px left.
+                var ox = -2
                 if (isPause) {
-                    // two symmetric bars centred on (15,15)
-                    ctx.fillRect(7, 8, 5, 14)
-                    ctx.fillRect(18, 8, 5, 14)
+                    // two symmetric bars centred on (15,15) + ox
+                    ctx.fillRect(7 + ox, 8, 5, 14)
+                    ctx.fillRect(18 + ox, 8, 5, 14)
                 } else {
-                    // right-pointing triangle, centroid exactly at (15,15)
+                    // right-pointing triangle, centroid at (15,15) + ox
                     ctx.beginPath()
-                    ctx.moveTo(11, 8)
-                    ctx.lineTo(11, 22)
-                    ctx.lineTo(24, 15)
+                    ctx.moveTo(11 + ox, 8)
+                    ctx.lineTo(11 + ox, 22)
+                    ctx.lineTo(24 + ox, 15)
                     ctx.closePath()
                     ctx.fill()
                 }
