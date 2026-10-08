@@ -50,7 +50,7 @@ QString TestHelpers::createTempDirectory()
 {
     // Create the directory under QDir::tempPath() instead of relying on a
     // QTemporaryDir local (which is destroyed when this function returns).
-    const QString path = QDir::temp().filePath(uniqueString(QStringLiteral("musicrep")));
+    const QString path = QDir::temp().filePath(uniqueString(QStringLiteral("altisidora")));
     if (QDir().mkpath(path)) {
         g_tempDirectoryRegistry->add(path);
         return path;

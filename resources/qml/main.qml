@@ -16,7 +16,7 @@ ApplicationWindow {
     minimumWidth: 800
     minimumHeight: 600
     visible: true
-    title: qsTr("MusicRep")
+    title: qsTr("Altisidora")
     color: "#1e1e2e"
 
     palette.window: "#1e1e2e"
@@ -146,7 +146,7 @@ ApplicationWindow {
                             font.pixelSize: 22
                         }
                         Text {
-                            text: "MusicRep"
+                            text: "Altisidora"
                             color: "#cdd6f4"
                             font.pixelSize: 20
                             font.bold: true

@@ -207,7 +207,7 @@ bool MprisPlayer::registerService()
         return false;
     }
 
-    const QString service = QStringLiteral("org.mpris.MediaPlayer2.musicrep");
+    const QString service = QStringLiteral("org.mpris.MediaPlayer2.altisidora");
     if (!bus.registerService(service)) {
         qWarning() << "MPRIS: cannot register service" << service
                    << bus.lastError().message();

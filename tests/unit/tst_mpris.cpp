@@ -12,7 +12,7 @@
  * @brief Tests for the MPRIS v2 D-Bus integration.
  *
  * Runs under `dbus-run-session` (see tests/CMakeLists.txt) so a session bus
- * always exists: the test registers org.mpris.MediaPlayer2.musicrep on the
+ * always exists: the test registers org.mpris.MediaPlayer2.altisidora on the
  * private bus and then talks back to it through QDBusInterface, exactly like
  * a desktop shell would (MangoWM media indicator, media keys, sound menu).
  */
@@ -57,16 +57,16 @@ void tst_mpris::loadFakeSong()
 
 void tst_mpris::testMediaPlayer2Interface()
 {
-    QDBusInterface iface(QStringLiteral("org.mpris.MediaPlayer2.musicrep"),
+    QDBusInterface iface(QStringLiteral("org.mpris.MediaPlayer2.altisidora"),
                          QStringLiteral("/org/mpris/MediaPlayer2"),
                          QStringLiteral("org.mpris.MediaPlayer2"),
                          QDBusConnection::sessionBus(), this);
     QVERIFY(iface.isValid());
 
     QCOMPARE(iface.property("Identity").toString(),
-             QStringLiteral("MusicRep"));
+             QStringLiteral("Altisidora"));
     QCOMPARE(iface.property("DesktopEntry").toString(),
-             QStringLiteral("musicrep"));
+             QStringLiteral("altisidora"));
     QVERIFY(iface.property("CanQuit").toBool());
     QVERIFY(!iface.property("HasTrackList").toBool());
 }
@@ -75,7 +75,7 @@ void tst_mpris::testPlayerInterfaceAndMetadata()
 {
     loadFakeSong();
 
-    QDBusInterface iface(QStringLiteral("org.mpris.MediaPlayer2.musicrep"),
+    QDBusInterface iface(QStringLiteral("org.mpris.MediaPlayer2.altisidora"),
                          QStringLiteral("/org/mpris/MediaPlayer2"),
                          QStringLiteral("org.mpris.MediaPlayer2.Player"),
                          QDBusConnection::sessionBus(), this);
@@ -106,7 +106,7 @@ void tst_mpris::testTransportSlotsRespond()
 {
     loadFakeSong();
 
-    QDBusInterface iface(QStringLiteral("org.mpris.MediaPlayer2.musicrep"),
+    QDBusInterface iface(QStringLiteral("org.mpris.MediaPlayer2.altisidora"),
                          QStringLiteral("/org/mpris/MediaPlayer2"),
                          QStringLiteral("org.mpris.MediaPlayer2.Player"),
                          QDBusConnection::sessionBus(), this);

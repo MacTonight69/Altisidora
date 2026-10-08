@@ -1,4 +1,4 @@
-# MusicRep
+# Altisidora
 
 A native Linux music player built with C++20 and Qt 6.
 

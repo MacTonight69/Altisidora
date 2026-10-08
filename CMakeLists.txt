@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(MusicRep
+project(Altisidora
     VERSION 0.1.0
     DESCRIPTION "Native Linux Music Player"
     LANGUAGES CXX
@@ -56,8 +56,8 @@ qt_add_resources(RESOURCES resources/qml.qrc)
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${RESOURCES})
 
-# The installed name (and desktop Exec=) is `musicrep`.
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME musicrep)
+# The installed name (and desktop Exec=) is `altisidora`.
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME altisidora)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
@@ -90,19 +90,19 @@ endif()
 enable_testing()
 add_subdirectory(tests)
 
-# Install: binary (`musicrep`), desktop entry and icon.
+# Install: binary (`altisidora`), desktop entry and icon.
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
 )
 
-install(FILES ${CMAKE_SOURCE_DIR}/musicrep.desktop
+install(FILES ${CMAKE_SOURCE_DIR}/altisidora.desktop
     DESTINATION share/applications
-    RENAME musicrep.desktop
+    RENAME altisidora.desktop
 )
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/images/pngwing.com.png)
     install(FILES ${CMAKE_SOURCE_DIR}/images/pngwing.com.png
         DESTINATION share/icons/hicolor/1024x1024/apps
-        RENAME musicrep.png
+        RENAME altisidora.png
     )
 endif()

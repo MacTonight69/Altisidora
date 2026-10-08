@@ -99,7 +99,7 @@ void TestScanner::testScanWithMixedFiles()
 void TestScanner::testScanNonExistentDirectory()
 {
     Scanner scanner;
-    const auto found = scanner.scan(QStringLiteral("/nonexistent/musicrep/path"));
+    const auto found = scanner.scan(QStringLiteral("/nonexistent/altisidora/path"));
     QCOMPARE(found.size(), 0);
 }
 

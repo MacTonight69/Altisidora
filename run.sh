@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# MusicRep launcher: builds (incremental) if needed and runs the app.
+# Altisidora launcher: builds (incremental) if needed and runs the app.
 # Uso: ./run.sh   (u opcionalmente pasa argumentos al binario)
 set -euo pipefail
 cd "$(dirname "$0")"
 
 BUILD_DIR="build"
-BIN="$BUILD_DIR/musicrep"
+BIN="$BUILD_DIR/altisidora"
 
 # Configure the build tree on first use.
 if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then

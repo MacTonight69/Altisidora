@@ -51,7 +51,7 @@ void tst_settings::init()
 
 void tst_settings::clearSettings()
 {
-    QSettings settings(QStringLiteral("MusicRep"), QStringLiteral("MusicRep"));
+    QSettings settings(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"));
     settings.clear();
     settings.sync();
 }

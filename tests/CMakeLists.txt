@@ -1,4 +1,4 @@
-# Test infrastructure for MusicRep
+# Test infrastructure for Altisidora
 
 # Test-specific compile definitions
 set(TEST_COMPILE_DEFINITIONS

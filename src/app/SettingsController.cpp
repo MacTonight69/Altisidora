@@ -2,7 +2,7 @@
 
 SettingsController::SettingsController(QObject *parent)
     : QObject(parent)
-    , m_settings("MusicRep", "MusicRep")
+    , m_settings("Altisidora", "Altisidora")
     , m_shuffle(false)
     , m_repeat(false)
 {

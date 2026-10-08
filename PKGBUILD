@@ -1,10 +1,10 @@
-# Maintainer: MusicRep Team
-pkgname=musicrep
+# Maintainer: Altisidora Team
+pkgname=altisidora
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Native Linux music player built with C++20 and Qt 6"
 arch=('x86_64')
-url="https://github.com/musicrep/musicrep"
+url="https://github.com/altisidora/altisidora"
 license=('GPL3')
 depends=(
     'qt6-base'
@@ -28,6 +28,6 @@ build() {
 
 package() {
     cd "$srcdir/$pkgname"
-    # Installs binary (`musicrep`), desktop entry and icon (CMake install rules).
+    # Installs binary (`altisidora`), desktop entry and icon (CMake install rules).
     DESTDIR="$pkgdir" cmake --install build
 }

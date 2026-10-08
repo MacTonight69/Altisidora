@@ -9,9 +9,9 @@
 class PlayerController;
 
 /**
- * @brief Exposes MusicRep playback as an MPRIS v2 media player.
+ * @brief Exposes Altisidora playback as an MPRIS v2 media player.
  *
- * Registers org.mpris.MediaPlayer2.musicrep on the session bus so the
+ * Registers org.mpris.MediaPlayer2.altisidora on the session bus so the
  * desktop shell and system media controls (MangoWM media indicators,
  * media keys, sound menus) recognise the app while audio is playing.
  */
@@ -60,8 +60,8 @@ public:
     bool canQuit() const { return true; }
     bool canRaise() const { return false; }
     bool hasTrackList() const { return false; }
-    QString identity() const { return QStringLiteral("MusicRep"); }
-    QString desktopEntry() const { return QStringLiteral("musicrep"); }
+    QString identity() const { return QStringLiteral("Altisidora"); }
+    QString desktopEntry() const { return QStringLiteral("altisidora"); }
     QStringList supportedUriSchemes() const { return {QStringLiteral("file")}; }
     QStringList supportedMimeTypes() const { return {}; }
 

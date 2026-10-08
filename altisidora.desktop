@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=MusicRep
+Name=Altisidora
 Comment=Native Linux music player
-Exec=musicrep
-Icon=musicrep
+Exec=altisidora
+Icon=altisidora
 Categories=Audio;Music;Player;
 Terminal=false
 StartupNotify=true

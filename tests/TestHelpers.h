@@ -7,7 +7,7 @@
 #include <functional>
 
 /**
- * @brief Common test utilities for MusicRep tests
+ * @brief Common test utilities for Altisidora tests
  *
  * Provides helper methods for creating test data, temporary directories,
  * and database fixtures used across multiple test suites.

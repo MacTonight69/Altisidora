@@ -14,9 +14,9 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
 
-    app.setApplicationName("MusicRep");
-    app.setApplicationDisplayName("MusicRep");
-    app.setOrganizationName("MusicRep");
+    app.setApplicationName("Altisidora");
+    app.setApplicationDisplayName("Altisidora");
+    app.setOrganizationName("Altisidora");
 
     // Controller instances shared with QML as context properties
     PlayerController player;
