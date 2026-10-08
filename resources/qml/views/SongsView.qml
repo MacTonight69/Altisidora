@@ -188,7 +188,7 @@ Rectangle {
                 contentItem: Text {
                     text: addSelectedButton.text
                     font: addSelectedButton.font
-                    color: Theme.onAccent
+                    color: Theme.accentText
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }

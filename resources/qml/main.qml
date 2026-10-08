@@ -28,7 +28,7 @@ ApplicationWindow {
     palette.button: Theme.border
     palette.buttonText: Theme.textPrimary
     palette.highlight: Theme.accent
-    palette.highlightedText: Theme.onAccent
+    palette.highlightedText: Theme.accentText
     palette.toolTipBase: Theme.field
     palette.toolTipText: Theme.textPrimary
 
@@ -239,7 +239,7 @@ ApplicationWindow {
                         contentItem: Text {
                             text: scanButton.text
                             font: scanButton.font
-                            color: Theme.onAccent
+                            color: Theme.accentText
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }

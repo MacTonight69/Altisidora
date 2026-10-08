@@ -26,7 +26,7 @@ QtObject {
     property color textMuted: "#7d87a3"
     property color accent: "#ff7900"
     property color accentAlt: "#1d54c8"
-    property color onAccent: "#ffffff"
+    property color accentText: "#ffffff"
     property color selection: "#ffd9b3"
     property color selectionBorder: "#ff7900"
     property color selectionText: "#a14c00"
@@ -74,7 +74,7 @@ QtObject {
         textMuted = t.textMuted
         accent = t.accent
         accentAlt = t.accentAlt
-        onAccent = t.onAccent
+        accentText = t.accentText
         selection = t.selection
         selectionBorder = t.selectionBorder
         selectionText = t.selectionText

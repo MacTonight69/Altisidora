@@ -34,7 +34,7 @@ Rectangle {
 
         contentItem: Text {
             text: tButton.iconText
-            color: tButton.primary ? Theme.onAccent : Theme.textPrimary
+            color: tButton.primary ? Theme.accentText : Theme.textPrimary
             font.pixelSize: tButton.primary ? 17 : 14
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

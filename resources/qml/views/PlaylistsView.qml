@@ -355,7 +355,7 @@ Rectangle {
                         contentItem: Text {
                             text: playPlaylistButton.text
                             font: playPlaylistButton.font
-                            color: Theme.onAccent
+                            color: Theme.accentText
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -377,7 +377,7 @@ Rectangle {
                         contentItem: Text {
                             text: shuffleButton.text
                             font: shuffleButton.font
-                            color: Theme.onAccent
+                            color: Theme.accentText
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
