@@ -44,6 +44,8 @@ ApplicationWindow {
     property int currentNav: 0
     property string searchQuery: ""
     property var filteredSongs: null // null => show the whole library
+    property var filteredAlbums: null
+    property var filteredArtists: null
     property bool scanning: false
 
     readonly property var navLabels: [qsTr("Songs"), qsTr("Albums"), qsTr("Artists"),
@@ -77,6 +79,66 @@ ApplicationWindow {
         if (s.indexOf("file://") === 0)
             s = s.substring(7)
         return decodeURIComponent(s)
+    }
+
+    // Per-section search: match album titles (Albums) and artist names
+    // (Artists), both case-insensitive substring matches. Songs go through
+    // Library.search(). The current section is never changed by searching.
+    function filterAlbums(query) {
+        var q = query.toLowerCase()
+        var out = []
+        var all = Library.albums
+        for (var i = 0; i < all.length; ++i) {
+            var t = all[i].title !== undefined && all[i].title !== null
+                    ? String(all[i].title).toLowerCase() : ""
+            if (t.indexOf(q) !== -1)
+                out.push(all[i])
+        }
+        return out
+    }
+
+    function filterArtists(query) {
+        var q = query.toLowerCase()
+        var out = []
+        var all = Library.artists
+        for (var i = 0; i < all.length; ++i) {
+            var n = all[i].name !== undefined && all[i].name !== null
+                    ? String(all[i].name).toLowerCase() : ""
+            if (n.indexOf(q) !== -1)
+                out.push(all[i])
+        }
+        return out
+    }
+
+    function applySearch(query) {
+        if (query.length === 0) {
+            root.filteredSongs = null
+            root.filteredAlbums = null
+            root.filteredArtists = null
+            return
+        }
+        root.filteredSongs = Library.search(query)
+        root.filteredAlbums = root.filterAlbums(query)
+        root.filteredArtists = root.filterArtists(query)
+    }
+
+    // Drill-down: push a view that resolves the clicked collection's songs
+    // (album/artist) into a playlist-like list on top of the current
+    // section; the back button pops back to it.
+    function openAlbumDetail(album) {
+        contentStack.push(songDetailComponent, {
+            filterType: "album",
+            primaryKey: album && album.title ? album.title : "",
+            secondaryKey: album && album.artist ? album.artist : ""
+        })
+    }
+
+    function openArtistDetail(artist) {
+        contentStack.push(songDetailComponent, {
+            filterType: "artist",
+            primaryKey: artist && artist.name ? artist.name : "",
+            secondaryKey: ""
+        })
     }
 
     property string pendingScanPath: ""
@@ -113,7 +175,7 @@ ApplicationWindow {
         }
         function onLibraryChanged() {
             if (root.searchQuery.length > 0)
-                root.filteredSongs = Library.search(root.searchQuery)
+                root.applySearch(root.searchQuery)
         }
     }
 
@@ -310,10 +372,7 @@ ApplicationWindow {
 
                             onQueryChanged: function (query) {
                                 root.searchQuery = query
-                                root.filteredSongs = query.length > 0
-                                                     ? Library.search(query) : null
-                                if (query.length > 0 && root.currentNav !== 0)
-                                    root.selectNav(0)
+                                root.applySearch(query)
                             }
                         }
                     }
@@ -391,12 +450,23 @@ ApplicationWindow {
 
     Component {
         id: albumsComponent
-        AlbumsView { }
+        AlbumsView {
+            albums: root.filteredAlbums !== null ? root.filteredAlbums : Library.albums
+            onOpenAlbum: function (album) { root.openAlbumDetail(album) }
+        }
     }
 
     Component {
         id: artistsComponent
-        ArtistsView { }
+        ArtistsView {
+            artists: root.filteredArtists !== null ? root.filteredArtists : Library.artists
+            onOpenArtist: function (artist) { root.openArtistDetail(artist) }
+        }
+    }
+
+    Component {
+        id: songDetailComponent
+        SongListDetailView { }
     }
 
     Component {

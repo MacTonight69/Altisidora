@@ -8,11 +8,15 @@ Rectangle {
     id: artistsView
     color: "transparent"
 
+    // The artists to show; main.qml passes the search-filtered list.
+    property var artists: Library.artists
+    signal openArtist(var artist)
+
     ListView {
         id: artistList
         anchors.fill: parent
         anchors.margins: 16
-        model: Library.artists
+        model: artistsView.artists
         clip: true
         spacing: 2
         boundsBehavior: Flickable.StopAtBounds
@@ -33,6 +37,9 @@ Rectangle {
                 id: artistMouse
                 anchors.fill: parent
                 hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                // Drill down: show this artist's songs as a playlist.
+                onClicked: artistsView.openArtist(modelData)
             }
 
             RowLayout {
@@ -79,8 +86,10 @@ Rectangle {
     // ---- empty state ----
     Text {
         anchors.centerIn: parent
-        visible: Library.artists.length === 0
-        text: qsTr("No artists yet — press Scan library")
+        visible: artistsView.artists.length === 0
+        text: Library.artists.length === 0
+              ? qsTr("No artists yet — press Scan library")
+              : qsTr("No artists match your search")
         color: Theme.textMuted
         font.pixelSize: 15
     }

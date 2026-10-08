@@ -12,6 +12,10 @@ Rectangle {
 
     property var songs: []
 
+    // Optional custom message for the empty state (used by drill-down views
+    // when an album/artist has no visible songs).
+    property string emptyHint: ""
+
     // ---- selection state ----
     property var selectedIds: new Set()
     property int selectedCount: 0
@@ -442,11 +446,13 @@ Rectangle {
     Text {
         anchors.centerIn: parent
         visible: songsView.songs.length === 0
-        text: Library.songs.length === 0
-              ? (Library.ignoredPaths.length > 0
-                 ? qsTr("All songs are hidden — manage them in Settings")
-                 : qsTr("No songs yet — press Scan library"))
-              : qsTr("No songs match your search")
+        text: songsView.emptyHint.length > 0
+              ? songsView.emptyHint
+              : Library.songs.length === 0
+                ? (Library.ignoredPaths.length > 0
+                   ? qsTr("All songs are hidden — manage them in Settings")
+                   : qsTr("No songs yet — press Scan library"))
+                : qsTr("No songs match your search")
         color: Theme.textMuted
         font.pixelSize: 15
     }

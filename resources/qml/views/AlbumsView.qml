@@ -8,6 +8,11 @@ Rectangle {
     id: albumsView
     color: "transparent"
 
+    // The albums to show; defaults to the whole library so the view also
+    // works standalone. main.qml passes the search-filtered list.
+    property var albums: Library.albums
+    signal openAlbum(var album)
+
     // Stable placeholder colour derived from a hash of the album title.
     function albumColor(title) {
         var s = (title === undefined || title === null) ? "" : String(title)
@@ -37,7 +42,7 @@ Rectangle {
         id: albumGrid
         anchors.fill: parent
         anchors.margins: 16
-        model: Library.albums
+        model: albumsView.albums
         cellWidth: 176
         cellHeight: 240
         clip: true
@@ -69,6 +74,9 @@ Rectangle {
                     id: albumMouse
                     anchors.fill: parent
                     hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    // Drill down: show this album's songs as a playlist.
+                    onClicked: albumsView.openAlbum(modelData)
                 }
 
                 ColumnLayout {
@@ -123,8 +131,10 @@ Rectangle {
     // ---- empty state ----
     Text {
         anchors.centerIn: parent
-        visible: Library.albums.length === 0
-        text: qsTr("No albums yet — press Scan library")
+        visible: albumsView.albums.length === 0
+        text: Library.albums.length === 0
+              ? qsTr("No albums yet — press Scan library")
+              : qsTr("No albums match your search")
         color: Theme.textMuted
         font.pixelSize: 15
     }
