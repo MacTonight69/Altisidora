@@ -1,5 +1,7 @@
 #include "MetadataReader.h"
 
+#include "Scanner.h"
+
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 #include <taglib/audioproperties.h>
@@ -34,28 +36,34 @@ Song MetadataReader::read(const QString &filePath) const
 
     TagLib::FileRef file(filePath.toStdString().c_str());
     if (file.isNull()) {
+        // Not parseable by TagLib (unsupported or corrupt). The file is
+        // still ingested so it stays playable; only its tags are lost.
         qWarning() << "Failed to read metadata from:" << filePath;
-        return song;
-    }
+    } else {
+        TagLib::Tag *tag = file.tag();
+        if (tag) {
+            song.title = tagStringToQString(tag->title());
+            song.artist = tagStringToQString(tag->artist());
+            song.album = tagStringToQString(tag->album());
+            song.genre = tagStringToQString(tag->genre());
+            song.year = tag->year();
+            song.trackNumber = tag->track();
+        }
 
-    TagLib::Tag *tag = file.tag();
-    if (tag) {
-        song.title = tagStringToQString(tag->title());
-        song.artist = tagStringToQString(tag->artist());
-        song.album = tagStringToQString(tag->album());
-        song.genre = tagStringToQString(tag->genre());
-        song.year = tag->year();
-        song.trackNumber = tag->track();
-    }
-
-    TagLib::AudioProperties *properties = file.audioProperties();
-    if (properties) {
-        song.duration = properties->lengthInMilliseconds();
+        TagLib::AudioProperties *properties = file.audioProperties();
+        if (properties) {
+            song.duration = properties->lengthInMilliseconds();
+        }
     }
 
     // Fall back to the file name so songs without tags are still
-    // identifiable in the library view.
-    if (song.title.isEmpty()) {
+    // identifiable in the library view. This also covers files TagLib
+    // cannot parse at all (e.g. a WebM it does not recognise): as long as
+    // the file exists and the scanner would accept it, it keeps a title.
+    // Unsupported extensions keep the previous contract (empty title).
+    if (song.title.isEmpty()
+        && QFileInfo(filePath).exists()
+        && Scanner::isSupportedAudioFile(filePath)) {
         song.title = QFileInfo(filePath).completeBaseName();
     }
 

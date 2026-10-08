@@ -32,6 +32,7 @@ private slots:
     void testReadTrackNumber();
     void testReadDuration();
     void testReadFallbackTitleFromFileName();
+    void testReadFallbackTitleForUnparseableSupportedFile();
     void testReadUtf8JapaneseTags();
     void testCanRead();
 
@@ -170,6 +171,23 @@ void TestMetadata::testReadFallbackTitleFromFileName()
     QCOMPARE(song.title, QStringLiteral("untagged_song"));
     QVERIFY(song.artist.isEmpty());
     QVERIFY(song.album.isEmpty());
+}
+
+void TestMetadata::testReadFallbackTitleForUnparseableSupportedFile()
+{
+    // A "WebM" the TagLib parser cannot recognise: the FileRef is null,
+    // but because the scanner accepts the extension the song still keeps
+    // a readable title instead of showing nothing.
+    const QString filePath = m_tempDir.filePath(QStringLiteral("weird.webm"));
+    QFile file(filePath);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QByteArray(64, '\xAB')); // garbage, not EBML
+    file.close();
+
+    const Song song = MetadataReader().read(filePath);
+    QCOMPARE(song.path, filePath);
+    QCOMPARE(song.title, QStringLiteral("weird"));
+    QCOMPARE(song.duration, 0);
 }
 
 // Regression test: TagLib::String::toCString() returned garbage for UTF-8

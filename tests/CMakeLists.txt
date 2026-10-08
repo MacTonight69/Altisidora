@@ -76,6 +76,7 @@ set(tst_settings_PROD_SOURCES
 )
 set(tst_metadata_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
 )
 set(tst_playlist_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/app/PlaylistController.cpp

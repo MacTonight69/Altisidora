@@ -28,6 +28,7 @@ private slots:
     void testScanSkipsIgnoredFile();
     void testIsSupportedAudioFile();
     void testSupportedExtensionsCaseInsensitive();
+    void testScanFindsWebmAndMatroska();
 
 private:
     QTemporaryDir m_tempDir;
@@ -169,6 +170,9 @@ void TestScanner::testIsSupportedAudioFile()
     QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.m4a")));
     QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.wav")));
     QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.opus")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.webm")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.mka")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.mkv")));
 
     QVERIFY(!Scanner::isSupportedAudioFile(QStringLiteral("cover.jpg")));
     QVERIFY(!Scanner::isSupportedAudioFile(QStringLiteral("readme.txt")));
@@ -179,7 +183,27 @@ void TestScanner::testSupportedExtensionsCaseInsensitive()
 {
     QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("SONG.MP3")));
     QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("Song.Flac")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("Song.WebM")));
     QVERIFY(!Scanner::isSupportedAudioFile(QStringLiteral("Song.TXT")));
+}
+
+void TestScanner::testScanFindsWebmAndMatroska()
+{
+    // WebM / Matroska audio must be picked up on scans (the metadata is
+    // resolved by TagLib and playback by Qt Multimedia).
+    QVERIFY(TestHelpers::createDummyAudioFile(
+        m_tempDir.filePath(QStringLiteral("clip.webm"))));
+    QVERIFY(TestHelpers::createDummyAudioFile(
+        m_tempDir.filePath(QStringLiteral("album.mka"))));
+    QVERIFY(TestHelpers::createDummyAudioFile(
+        m_tempDir.filePath(QStringLiteral("video.mkv"))));
+
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path());
+    QCOMPARE(found.size(), 3);
+    for (const QString &path : found) {
+        QVERIFY(Scanner::isSupportedAudioFile(path));
+    }
 }
 
 QTEST_MAIN(TestScanner)
