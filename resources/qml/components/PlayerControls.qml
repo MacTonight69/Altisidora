@@ -72,7 +72,7 @@ Rectangle {
             width: 30
             height: 30
 
-            property color fillColor: Theme.accentText
+            property color fillColor: Theme.textPrimary
             property bool isPause: ppButton.playing
             onFillColorChanged: requestPaint()
             onIsPauseChanged: requestPaint()
@@ -102,8 +102,8 @@ Rectangle {
 
         background: Rectangle {
             radius: height / 2
-            color: ppButton.down ? Theme.accentPressed
-                   : ppButton.hovered ? Theme.accentHover : Theme.accent
+            color: ppButton.down ? Theme.borderPressed
+                   : ppButton.hovered ? Theme.border : "transparent"
             Behavior on color {
                 ColorAnimation { duration: 100 }
             }
