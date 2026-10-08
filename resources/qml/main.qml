@@ -142,7 +142,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 140
                         Layout.topMargin: 4
-                        source: "qrc:/images/Altisidora.png"
+                        source: "qrc:/images/LogoApp.png"
                         sourceSize.width: 320
                         sourceSize.height: 320
                         fillMode: Image.PreserveAspectFit
