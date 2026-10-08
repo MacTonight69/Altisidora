@@ -390,6 +390,44 @@ QList<Song> DatabaseManager::searchSongs(const QString &query) const
     return songs;
 }
 
+QList<Song> DatabaseManager::getSongsByAlbum(const QString &title, const QString &artist) const
+{
+    QList<Song> songs;
+    QSqlQuery query(m_db);
+    QString where = QStringLiteral("WHERE al.title = :title");
+    if (!artist.isEmpty())
+        where += QStringLiteral(" AND a.name = :artist");
+    where += QStringLiteral(" AND ") + QString::fromLatin1(kNotIgnoredClause);
+    query.prepare(QString::fromLatin1(kSongSelect) + where +
+                  QStringLiteral(" ORDER BY s.disc_number, s.track_number, s.title"));
+    query.bindValue(":title", title);
+    if (!artist.isEmpty())
+        query.bindValue(":artist", artist);
+    if (query.exec()) {
+        while (query.next()) {
+            songs.append(songFromQuery(query));
+        }
+    }
+    return songs;
+}
+
+QList<Song> DatabaseManager::getSongsByArtist(const QString &artist) const
+{
+    QList<Song> songs;
+    QSqlQuery query(m_db);
+    query.prepare(QString::fromLatin1(kSongSelect) +
+                  QStringLiteral("WHERE a.name = :artist AND ") +
+                  QString::fromLatin1(kNotIgnoredClause) +
+                  QStringLiteral(" ORDER BY s.album_id, s.disc_number, s.track_number, s.title"));
+    query.bindValue(":artist", artist);
+    if (query.exec()) {
+        while (query.next()) {
+            songs.append(songFromQuery(query));
+        }
+    }
+    return songs;
+}
+
 bool DatabaseManager::addArtist(Artist &artist)
 {
     QSqlQuery query(m_db);

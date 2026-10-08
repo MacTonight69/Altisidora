@@ -66,6 +66,21 @@ public slots:
     int songCount() const;
 
     /**
+     * @brief All songs that match an album (and optionally its artist).
+     *
+     * Used by the album drill-down view; songs are ordered by disc and
+     * track number so they behave like a playlist. Non-hidden songs only.
+     */
+    QVector<QVariant> songsByAlbum(const QString &title, const QString &artist = QString()) const;
+
+    /**
+     * @brief All songs that match an artist, in playback order.
+     *
+     * Used by the artist drill-down view. Non-hidden songs only.
+     */
+    QVector<QVariant> songsByArtist(const QString &artist) const;
+
+    /**
      * @brief Hide a file or directory without deleting it.
      *
      * The path keeps its database rows (playlists, stats), but it is no

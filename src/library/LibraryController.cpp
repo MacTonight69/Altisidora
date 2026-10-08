@@ -138,6 +138,25 @@ QVector<QVariant> LibraryController::search(const QString &query) const
     return result;
 }
 
+QVector<QVariant> LibraryController::songsByAlbum(const QString &title,
+                                                  const QString &artist) const
+{
+    QVector<QVariant> result;
+    for (const Song &song : m_db.getSongsByAlbum(title, artist)) {
+        result.append(songToVariant(song));
+    }
+    return result;
+}
+
+QVector<QVariant> LibraryController::songsByArtist(const QString &artist) const
+{
+    QVector<QVariant> result;
+    for (const Song &song : m_db.getSongsByArtist(artist)) {
+        result.append(songToVariant(song));
+    }
+    return result;
+}
+
 int LibraryController::songCount() const
 {
     return m_songs.size();

@@ -28,6 +28,8 @@ private slots:
     void testRemoveSongCleansPlaylistReferences();
     void testRemoveSongCleansOrphanEntities();
     void testSearchSongs();
+    void testSongsByAlbum();
+    void testSongsByArtist();
     void testGetAllArtistsAggregates();
     void testGetAllAlbumsAggregates();
     void testGetAllGenresAggregates();
@@ -210,6 +212,111 @@ void TestDatabase::testSearchSongs()
 
     const QList<Song> none = m_db.searchSongs(QStringLiteral("zzz"));
     QCOMPARE(none.size(), 0);
+}
+
+void TestDatabase::testSongsByAlbum()
+{
+    Song t1;
+    t1.path = QStringLiteral("/music/aa/t1.mp3");
+    t1.title = QStringLiteral("Track 1");
+    t1.artist = QStringLiteral("Artist A");
+    t1.album = QStringLiteral("Album X");
+    t1.trackNumber = 2;
+
+    Song t2;
+    t2.path = QStringLiteral("/music/aa/t2.mp3");
+    t2.title = QStringLiteral("Track 2");
+    t2.artist = QStringLiteral("Artist A");
+    t2.album = QStringLiteral("Album X");
+    t2.trackNumber = 1;
+
+    // Same album title under a different artist must not be returned.
+    Song other;
+    other.path = QStringLiteral("/music/ab/other.mp3");
+    other.title = QStringLiteral("Other");
+    other.artist = QStringLiteral("Artist B");
+    other.album = QStringLiteral("Album X");
+
+    Song elsewhere;
+    elsewhere.path = QStringLiteral("/music/other.mp3");
+    elsewhere.title = QStringLiteral("Elsewhere");
+    elsewhere.artist = QStringLiteral("Artist A");
+    elsewhere.album = QStringLiteral("Album Y");
+
+    QVERIFY(m_db.addSong(t1));
+    QVERIFY(m_db.addSong(t2));
+    QVERIFY(m_db.addSong(other));
+    QVERIFY(m_db.addSong(elsewhere));
+
+    // Narrowed by album title + artist.
+    const QList<Song> exact = m_db.getSongsByAlbum(QStringLiteral("Album X"),
+                                                   QStringLiteral("Artist A"));
+    QCOMPARE(exact.size(), 2);
+    // Ordered by track number (behaves like a playlist).
+    QCOMPARE(exact.at(0).title, QStringLiteral("Track 2"));
+    QCOMPARE(exact.at(1).title, QStringLiteral("Track 1"));
+
+    // Same title under another artist is kept apart.
+    const QList<Song> otherArtist =
+        m_db.getSongsByAlbum(QStringLiteral("Album X"), QStringLiteral("Artist B"));
+    QCOMPARE(otherArtist.size(), 1);
+    QCOMPARE(otherArtist.first().title, QStringLiteral("Other"));
+
+    // Empty artist widens the match to any album with that title.
+    const QList<Song> anyArtist = m_db.getSongsByAlbum(QStringLiteral("Album X"));
+    QCOMPARE(anyArtist.size(), 3);
+
+    const QList<Song> none = m_db.getSongsByAlbum(QStringLiteral("zzz"));
+    QCOMPARE(none.size(), 0);
+}
+
+void TestDatabase::testSongsByArtist()
+{
+    Song a1;
+    a1.path = QStringLiteral("/music/a1.mp3");
+    a1.title = QStringLiteral("A One");
+    a1.artist = QStringLiteral("Artist A");
+    a1.album = QStringLiteral("Album X");
+    a1.trackNumber = 1;
+
+    Song a2;
+    a2.path = QStringLiteral("/music/a2.mp3");
+    a2.title = QStringLiteral("A Two");
+    a2.artist = QStringLiteral("Artist A");
+    a2.album = QStringLiteral("Album Y");
+    a2.trackNumber = 2;
+
+    Song b1;
+    b1.path = QStringLiteral("/music/b1.mp3");
+    b1.title = QStringLiteral("B One");
+    b1.artist = QStringLiteral("Artist B");
+    b1.album = QStringLiteral("Album Z");
+
+    Song hidden;
+    hidden.path = QStringLiteral("/music/hidden.mp3");
+    hidden.title = QStringLiteral("Hidden");
+    hidden.artist = QStringLiteral("Artist A");
+    hidden.album = QStringLiteral("Album Z");
+
+    QVERIFY(m_db.addSong(a1));
+    QVERIFY(m_db.addSong(a2));
+    QVERIFY(m_db.addSong(b1));
+    QVERIFY(m_db.addSong(hidden));
+
+    // Full set for the artist before hiding anything.
+    QCOMPARE(m_db.getSongsByArtist(QStringLiteral("Artist A")).size(), 3);
+
+    // Hidden songs are never part of the drill-down playlist.
+    QVERIFY(m_db.addIgnoredPath(hidden.path));
+    const QList<Song> results = m_db.getSongsByArtist(QStringLiteral("Artist A"));
+    QCOMPARE(results.size(), 2);
+    // Ordered by album, then by track: playlist-like.
+    QCOMPARE(results.at(0).path, a1.path);
+    QCOMPARE(results.at(1).path, a2.path);
+
+    QCOMPARE(m_db.getSongsByArtist(QStringLiteral("Artist B")).size(), 1);
+
+    QCOMPARE(m_db.getSongsByArtist(QStringLiteral("zzz")).size(), 0);
 }
 
 void TestDatabase::testGetAllArtistsAggregates()

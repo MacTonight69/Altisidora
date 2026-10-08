@@ -40,6 +40,8 @@ public:
     Song getSong(qint64 id) const;
     QList<Song> getAllSongs() const;
     QList<Song> searchSongs(const QString &query) const;
+    QList<Song> getSongsByAlbum(const QString &title, const QString &artist = QString()) const;
+    QList<Song> getSongsByArtist(const QString &artist) const;
 
     // Artists
     bool addArtist(Artist &artist);
