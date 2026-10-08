@@ -150,11 +150,15 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 168
                         Layout.topMargin: 4
-                        // Dark-background themes get the light logo variant
-                        // and light themes the dark one, so the brand stays
-                        // readable on any palette.
-                        source: Theme.isLight(Theme.bg) ? "qrc:/images/LogoAppDark.png"
-                                                        : "qrc:/images/LogoAppLight.png"
+                        // Theme-specific brand marks take priority; otherwise pick the
+                        // light/dark variant so the logo stays readable.
+                        source: Theme.themeName === "Anarchy"
+                                ? "qrc:/images/LogoAppRed.png"
+                                : Theme.themeName === "Comunism"
+                                  ? "qrc:/images/LogoAppYellow.png"
+                                  : Theme.isLight(Theme.bg)
+                                    ? "qrc:/images/LogoAppDark.png"
+                                    : "qrc:/images/LogoAppLight.png"
                         sourceSize.width: 512
                         sourceSize.height: 512
                         fillMode: Image.PreserveAspectFit
