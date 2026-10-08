@@ -95,26 +95,28 @@ var themes = {
     // Red and yellow, like the colours of communism.
     "Comunism": {
         name: "Comunism",
-        bg: "#fbf6e2",
-        bgAlt: "#f1e7bd",
-        viewBg: "#fefcf0",
-        field: "#fdf9e9",
-        border: "#d8c264",
-        textPrimary: "#3a2f14",
-        textSecondary: "#6b5b26",
-        textMuted: "#97853f",
-        accent: "#d21f26",
-        accentAlt: "#c9a707",
-        accentText: "#ffffff",
-        selection: "#f0c7c8",
-        selectionBorder: "#d21f26",
-        selectionText: "#8f1216",
-        selectionTextMuted: "#b04246",
-        danger: "#d21f26",
-        dangerBg: "#f7d8d9",
-        fieldSelection: "#f5c6c8",
-        fieldSelectedText: "#4f0a0d",
-        success: "#4fa83d"
+        // Red-dominant flag colours: a dark red base with golden-yellow
+        // ornaments (inverted from the original yellow/red look).
+        bg: "#591214",
+        bgAlt: "#470d0f",
+        viewBg: "#611719",
+        field: "#4c1012",
+        border: "#8a2d2f",
+        textPrimary: "#fdeec9",
+        textSecondary: "#eccf95",
+        textMuted: "#c3a260",
+        accent: "#f2c14e",
+        accentAlt: "#ffd87a",
+        accentText: "#571010",
+        selection: "#7e1f1f",
+        selectionBorder: "#f2c14e",
+        selectionText: "#ffe9ae",
+        selectionTextMuted: "#e0c57f",
+        danger: "#ff8585",
+        dangerBg: "#7a1f1f",
+        fieldSelection: "#8a2626",
+        fieldSelectedText: "#fff3cf",
+        success: "#7fe08d"
     },
 
     // Blue and black, a calm technical look.
