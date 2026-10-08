@@ -54,6 +54,66 @@ Rectangle {
         }
     }
 
+    // Play/pause: both states are drawn on a canvas so they share the exact
+    // same geometry and stay perfectly centered in the circle. The text
+    // glyphs (▶/⏸) come from different fonts with different metrics, which
+    // made the icon jump sideways when toggling.
+    component PlayPauseButton: ToolButton {
+        id: ppButton
+        property bool playing: false
+        focusPolicy: Qt.NoFocus
+        hoverEnabled: true
+        padding: 0
+        implicitWidth: 44
+        implicitHeight: 44
+
+        Canvas {
+            anchors.centerIn: parent
+            width: 30
+            height: 30
+
+            property color fillColor: Theme.accentText
+            property bool isPause: ppButton.playing
+            onFillColorChanged: requestPaint()
+            onIsPauseChanged: requestPaint()
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                ctx.fillStyle = fillColor
+                if (isPause) {
+                    // two symmetric bars centred on (15,15)
+                    ctx.fillRect(7, 8, 5, 14)
+                    ctx.fillRect(18, 8, 5, 14)
+                } else {
+                    // right-pointing triangle, centroid exactly at (15,15)
+                    ctx.beginPath()
+                    ctx.moveTo(11, 8)
+                    ctx.lineTo(11, 22)
+                    ctx.lineTo(24, 15)
+                    ctx.closePath()
+                    ctx.fill()
+                }
+            }
+        }
+
+        background: Rectangle {
+            radius: height / 2
+            color: ppButton.down ? Theme.accentPressed
+                   : ppButton.hovered ? Theme.accentHover : Theme.accent
+            Behavior on color {
+                ColorAnimation { duration: 100 }
+            }
+        }
+
+        onClicked: {
+            if (ppButton.playing)
+                Player.pause()
+            else
+                Player.play()
+        }
+    }
+
     // transient error banner (Player.errorOccurred)
     Rectangle {
         id: errorBanner
@@ -139,20 +199,8 @@ Rectangle {
                     iconText: "\u23EE" // ⏮
                     onClicked: Player.previous()
                 }
-                TransportButton {
-                    primary: true
-                    circular: true
-                    // Fixed square footprint: the glyph swap (⏸/▶) cannot
-                    // resize the button, so it never shifts position.
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 44
-                    iconText: Player.isPlaying ? "\u23F8" : "\u25B6" // ⏸ / ▶
-                    onClicked: {
-                        if (Player.isPlaying)
-                            Player.pause()
-                        else
-                            Player.play()
-                    }
+                PlayPauseButton {
+                    playing: Player.isPlaying
                 }
                 TransportButton {
                     iconText: "\u23F9" // ⏹
