@@ -112,6 +112,31 @@ bool TestHelpers::createDummyAudioFile(const QString &filePath,
     return written > 0;
 }
 
+bool TestHelpers::createMpegAudioFile(const QString &filePath, int frameCount)
+{
+    QDir().mkpath(QFileInfo(filePath).absolutePath());
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+
+    // MPEG-1 Layer III, 128 kbps, 44.1 kHz, no padding: frame size is 417.
+    const QByteArray header("\xFF\xFB\x90\x00", 4);
+    const QByteArray payload(417 - header.size(), '\0');
+    for (int i = 0; i < frameCount; ++i) {
+        if (file.write(header) != header.size()) {
+            return false;
+        }
+        if (file.write(payload) != payload.size()) {
+            return false;
+        }
+    }
+    file.close();
+
+    return QFile::exists(filePath);
+}
+
 QSqlDatabase TestHelpers::createTestDatabase()
 {
     QString connectionName = QStringLiteral("test_db_%1").arg(uniqueString());

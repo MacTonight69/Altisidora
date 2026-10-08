@@ -4,6 +4,14 @@
 #include <QDir>
 #include <QtConcurrent>
 
+namespace {
+
+// Short clips (notification sounds, ringtones, podcast intros...) are not
+// real songs: the personal-folder auto-scan skips audio <= this duration.
+constexpr qint64 kMinPersonalAudioDurationMs = 30000;
+
+} // namespace
+
 LibraryController::LibraryController(QObject *parent)
     : QObject(parent)
 {
@@ -53,6 +61,16 @@ QVector<QVariant> LibraryController::genres() const
 
 void LibraryController::scan(const QString &directory)
 {
+    startScan(directory, 0);
+}
+
+void LibraryController::scanPersonalMusic()
+{
+    startScan(QDir::homePath(), kMinPersonalAudioDurationMs);
+}
+
+void LibraryController::startScan(const QString &directory, qint64 minDurationMs)
+{
     if (m_scanRunning) {
         return;
     }
@@ -61,7 +79,7 @@ void LibraryController::scan(const QString &directory)
 
     // File walking and metadata extraction are CPU/IO-bound and thread-safe:
     // run them off the UI thread with local copies of Scanner/MetadataReader.
-    m_scanWatcher.setFuture(QtConcurrent::run([directory]() {
+    m_scanWatcher.setFuture(QtConcurrent::run([directory, minDurationMs]() {
         Scanner scanner;
         MetadataReader reader;
         QList<Song> songs;
@@ -69,9 +87,15 @@ void LibraryController::scan(const QString &directory)
         songs.reserve(files.size());
         for (const QString &filePath : files) {
             const Song song = reader.read(filePath);
-            if (!song.path.isEmpty()) {
-                songs.append(song);
+            if (song.path.isEmpty()) {
+                continue;
             }
+            // minDurationMs <= 0: ingest everything (manual scans). For the
+            // personal-folder auto-scan, skip audio shorter than the limit.
+            if (minDurationMs > 0 && song.duration <= minDurationMs) {
+                continue;
+            }
+            songs.append(song);
         }
         return songs;
     }));

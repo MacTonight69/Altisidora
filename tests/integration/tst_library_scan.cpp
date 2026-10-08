@@ -29,6 +29,7 @@ private slots:
 
     void testFullScanWorkflow();
     void testPersistenceAcrossRestart();
+    void testPersonalScanFilterAndDedupe();
 
 private:
     void removeDatabaseFiles();
@@ -127,6 +128,40 @@ bool tst_library_scan::waitForScanFinished(LibraryController *controller)
 {
     QSignalSpy finishedSpy(controller, &LibraryController::scanFinished);
     return finishedSpy.wait(10000);
+}
+
+void tst_library_scan::testPersonalScanFilterAndDedupe()
+{
+    removeDatabaseFiles();
+
+    const QString dir = m_tempDir.filePath(QStringLiteral("duration_filter"));
+    QDir().mkpath(dir);
+
+    // A short clip (~1 s) and a real track (~31 s).
+    const QString shortPath = dir + QStringLiteral("/clip.mp3");
+    const QString longPath = dir + QStringLiteral("/full.mp3");
+    QVERIFY(TestHelpers::createMpegAudioFile(shortPath, 40));
+    QVERIFY(TestHelpers::createMpegAudioFile(longPath, 1200));
+
+    LibraryController controller;
+
+    // startScan(dir, 30000) mimics the personal-folder auto-scan: only
+    // audio longer than 30 s passes the filter.
+    controller.startScan(dir, 30000);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 1);
+    QCOMPARE(controller.songs().at(0).toMap().value(QStringLiteral("path")).toString(),
+             longPath);
+
+    // A normal scan also ingests the short clip.
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+
+    // Re-scanning never duplicates previously added songs (dedupe by path).
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
 }
 
 QTEST_MAIN(tst_library_scan)

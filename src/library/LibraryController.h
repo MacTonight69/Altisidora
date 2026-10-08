@@ -44,11 +44,33 @@ public slots:
      * The filesystem walk and metadata extraction run on a worker thread; the
      * results are committed to the database and reported through
      * scanFinished() on the main thread, so the UI stays responsive.
+     *
+     * This is the manual scan: every supported audio file is ingested
+     * regardless of its duration.
      */
     void scan(const QString &directory);
+
+    /**
+     * @brief Automatically scan the personal folder in the background.
+     *
+     * Used on first launch. Only audio longer than 30 seconds is ingested
+     * (short clips, notification sounds, etc. are skipped); paths already
+     * in the database are rejected by addSong().
+     */
+    void scanPersonalMusic();
     void refresh();
     QVector<QVariant> search(const QString &query) const;
     int songCount() const;
+
+public:
+    /**
+     * @brief Start a background scan with an optional minimum duration.
+     *
+     * @param directory Root directory to scan recursively
+     * @param minDurationMs Only keep songs longer than this many
+     *        milliseconds; a value <= 0 disables the filter
+     */
+    void startScan(const QString &directory, qint64 minDurationMs);
 
 signals:
     void scanStarted();

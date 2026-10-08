@@ -23,8 +23,16 @@ int main(int argc, char *argv[])
     PlaylistController playlists;
     SettingsController appSettings;
 
-    // Load persisted library data on startup (scan happens explicitly)
+    // Load persisted library data on startup
     library.refresh();
+
+    // Automatic scan of the personal folder. Runs in the background, skips
+    // audio <= 30 s and never re-adds paths that are already in the
+    // database. Only skipped once the user manages an explicit music
+    // directory through "Scan library".
+    if (appSettings.musicDirectory().isEmpty() || library.songCount() == 0) {
+        library.scanPersonalMusic();
+    }
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("Player"), &player);
