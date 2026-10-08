@@ -150,7 +150,11 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 168
                         Layout.topMargin: 4
-                        source: "qrc:/images/LogoApp.png"
+                        // Dark-background themes get the light logo variant
+                        // and light themes the dark one, so the brand stays
+                        // readable on any palette.
+                        source: Theme.isLight(Theme.bg) ? "qrc:/images/LogoAppDark.png"
+                                                        : "qrc:/images/LogoAppLight.png"
                         sourceSize.width: 512
                         sourceSize.height: 512
                         fillMode: Image.PreserveAspectFit
@@ -174,6 +178,7 @@ ApplicationWindow {
                             required property var modelData
                             property int navIndex: index
                             property string label: modelData
+                            focusPolicy: Qt.NoFocus
 
                             color: root.currentNav === navIndex ? Theme.rowActive
                                    : navMouse.containsMouse ? Theme.rowHover : "transparent"
@@ -231,6 +236,7 @@ ApplicationWindow {
                         id: scanButton
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
+                        focusPolicy: Qt.NoFocus
                         text: qsTr("Scan library")
                         font.pixelSize: 13
                         font.bold: true

@@ -2,6 +2,8 @@
     <qresource prefix="/">
         <file>qml/main.qml</file>
         <file alias="images/LogoApp.png">../images/LogoApp.png</file>
+        <file alias="images/LogoAppLight.png">../images/LogoAppLight.png</file>
+        <file alias="images/LogoAppDark.png">../images/LogoAppDark.png</file>
         <file>qml/components/PlayerControls.qml</file>
         <file>qml/components/SearchBar.qml</file>
         <file>qml/views/SongsView.qml</file>
