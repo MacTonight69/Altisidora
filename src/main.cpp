@@ -90,6 +90,12 @@ private:
 
 int main(int argc, char *argv[])
 {
+    // The native (GTK/portal) folder picker ignores Qt's currentFolder and
+    // reopens wherever it last was. Force the built-in QML FolderDialog so
+    // the Scan library picker can reliably open in the user's personal
+    // folder. Must be set before the QGuiApplication is constructed.
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+
     QGuiApplication app(argc, argv);
 
     app.setApplicationName("Altisidora");

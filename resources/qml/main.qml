@@ -309,7 +309,13 @@ ApplicationWindow {
                         text: qsTr("Scan library")
                         font.pixelSize: 13
                         font.bold: true
-                        onClicked: folderDialog.open()
+                        onClicked: {
+                            // Re-assert the start folder right before
+                            // opening, in case the dialog kept a previous
+                            // selection.
+                            folderDialog.currentFolder = personalMusicFolder
+                            folderDialog.open()
+                        }
 
                         contentItem: Text {
                             text: scanButton.text
