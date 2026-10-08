@@ -28,6 +28,7 @@ class LibraryController : public QObject
     Q_PROPERTY(QVector<QVariant> albums READ albums NOTIFY libraryChanged)
     Q_PROPERTY(QVector<QVariant> artists READ artists NOTIFY libraryChanged)
     Q_PROPERTY(QVector<QVariant> genres READ genres NOTIFY libraryChanged)
+    Q_PROPERTY(QStringList ignoredPaths READ ignoredPaths NOTIFY libraryChanged)
 
 public:
     explicit LibraryController(QObject *parent = nullptr);
@@ -55,12 +56,27 @@ public slots:
      *
      * Used on first launch. Only audio longer than 30 seconds is ingested
      * (short clips, notification sounds, etc. are skipped); paths already
-     * in the database are rejected by addSong().
+     * in the database are rejected by addSong(). When @p directory is
+     * empty, the user's home folder is used.
      */
-    void scanPersonalMusic();
+    void scanPersonalMusic(const QString &directory = QString());
     void refresh();
+    QStringList ignoredPaths() const;
     QVector<QVariant> search(const QString &query) const;
     int songCount() const;
+
+    /**
+     * @brief Hide a file or directory without deleting it.
+     *
+     * The path keeps its database rows (playlists, stats), but it is no
+     * longer returned by any song query and future scans skip it.
+     */
+    void ignorePath(const QString &path);
+
+    /**
+     * @brief Stop hiding a previously ignored file or directory.
+     */
+    void unignorePath(const QString &path);
 
     /**
      * @brief Remove songs from the library.

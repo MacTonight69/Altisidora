@@ -29,6 +29,10 @@ private slots:
     void testRescanDoesNotDuplicate();
     void testSearch();
     void testScanSignals();
+    void testIgnorePathHidesSong();
+    void testIgnoreFolderHidesChildren();
+    void testUnignoreRestoresSongs();
+    void testRescanSkipsIgnored();
 
 private:
     void removeDatabaseFiles();
@@ -93,6 +97,9 @@ void tst_library::init()
 
     QSqlQuery query;
     QVERIFY(query.exec(QStringLiteral("DELETE FROM songs")));
+    // Stale "ignored" paths would keep filtering songs in later tests
+    // (the database connection is shared across tests).
+    QVERIFY(query.exec(QStringLiteral("DELETE FROM ignored_paths")));
     m_controller->refresh();
     QCOMPARE(m_controller->songCount(), 0);
 }
@@ -184,6 +191,81 @@ bool tst_library::waitForScanFinished()
     // deliver the queued scanFinished() from the worker thread.
     QSignalSpy finishedSpy(m_controller, &LibraryController::scanFinished);
     return finishedSpy.wait(10000);
+}
+
+void tst_library::testIgnorePathHidesSong()
+{
+    const QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 4);
+
+    // Ignoring one song removes it from the library view but not from disk.
+    m_controller->ignorePath(files.first());
+    QCOMPARE(m_controller->songCount(), 3);
+    QCOMPARE(m_controller->ignoredPaths().size(), 1);
+    QVERIFY(m_controller->ignoredPaths().contains(files.first()));
+
+    // The remaining songs are the other three.
+    const QVector<QVariant> remaining = m_controller->songs();
+    QCOMPARE(remaining.size(), 3);
+    for (const QVariant &songVar : remaining) {
+        QVERIFY(songVar.toMap().value("path").toString() != files.first());
+    }
+    QCOMPARE(m_controller->search(files.first().section(QLatin1Char('/'), -1)).size(), 0);
+}
+
+void tst_library::testIgnoreFolderHidesChildren()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
+    QDir subDir(m_tempDir.filePath(QStringLiteral("compilation")));
+    QVERIFY(subDir.mkpath(QStringLiteral(".")));
+    TestHelpers::createTestMusicDirectory(subDir.path(), 3);
+
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 5);
+
+    // Hiding the folder hides all the songs inside it at once.
+    m_controller->ignorePath(subDir.path());
+    QCOMPARE(m_controller->songCount(), 2);
+}
+
+void tst_library::testUnignoreRestoresSongs()
+{
+    const QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+
+    m_controller->ignorePath(files.first());
+    QCOMPARE(m_controller->songCount(), 2);
+
+    // Un-hiding brings the song back without rescanning.
+    m_controller->unignorePath(files.first());
+    QCOMPARE(m_controller->songCount(), 3);
+    QCOMPARE(m_controller->ignoredPaths().size(), 0);
+}
+
+void tst_library::testRescanSkipsIgnored()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
+    QDir subDir(m_tempDir.filePath(QStringLiteral("soundtrack")));
+    QVERIFY(subDir.mkpath(QStringLiteral(".")));
+    const QStringList hidden = TestHelpers::createTestMusicDirectory(subDir.path(), 2);
+
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 4);
+
+    // Ignore the folder, then rescan: ignored songs are not re-added and
+    // the scanner does not even walk into the hidden folder.
+    m_controller->ignorePath(subDir.path());
+    QCOMPARE(m_controller->songCount(), 2);
+
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 2);
+    QVERIFY(!hidden.isEmpty());
 }
 
 QTEST_MAIN(tst_library)

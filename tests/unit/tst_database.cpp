@@ -35,6 +35,9 @@ private slots:
     void testPlaylistSongs();
     void testUpdatePlayCount();
     void testSetFavorite();
+    void testIgnoredPathsLifecycle();
+    void testIgnoredFileHiddenFromQueries();
+    void testIgnoredDirectoryHidesChildren();
 
 private:
     DatabaseManager m_db;
@@ -378,6 +381,97 @@ void TestDatabase::testSetFavorite()
 
     QVERIFY(m_db.setFavorite(song.id, false));
     QVERIFY(!m_db.getSong(song.id).favorite);
+}
+
+void TestDatabase::testIgnoredPathsLifecycle()
+{
+    QVERIFY(m_db.addIgnoredPath(QStringLiteral("/music/skip.mp3"), /*isDir=*/false));
+    QVERIFY(m_db.addIgnoredPath(QStringLiteral("/music/skipdir"), /*isDir=*/true));
+
+    const QStringList paths = m_db.ignoredPaths();
+    QCOMPARE(paths.size(), 2);
+    QVERIFY(paths.contains(QStringLiteral("/music/skip.mp3")));
+    QVERIFY(paths.contains(QStringLiteral("/music/skipdir")));
+
+    // Adding the same path again is a no-op (UNIQUE constraint).
+    QVERIFY(m_db.addIgnoredPath(QStringLiteral("/music/skip.mp3")));
+    QCOMPARE(m_db.ignoredPaths().size(), 2);
+
+    QVERIFY(m_db.removeIgnoredPath(QStringLiteral("/music/skip.mp3")));
+    QCOMPARE(m_db.ignoredPaths().size(), 1);
+    QVERIFY(!m_db.ignoredPaths().contains(QStringLiteral("/music/skip.mp3")));
+}
+
+void TestDatabase::testIgnoredFileHiddenFromQueries()
+{
+    Song keep;
+    keep.path = QStringLiteral("/music/keep.mp3");
+    keep.title = QStringLiteral("Keep");
+    keep.artist = QStringLiteral("Artist A");
+    keep.album = QStringLiteral("Album X");
+    keep.genre = QStringLiteral("Rock");
+
+    Song hide;
+    hide.path = QStringLiteral("/music/hide.mp3");
+    hide.title = QStringLiteral("Hide");
+    hide.artist = QStringLiteral("Artist A");
+    hide.album = QStringLiteral("Album X");
+    hide.genre = QStringLiteral("Rock");
+
+    QVERIFY(m_db.addSong(keep));
+    QVERIFY(m_db.addSong(hide));
+
+    // The hidden song is ignored by the "ignore" feature: the row stays in
+    // the database (getSong still finds it) but every list query hides it.
+    QVERIFY(m_db.addIgnoredPath(hide.path));
+
+    // getSong is used for playback of an already-known song: not filtered.
+    QCOMPARE(m_db.getSong(hide.id).path, hide.path);
+
+    QCOMPARE(m_db.getAllSongs().size(), 1);
+    QCOMPARE(m_db.getAllSongs().first().path, keep.path);
+
+    // Search also filters hidden songs.
+    const QList<Song> searchResults = m_db.searchSongs(QStringLiteral("hide"));
+    QCOMPARE(searchResults.size(), 0);
+    const QList<Song> visibleSearch = m_db.searchSongs(QStringLiteral("keep"));
+    QCOMPARE(visibleSearch.size(), 1);
+
+    // Aggregate counts discount the hidden song.
+    QCOMPARE(m_db.getAllArtists().first().songCount, 1);
+    QCOMPARE(m_db.getAllAlbums().first().songCount, 1);
+    QCOMPARE(m_db.getAllGenres().first().songCount, 1);
+
+    // Playlist membership keeps the song, but the listing filters it.
+    Playlist playlist;
+    playlist.name = QStringLiteral("WithHidden");
+    QVERIFY(m_db.addPlaylist(playlist));
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, keep.id, 1));
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, hide.id, 2));
+    QCOMPARE(m_db.getPlaylistSongs(playlist.id).size(), 1);
+    QCOMPARE(m_db.getPlaylistSongs(playlist.id).first().path, keep.path);
+
+    // Un-hiding makes the song visible again without a rescan.
+    QVERIFY(m_db.removeIgnoredPath(hide.path));
+    QCOMPARE(m_db.getAllSongs().size(), 2);
+}
+
+void TestDatabase::testIgnoredDirectoryHidesChildren()
+{
+    Song child1;
+    child1.path = QStringLiteral("/music/album/one.mp3");
+    Song child2;
+    child2.path = QStringLiteral("/music/album/two.flac");
+    Song outside;
+    outside.path = QStringLiteral("/music/outside.ogg");
+
+    QVERIFY(m_db.addSong(child1));
+    QVERIFY(m_db.addSong(child2));
+    QVERIFY(m_db.addSong(outside));
+
+    QVERIFY(m_db.addIgnoredPath(QStringLiteral("/music/album"), /*isDir=*/true));
+    QCOMPARE(m_db.getAllSongs().size(), 1);
+    QCOMPARE(m_db.getAllSongs().first().path, outside.path);
 }
 
 QTEST_MAIN(TestDatabase)

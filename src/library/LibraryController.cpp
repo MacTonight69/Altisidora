@@ -2,6 +2,7 @@
 
 #include <QStandardPaths>
 #include <QDir>
+#include <QFileInfo>
 #include <QtConcurrent>
 
 namespace {
@@ -64,9 +65,10 @@ void LibraryController::scan(const QString &directory)
     startScan(directory, 0);
 }
 
-void LibraryController::scanPersonalMusic()
+void LibraryController::scanPersonalMusic(const QString &directory)
 {
-    startScan(QDir::homePath(), kMinPersonalAudioDurationMs);
+    const QString dir = directory.isEmpty() ? QDir::homePath() : directory;
+    startScan(dir, kMinPersonalAudioDurationMs);
 }
 
 void LibraryController::startScan(const QString &directory, qint64 minDurationMs)
@@ -79,11 +81,14 @@ void LibraryController::startScan(const QString &directory, qint64 minDurationMs
 
     // File walking and metadata extraction are CPU/IO-bound and thread-safe:
     // run them off the UI thread with local copies of Scanner/MetadataReader.
-    m_scanWatcher.setFuture(QtConcurrent::run([directory, minDurationMs]() {
+    // Ignored paths are captured at scan start; new hide/unhide choices
+    // apply from the next scan on.
+    const QStringList ignoredPaths = m_db.ignoredPaths();
+    m_scanWatcher.setFuture(QtConcurrent::run([directory, minDurationMs, ignoredPaths]() {
         Scanner scanner;
         MetadataReader reader;
         QList<Song> songs;
-        const QVector<QString> files = scanner.scan(directory);
+        const QVector<QString> files = scanner.scan(directory, ignoredPaths);
         songs.reserve(files.size());
         for (const QString &filePath : files) {
             const Song song = reader.read(filePath);
@@ -147,6 +152,32 @@ void LibraryController::removeSongs(const QVariantList &ids)
         m_db.removeSong(id.toLongLong());
     }
     refresh();
+}
+
+QStringList LibraryController::ignoredPaths() const
+{
+    return m_db.ignoredPaths();
+}
+
+void LibraryController::ignorePath(const QString &path)
+{
+    if (path.isEmpty()) {
+        return;
+    }
+    const bool isDir = QFileInfo(path).isDir();
+    if (m_db.addIgnoredPath(path, isDir)) {
+        refresh();
+    }
+}
+
+void LibraryController::unignorePath(const QString &path)
+{
+    if (path.isEmpty()) {
+        return;
+    }
+    if (m_db.removeIgnoredPath(path)) {
+        refresh();
+    }
 }
 
 QVariantMap LibraryController::songToVariant(const Song &song) const

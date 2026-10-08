@@ -24,6 +24,20 @@ Rectangle {
         selectedCount = 0
     }
 
+    function findSongById(id) {
+        for (var i = 0; i < songs.length; ++i) {
+            if (songs[i] && songs[i].id !== undefined && songs[i].id === id)
+                return songs[i]
+        }
+        return null
+    }
+
+    function folderOf(path) {
+        var p = String(path)
+        var i = p.lastIndexOf("/")
+        return i > 0 ? p.substring(0, i) : p
+    }
+
     function toggle(id) {
         if (selectedIds.has(id))
             selectedIds.delete(id)
@@ -204,6 +218,65 @@ Rectangle {
             }
 
             Button {
+                id: hideSelectedButton
+                text: qsTr("Hide")
+                focusPolicy: Qt.NoFocus
+                flat: true
+                font.pixelSize: 12
+                contentItem: Text {
+                    text: hideSelectedButton.text
+                    font: hideSelectedButton.font
+                    color: hideSelectedButton.hovered ? Theme.danger : Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle { color: "transparent" }
+                onClicked: {
+                    // Hide the selected songs: they stay on disk and in the
+                    // database, they just disappear from the lists.
+                    var ids = Array.from(songsView.selectedIds)
+                    for (var i = 0; i < ids.length; ++i) {
+                        var s = songsView.findSongById(ids[i])
+                        if (s && s.path)
+                            Library.ignorePath(s.path)
+                    }
+                    songsView.clearSelection()
+                }
+            }
+
+            Button {
+                id: hideFolderButton
+                text: qsTr("Hide folder")
+                focusPolicy: Qt.NoFocus
+                flat: true
+                font.pixelSize: 12
+                contentItem: Text {
+                    text: hideFolderButton.text
+                    font: hideFolderButton.font
+                    color: hideFolderButton.hovered ? Theme.danger : Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle { color: "transparent" }
+                onClicked: {
+                    // Hide the folder containing each selected song.
+                    var seen = new Set()
+                    var ids = Array.from(songsView.selectedIds)
+                    for (var i = 0; i < ids.length; ++i) {
+                        var s = songsView.findSongById(ids[i])
+                        if (s && s.path) {
+                            var folder = songsView.folderOf(s.path)
+                            if (folder && !seen.has(folder)) {
+                                seen.add(folder)
+                                Library.ignorePath(folder)
+                            }
+                        }
+                    }
+                    songsView.clearSelection()
+                }
+            }
+
+            Button {
                 id: clearSelectionButton
                 text: qsTr("Clear selection")
                 focusPolicy: Qt.NoFocus
@@ -369,8 +442,11 @@ Rectangle {
     Text {
         anchors.centerIn: parent
         visible: songsView.songs.length === 0
-        text: Library.songs.length === 0 ? qsTr("No songs yet — press Scan library")
-                                         : qsTr("No songs match your search")
+        text: Library.songs.length === 0
+              ? (Library.ignoredPaths.length > 0
+                 ? qsTr("All songs are hidden — manage them in Settings")
+                 : qsTr("No songs yet — press Scan library"))
+              : qsTr("No songs match your search")
         color: Theme.textMuted
         font.pixelSize: 15
     }

@@ -24,6 +24,8 @@ private slots:
     void testScanNonExistentDirectory();
     void testScanSingleAudioFile();
     void testScanRecursive();
+    void testScanSkipsIgnoredDirectory();
+    void testScanSkipsIgnoredFile();
     void testIsSupportedAudioFile();
     void testSupportedExtensionsCaseInsensitive();
 
@@ -128,6 +130,35 @@ void TestScanner::testScanRecursive()
     Scanner scanner;
     const auto found = scanner.scan(m_tempDir.path());
     QCOMPARE(found.size(), 5);
+}
+
+void TestScanner::testScanSkipsIgnoredDirectory()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
+
+    // Songs hidden inside an ignored subdirectory must never be reported.
+    QDir ignoredDir(m_tempDir.filePath(QStringLiteral("hidden/collection")));
+    QVERIFY(ignoredDir.mkpath(QStringLiteral(".")));
+    const QStringList hidden = TestHelpers::createTestMusicDirectory(ignoredDir.path(), 2);
+    QCOMPARE(hidden.size(), 2);
+
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path(), {ignoredDir.path()});
+    QCOMPARE(found.size(), 2);
+
+    // An entry equal to one of the hidden files must not appear.
+    for (const QString &path : found)
+        QVERIFY(!path.startsWith(ignoredDir.path()));
+}
+
+void TestScanner::testScanSkipsIgnoredFile()
+{
+    const QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path(), {files.first()});
+    QCOMPARE(found.size(), 2);
+    QVERIFY(!found.contains(files.first()));
 }
 
 void TestScanner::testIsSupportedAudioFile()

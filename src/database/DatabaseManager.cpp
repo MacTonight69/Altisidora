@@ -19,6 +19,16 @@ const char *const kSongSelect =
     "LEFT JOIN albums al ON s.album_id = al.id "
     "LEFT JOIN genres g ON s.genre_id = g.id ";
 
+/**
+ * Clause that excludes songs the user has hidden ("ignored"). An exact
+ * path match hides one file; a prefix match hides everything inside an
+ * ignored directory. Written to slot into a WHERE clause that already
+ * references the songs table as "s" (no leading AND).
+ */
+const char *const kNotIgnoredClause =
+    "NOT EXISTS (SELECT 1 FROM ignored_paths i "
+    "WHERE s.path = i.path OR s.path LIKE i.path || '/%')";
+
 Song songFromQuery(const QSqlQuery &query)
 {
     Song song;
@@ -224,6 +234,16 @@ bool DatabaseManager::createTables()
             "FOREIGN KEY(playlist_id) REFERENCES playlists(id), "
             "FOREIGN KEY(song_id) REFERENCES songs(id))");
 
+    // Hidden items. The user can hide files or whole directories without
+    // deleting them: the rows stay in the database, only the queries and
+    // the scanner exclude them. is_dir is informational (the filter works
+    // on plain path prefixes).
+    execute("CREATE TABLE IF NOT EXISTS ignored_paths ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "path TEXT UNIQUE NOT NULL, "
+            "is_dir INTEGER DEFAULT 0, "
+            "date_added TEXT)");
+
     // Schema version
     execute("CREATE TABLE IF NOT EXISTS schema_version ("
             "version INTEGER)");
@@ -342,7 +362,10 @@ QList<Song> DatabaseManager::getAllSongs() const
 {
     QList<Song> songs;
     QSqlQuery query(m_db);
-    if (query.exec(QString::fromLatin1(kSongSelect) + QStringLiteral("ORDER BY s.title, s.path"))) {
+    const QString sql = QString::fromLatin1(kSongSelect) +
+                        QStringLiteral("WHERE ") + QString::fromLatin1(kNotIgnoredClause) +
+                        QStringLiteral(" ORDER BY s.title, s.path");
+    if (query.exec(sql)) {
         while (query.next()) {
             songs.append(songFromQuery(query));
         }
@@ -355,8 +378,9 @@ QList<Song> DatabaseManager::searchSongs(const QString &query) const
     QList<Song> songs;
     QSqlQuery sqlQuery(m_db);
     sqlQuery.prepare(QString::fromLatin1(kSongSelect) +
-                     QStringLiteral("WHERE s.title LIKE :query OR s.path LIKE :query "
-                                    "ORDER BY s.title, s.path"));
+                     QStringLiteral("WHERE (s.title LIKE :query OR s.path LIKE :query) AND ") +
+                     QString::fromLatin1(kNotIgnoredClause) +
+                     QStringLiteral(" ORDER BY s.title, s.path"));
     sqlQuery.bindValue(":query", "%" + query + "%");
     if (sqlQuery.exec()) {
         while (sqlQuery.next()) {
@@ -387,8 +411,12 @@ QList<Artist> DatabaseManager::getAllArtists() const
             "COUNT(DISTINCT s.id) AS song_count, "
             "COUNT(DISTINCT al.id) AS album_count "
             "FROM artists a "
-            "LEFT JOIN songs s ON s.artist_id = a.id "
-            "LEFT JOIN albums al ON al.artist_id = a.id "
+            "LEFT JOIN songs s ON s.artist_id = a.id AND ") +
+            QString::fromLatin1(kNotIgnoredClause) +
+            QStringLiteral(
+            "LEFT JOIN albums al ON al.artist_id = a.id AND ") +
+            QString::fromLatin1(kNotIgnoredClause) +
+            QStringLiteral(
             "GROUP BY a.id, a.name "
             "HAVING song_count > 0 "
             "ORDER BY a.name"))) {
@@ -427,7 +455,9 @@ QList<Album> DatabaseManager::getAllAlbums() const
             "a.name AS artist_name, COUNT(s.id) AS song_count "
             "FROM albums al "
             "LEFT JOIN artists a ON al.artist_id = a.id "
-            "LEFT JOIN songs s ON s.album_id = al.id "
+            "LEFT JOIN songs s ON s.album_id = al.id AND ") +
+            QString::fromLatin1(kNotIgnoredClause) +
+            QStringLiteral(
             "GROUP BY al.id "
             "HAVING song_count > 0 "
             "ORDER BY al.title"))) {
@@ -464,7 +494,9 @@ QList<Genre> DatabaseManager::getAllGenres() const
     if (query.exec(QStringLiteral(
             "SELECT g.id, g.name, COUNT(s.id) AS song_count "
             "FROM genres g "
-            "LEFT JOIN songs s ON s.genre_id = g.id "
+            "LEFT JOIN songs s ON s.genre_id = g.id AND ") +
+            QString::fromLatin1(kNotIgnoredClause) +
+            QStringLiteral(
             "GROUP BY g.id, g.name "
             "HAVING song_count > 0 "
             "ORDER BY g.name"))) {
@@ -564,8 +596,9 @@ QList<Song> DatabaseManager::getPlaylistSongs(qint64 playlistId) const
     QSqlQuery query(m_db);
     query.prepare(QString::fromLatin1(kSongSelect) +
                   QStringLiteral("JOIN playlist_songs ps ON s.id = ps.song_id "
-                                 "WHERE ps.playlist_id = :playlist_id "
-                                 "ORDER BY ps.position, ps.rowid"));
+                                 "WHERE ps.playlist_id = :playlist_id AND ") +
+                  QString::fromLatin1(kNotIgnoredClause) +
+                  QStringLiteral(" ORDER BY ps.position, ps.rowid"));
     query.bindValue(":playlist_id", playlistId);
     if (query.exec()) {
         while (query.next()) {
@@ -591,4 +624,38 @@ bool DatabaseManager::setFavorite(qint64 songId, bool favorite)
     query.bindValue(":favorite", favorite ? 1 : 0);
     query.bindValue(":id", songId);
     return query.exec();
+}
+
+bool DatabaseManager::addIgnoredPath(const QString &path, bool isDir)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+    QSqlQuery query(m_db);
+    query.prepare("INSERT OR IGNORE INTO ignored_paths (path, is_dir, date_added) "
+                  "VALUES (:path, :is_dir, :date_added)");
+    query.bindValue(":path", path);
+    query.bindValue(":is_dir", isDir ? 1 : 0);
+    query.bindValue(":date_added", QDateTime::currentDateTime().toString(Qt::ISODate));
+    return query.exec();
+}
+
+bool DatabaseManager::removeIgnoredPath(const QString &path)
+{
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM ignored_paths WHERE path = :path");
+    query.bindValue(":path", path);
+    return query.exec();
+}
+
+QStringList DatabaseManager::ignoredPaths() const
+{
+    QStringList paths;
+    QSqlQuery query(m_db);
+    if (query.exec(QStringLiteral("SELECT path FROM ignored_paths ORDER BY path"))) {
+        while (query.next()) {
+            paths.append(query.value(0).toString());
+        }
+    }
+    return paths;
 }

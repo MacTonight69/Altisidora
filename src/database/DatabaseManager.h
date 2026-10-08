@@ -3,6 +3,7 @@
 #include <QSqlDatabase>
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 
 #include "../models/Song.h"
@@ -64,6 +65,13 @@ public:
     // Statistics
     bool updatePlayCount(qint64 songId);
     bool setFavorite(qint64 songId, bool favorite);
+
+    // Hidden items. A path added here (a file or a whole directory) is
+    // kept in the database but excluded from every song query, so it
+    // disappears from the lists without being deleted from disk.
+    bool addIgnoredPath(const QString &path, bool isDir = false);
+    bool removeIgnoredPath(const QString &path);
+    QStringList ignoredPaths() const;
 
 private:
     bool execute(const QString &sql);
