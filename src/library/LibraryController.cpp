@@ -138,6 +138,17 @@ int LibraryController::songCount() const
     return m_songs.size();
 }
 
+void LibraryController::removeSongs(const QVariantList &ids)
+{
+    if (ids.isEmpty()) {
+        return;
+    }
+    for (const QVariant &id : ids) {
+        m_db.removeSong(id.toLongLong());
+    }
+    refresh();
+}
+
 QVariantMap LibraryController::songToVariant(const Song &song) const
 {
     QVariantMap map;

@@ -25,6 +25,8 @@ private slots:
     void testDuplicateSongPathRejected();
     void testUpdateSong();
     void testRemoveSong();
+    void testRemoveSongCleansPlaylistReferences();
+    void testRemoveSongCleansOrphanEntities();
     void testSearchSongs();
     void testGetAllArtistsAggregates();
     void testGetAllAlbumsAggregates();
@@ -131,6 +133,54 @@ void TestDatabase::testRemoveSong()
     QVERIFY(m_db.removeSong(song.id));
     QCOMPARE(m_db.getSong(song.id).id, 0);
     QCOMPARE(m_db.getAllSongs().size(), 0);
+}
+
+void TestDatabase::testRemoveSongCleansPlaylistReferences()
+{
+    Playlist playlist;
+    playlist.name = QStringLiteral("DeleteMe");
+    QVERIFY(m_db.addPlaylist(playlist));
+
+    Song keep;
+    keep.path = QStringLiteral("/music/keep.mp3");
+    Song gone;
+    gone.path = QStringLiteral("/music/gone.mp3");
+    QVERIFY(m_db.addSong(keep));
+    QVERIFY(m_db.addSong(gone));
+
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, keep.id, 1));
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, gone.id, 2));
+    QCOMPARE(m_db.getPlaylistSongs(playlist.id).size(), 2);
+
+    // Deleting a song also removes its (orphaned) playlist references.
+    QVERIFY(m_db.removeSong(gone.id));
+    QCOMPARE(m_db.getSong(gone.id).id, 0);
+    const QList<Song> remaining = m_db.getPlaylistSongs(playlist.id);
+    QCOMPARE(remaining.size(), 1);
+    QCOMPARE(remaining.first().path, keep.path);
+
+    // The playlist itself is unaffected.
+    QCOMPARE(m_db.getAllPlaylists().size(), 1);
+}
+
+void TestDatabase::testRemoveSongCleansOrphanEntities()
+{
+    Song song;
+    song.path = QStringLiteral("/music/orphan.mp3");
+    song.artist = QStringLiteral("Orphan Artist");
+    song.album = QStringLiteral("Orphan Album");
+    song.genre = QStringLiteral("Orphan Genre");
+    QVERIFY(m_db.addSong(song));
+    QCOMPARE(m_db.getAllArtists().size(), 1);
+    QCOMPARE(m_db.getAllAlbums().size(), 1);
+    QCOMPARE(m_db.getAllGenres().size(), 1);
+
+    QVERIFY(m_db.removeSong(song.id));
+
+    // Artists/albums/genres without songs are cleaned up.
+    QCOMPARE(m_db.getAllArtists().size(), 0);
+    QCOMPARE(m_db.getAllAlbums().size(), 0);
+    QCOMPARE(m_db.getAllGenres().size(), 0);
 }
 
 void TestDatabase::testSearchSongs()

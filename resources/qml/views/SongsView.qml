@@ -229,6 +229,13 @@ Rectangle {
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
                     songsView.selectAll()
                     event.accepted = true
+                } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_D) {
+                    // Delete the selected songs (single or group).
+                    if (songsView.selectedCount > 0) {
+                        Library.removeSongs(Array.from(songsView.selectedIds))
+                        songsView.clearSelection()
+                    }
+                    event.accepted = true
                 } else if (event.key === Qt.Key_Escape) {
                     songsView.clearSelection()
                     event.accepted = true

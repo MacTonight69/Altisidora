@@ -62,6 +62,16 @@ public slots:
     QVector<QVariant> search(const QString &query) const;
     int songCount() const;
 
+    /**
+     * @brief Remove songs from the library.
+     *
+     * The songs are deleted from the database (including their playlist
+     * references) and the library is refreshed. Passed IDs are taken from
+     * the QML selection and may arrive in any order; only songs that still
+     * exist are affected.
+     */
+    void removeSongs(const QVariantList &ids);
+
 public:
     /**
      * @brief Start a background scan with an optional minimum duration.

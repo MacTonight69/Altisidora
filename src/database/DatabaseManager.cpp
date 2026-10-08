@@ -298,10 +298,33 @@ bool DatabaseManager::updateSong(const Song &song)
 
 bool DatabaseManager::removeSong(qint64 id)
 {
+    // playlist_songs has no ON DELETE CASCADE and SQLite does not enforce
+    // foreign keys by default, so the song's playlist rows must be removed
+    // first to avoid orphaned references.
     QSqlQuery query(m_db);
+    query.prepare("DELETE FROM playlist_songs WHERE song_id=:id");
+    query.bindValue(":id", id);
+    if (!query.exec()) {
+        return false;
+    }
+
     query.prepare("DELETE FROM songs WHERE id=:id");
     query.bindValue(":id", id);
-    return query.exec();
+    if (!query.exec()) {
+        return false;
+    }
+
+    // Drop artists/albums/genres that no longer have any songs (best-effort
+    // cleanup; the views already hide orphans via HAVING song_count > 0).
+    QSqlQuery cleanup(m_db);
+    cleanup.exec("DELETE FROM artists WHERE id NOT IN "
+                 "(SELECT DISTINCT artist_id FROM songs WHERE artist_id IS NOT NULL)");
+    cleanup.exec("DELETE FROM albums WHERE id NOT IN "
+                 "(SELECT DISTINCT album_id FROM songs WHERE album_id IS NOT NULL)");
+    cleanup.exec("DELETE FROM genres WHERE id NOT IN "
+                 "(SELECT DISTINCT genre_id FROM songs WHERE genre_id IS NOT NULL)");
+
+    return true;
 }
 
 Song DatabaseManager::getSong(qint64 id) const
