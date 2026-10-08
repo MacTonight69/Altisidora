@@ -4,6 +4,7 @@
 #include <QString>
 #include <QTemporaryDir>
 #include <QSqlDatabase>
+#include <functional>
 
 /**
  * @brief Common test utilities for MusicRep tests

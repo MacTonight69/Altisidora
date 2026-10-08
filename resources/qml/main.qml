@@ -41,8 +41,6 @@ ApplicationWindow {
     readonly property var navLabels: [qsTr("Songs"), qsTr("Albums"), qsTr("Artists"),
                                       qsTr("Playlists"), qsTr("Settings")]
 
-    Component.onCompleted: Library.refresh()
-
     function selectNav(index) {
         currentNav = index
         if (index === 0)
@@ -302,6 +300,16 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     initialItem: songsComponent
+
+                    // Direct, animation-free view switching: the default
+                    // StackView transitions would slide/fade between views
+                    // with the old and new ones overlapping.
+                    pushEnter: null
+                    pushExit: null
+                    popEnter: null
+                    popExit: null
+                    replaceEnter: null
+                    replaceExit: null
                 }
             }
         }

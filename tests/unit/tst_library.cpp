@@ -33,6 +33,7 @@ private slots:
 private:
     void removeDatabaseFiles();
     void clearTempDir();
+    bool waitForScanFinished();
 
     LibraryController *m_controller = nullptr;
     QTemporaryDir m_tempDir;
@@ -102,6 +103,7 @@ void tst_library::testScanFindsAudioFiles()
     QCOMPARE(files.size(), 5);
 
     m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
 
     QCOMPARE(m_controller->songCount(), 5);
     QCOMPARE(m_controller->songs().size(), 5);
@@ -121,6 +123,7 @@ void tst_library::testScanIgnoresUnsupportedFiles()
     listFile.close();
 
     m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
 
     QCOMPARE(m_controller->songCount(), 0);
 }
@@ -130,10 +133,12 @@ void tst_library::testRescanDoesNotDuplicate()
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
 
     m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
     QCOMPARE(m_controller->songCount(), 3);
 
     // Scanning the same directory again must not create duplicates
     m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
     QCOMPARE(m_controller->songCount(), 3);
 }
 
@@ -141,6 +146,7 @@ void tst_library::testSearch()
 {
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
     m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
     QCOMPARE(m_controller->songCount(), 4);
 
     // File names follow the pattern trackNN_Artist_Album.ext
@@ -164,9 +170,20 @@ void tst_library::testScanSignals()
 
     m_controller->scan(m_tempDir.path());
 
+    // scanStarted() is emitted synchronously; the rest arrive with the
+    // worker thread completion.
     QCOMPARE(startedSpy.count(), 1);
+    QVERIFY(finishedSpy.wait(10000));
     QCOMPARE(finishedSpy.count(), 1);
     QVERIFY(changedSpy.count() >= 1);
+}
+
+bool tst_library::waitForScanFinished()
+{
+    // The scan already started; waiting on the spy lets the event loop
+    // deliver the queued scanFinished() from the worker thread.
+    QSignalSpy finishedSpy(m_controller, &LibraryController::scanFinished);
+    return finishedSpy.wait(10000);
 }
 
 QTEST_MAIN(tst_library)

@@ -1,250 +1,333 @@
 #include <QtTest>
-#include <QSqlDatabase>
 #include <QSqlQuery>
-#include <QSqlError>
-#include <QVariant>
-#include <QHash>
+#include <QSqlDatabase>
+#include <QFile>
+#include <QTemporaryDir>
+#include <QDateTime>
 
-#include "../mocks/MockDatabase.h"
+#include "database/DatabaseManager.h"
 
 /**
- * @brief Tests for database operations
+ * @brief Tests for the real database layer (src/database/DatabaseManager.cpp).
  *
- * Tests CRUD operations, transactions, and error handling
- * for the database module using a mock database.
+ * Every test runs against a fresh SQLite file in a temporary directory.
  */
 class TestDatabase : public QObject
 {
     Q_OBJECT
 
 private slots:
-    void initTestCase();
-    void cleanupTestCase();
+    void init();
+    void cleanup();
 
-    // Connection tests
-    void testDatabaseConnection();
-    void testDatabaseConnectionFailure();
-
-    // CRUD tests
-    void testInsertSong();
-    void testInsertMultipleSongs();
-    void testGetAllSongs();
-    void testGetSongsByArtist();
-    void testGetSongsByAlbum();
-    void testDeleteSong();
-    void testDeleteNonExistentSong();
-
-    // Transaction tests
-    void testTransactionCommit();
-    void testTransactionRollback();
-
-    // Error handling tests
-    void testInvalidQuery();
-    void testDuplicateInsert();
-
-    // Data integrity tests
-    void testSongCount();
-    void testClearDatabase();
+    void testOpenCreatesSchema();
+    void testAddAndGetSongWithNormalization();
+    void testDuplicateSongPathRejected();
+    void testUpdateSong();
+    void testRemoveSong();
+    void testSearchSongs();
+    void testGetAllArtistsAggregates();
+    void testGetAllAlbumsAggregates();
+    void testGetAllGenresAggregates();
+    void testPlaylistLifecycle();
+    void testPlaylistSongs();
+    void testUpdatePlayCount();
+    void testSetFavorite();
 
 private:
-    MockDatabase *m_db;
+    DatabaseManager m_db;
+    QTemporaryDir m_tempDir;
 };
 
-void TestDatabase::initTestCase()
+void TestDatabase::init()
 {
-    m_db = new MockDatabase(this);
-    QVERIFY(m_db->initialize());
+    m_db.close();
+    const QString path = m_tempDir.filePath(QStringLiteral("test.db"));
+    QFile::remove(path);
+    QVERIFY(m_db.open(path));
 }
 
-void TestDatabase::cleanupTestCase()
+void TestDatabase::cleanup()
 {
-    delete m_db;
+    m_db.close();
 }
 
-void TestDatabase::testDatabaseConnection()
+void TestDatabase::testOpenCreatesSchema()
 {
-    QSqlDatabase db = m_db->database();
-    QVERIFY(db.isOpen());
-    QVERIFY(db.isValid());
+    QVERIFY(m_db.isOpen());
+
+    QSqlQuery query(QSqlDatabase::database());
+    QVERIFY(query.exec(QStringLiteral(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='songs'")));
+    QVERIFY(query.next());
+
+    QVERIFY(m_db.schemaVersion() >= 1);
 }
 
-void TestDatabase::testDatabaseConnectionFailure()
+void TestDatabase::testAddAndGetSongWithNormalization()
 {
-    // Test that an invalid database path fails gracefully
-    QSqlDatabase badDb = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("bad_connection"));
-    badDb.setDatabaseName(QStringLiteral("/nonexistent/path/to/db.sqlite"));
+    Song song;
+    song.path = QStringLiteral("/music/one.mp3");
+    song.title = QStringLiteral("One");
+    song.artist = QStringLiteral("Artist A");
+    song.album = QStringLiteral("Album X");
+    song.genre = QStringLiteral("Rock");
+    song.year = 2020;
+    song.trackNumber = 1;
+    song.duration = 200000;
 
-    // This should fail to open
-    bool opened = badDb.open();
-    QVERIFY(!opened);
+    QVERIFY(m_db.addSong(song));
+    QVERIFY(song.id > 0);
 
-    QSqlDatabase::removeDatabase(QStringLiteral("bad_connection"));
+    // Names must be resolved back from the normalized tables.
+    const Song stored = m_db.getSong(song.id);
+    QCOMPARE(stored.path, song.path);
+    QCOMPARE(stored.title, song.title);
+    QCOMPARE(stored.artist, QStringLiteral("Artist A"));
+    QCOMPARE(stored.album, QStringLiteral("Album X"));
+    QCOMPARE(stored.genre, QStringLiteral("Rock"));
+    QCOMPARE(stored.year, 2020);
+    QCOMPARE(stored.trackNumber, 1);
+    QCOMPARE(stored.duration, qint64(200000));
 }
 
-void TestDatabase::testInsertSong()
+void TestDatabase::testDuplicateSongPathRejected()
 {
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("path")] = QStringLiteral("/music/test.mp3");
-    song[QStringLiteral("title")] = QStringLiteral("Test Song");
-    song[QStringLiteral("artist")] = QStringLiteral("Test Artist");
-    song[QStringLiteral("album")] = QStringLiteral("Test Album");
-    song[QStringLiteral("genre")] = QStringLiteral("Rock");
-    song[QStringLiteral("year")] = 2024;
-    song[QStringLiteral("track_number")] = 1;
-    song[QStringLiteral("duration")] = 180000;
+    Song first;
+    first.path = QStringLiteral("/music/dup.mp3");
+    first.title = QStringLiteral("First");
+    QVERIFY(m_db.addSong(first));
 
-    QVERIFY(m_db->insertSong(song));
-    QCOMPARE(m_db->songCount(), 1);
+    Song second;
+    second.path = QStringLiteral("/music/dup.mp3");
+    second.title = QStringLiteral("Second");
+    QVERIFY(!m_db.addSong(second));
+
+    QCOMPARE(m_db.getAllSongs().size(), 1);
 }
 
-void TestDatabase::testInsertMultipleSongs()
+void TestDatabase::testUpdateSong()
 {
-    for (int i = 0; i < 5; ++i) {
-        QHash<QString, QVariant> song;
-        song[QStringLiteral("path")] = QStringLiteral("/music/song%1.mp3").arg(i);
-        song[QStringLiteral("title")] = QStringLiteral("Song %1").arg(i);
-        song[QStringLiteral("artist")] = QStringLiteral("Artist %1").arg(i % 2);
-        song[QStringLiteral("album")] = QStringLiteral("Album %1").arg(i % 3);
+    Song song;
+    song.path = QStringLiteral("/music/upd.mp3");
+    song.title = QStringLiteral("Before");
+    QVERIFY(m_db.addSong(song));
 
-        QVERIFY(m_db->insertSong(song));
+    song.title = QStringLiteral("After");
+    song.favorite = true;
+    QVERIFY(m_db.updateSong(song));
+
+    const Song stored = m_db.getSong(song.id);
+    QCOMPARE(stored.title, QStringLiteral("After"));
+    QVERIFY(stored.favorite);
+}
+
+void TestDatabase::testRemoveSong()
+{
+    Song song;
+    song.path = QStringLiteral("/music/del.mp3");
+    QVERIFY(m_db.addSong(song));
+
+    QVERIFY(m_db.removeSong(song.id));
+    QCOMPARE(m_db.getSong(song.id).id, 0);
+    QCOMPARE(m_db.getAllSongs().size(), 0);
+}
+
+void TestDatabase::testSearchSongs()
+{
+    Song rhapsody;
+    rhapsody.path = QStringLiteral("/music/rhapsody.mp3");
+    rhapsody.title = QStringLiteral("Bohemian Rhapsody");
+
+    Song likeYou;
+    likeYou.path = QStringLiteral("/music/likeyou.mp3");
+    likeYou.title = QStringLiteral("Bohemian Like You");
+
+    Song stairway;
+    stairway.path = QStringLiteral("/music/stairway.mp3");
+    stairway.title = QStringLiteral("Stairway to Heaven");
+
+    QVERIFY(m_db.addSong(rhapsody));
+    QVERIFY(m_db.addSong(likeYou));
+    QVERIFY(m_db.addSong(stairway));
+
+    // SQLite LIKE is case-insensitive for ASCII.
+    const QList<Song> results = m_db.searchSongs(QStringLiteral("bohemian"));
+    QCOMPARE(results.size(), 2);
+
+    const QList<Song> none = m_db.searchSongs(QStringLiteral("zzz"));
+    QCOMPARE(none.size(), 0);
+}
+
+void TestDatabase::testGetAllArtistsAggregates()
+{
+    Song a1;
+    a1.path = QStringLiteral("/music/a1.mp3");
+    a1.artist = QStringLiteral("Artist A");
+    Song a2;
+    a2.path = QStringLiteral("/music/a2.mp3");
+    a2.artist = QStringLiteral("Artist A");
+    Song b1;
+    b1.path = QStringLiteral("/music/b1.mp3");
+    b1.artist = QStringLiteral("Artist B");
+
+    QVERIFY(m_db.addSong(a1));
+    QVERIFY(m_db.addSong(a2));
+    QVERIFY(m_db.addSong(b1));
+
+    const QList<Artist> artists = m_db.getAllArtists();
+    QCOMPARE(artists.size(), 2);
+    for (const Artist &artist : artists) {
+        if (artist.name == QStringLiteral("Artist A")) {
+            QCOMPARE(artist.songCount, 2);
+        } else {
+            QCOMPARE(artist.name, QStringLiteral("Artist B"));
+            QCOMPARE(artist.songCount, 1);
+        }
     }
-
-    QCOMPARE(m_db->songCount(), 6); // 5 new + 1 from previous test
 }
 
-void TestDatabase::testGetAllSongs()
+void TestDatabase::testGetAllAlbumsAggregates()
 {
-    auto songs = m_db->getAllSongs();
-    QVERIFY(songs.size() >= 5);
+    Song x1;
+    x1.path = QStringLiteral("/music/x1.mp3");
+    x1.artist = QStringLiteral("Artist A");
+    x1.album = QStringLiteral("Album X");
+    Song x2;
+    x2.path = QStringLiteral("/music/x2.mp3");
+    x2.artist = QStringLiteral("Artist A");
+    x2.album = QStringLiteral("Album X");
+    Song y1;
+    y1.path = QStringLiteral("/music/y1.mp3");
+    y1.artist = QStringLiteral("Artist B");
+    y1.album = QStringLiteral("Album Y");
 
-    // Verify that each song has required fields
-    for (const auto &song : songs) {
-        QVERIFY(song.contains(QStringLiteral("id")));
-        QVERIFY(song.contains(QStringLiteral("path")));
-        QVERIFY(song.contains(QStringLiteral("title")));
+    QVERIFY(m_db.addSong(x1));
+    QVERIFY(m_db.addSong(x2));
+    QVERIFY(m_db.addSong(y1));
+
+    const QList<Album> albums = m_db.getAllAlbums();
+    QCOMPARE(albums.size(), 2);
+    for (const Album &album : albums) {
+        if (album.title == QStringLiteral("Album X")) {
+            QCOMPARE(album.artist, QStringLiteral("Artist A"));
+            QCOMPARE(album.songCount, 2);
+        } else {
+            QCOMPARE(album.title, QStringLiteral("Album Y"));
+            QCOMPARE(album.artist, QStringLiteral("Artist B"));
+            QCOMPARE(album.songCount, 1);
+        }
     }
 }
 
-void TestDatabase::testGetSongsByArtist()
+void TestDatabase::testGetAllGenresAggregates()
 {
-    auto songs = m_db->getSongsByArtist(QStringLiteral("Artist 0"));
-    QVERIFY(songs.size() >= 1);
+    Song rock1;
+    rock1.path = QStringLiteral("/music/rock1.mp3");
+    rock1.genre = QStringLiteral("Rock");
+    Song rock2;
+    rock2.path = QStringLiteral("/music/rock2.mp3");
+    rock2.genre = QStringLiteral("Rock");
+    Song pop1;
+    pop1.path = QStringLiteral("/music/pop1.mp3");
+    pop1.genre = QStringLiteral("Pop");
 
-    for (const auto &song : songs) {
-        QCOMPARE(song[QStringLiteral("artist")].toString(), QStringLiteral("Artist 0"));
+    QVERIFY(m_db.addSong(rock1));
+    QVERIFY(m_db.addSong(rock2));
+    QVERIFY(m_db.addSong(pop1));
+
+    const QList<Genre> genres = m_db.getAllGenres();
+    QCOMPARE(genres.size(), 2);
+    for (const Genre &genre : genres) {
+        if (genre.name == QStringLiteral("Rock")) {
+            QCOMPARE(genre.songCount, 2);
+        } else {
+            QCOMPARE(genre.name, QStringLiteral("Pop"));
+            QCOMPARE(genre.songCount, 1);
+        }
     }
 }
 
-void TestDatabase::testGetSongsByAlbum()
+void TestDatabase::testPlaylistLifecycle()
 {
-    auto songs = m_db->getSongsByAlbum(QStringLiteral("Album 0"));
-    QVERIFY(songs.size() >= 1);
+    Playlist playlist;
+    playlist.name = QStringLiteral("Favorites");
+    playlist.dateCreated = QDateTime::currentDateTime();
+    QVERIFY(m_db.addPlaylist(playlist));
+    QVERIFY(playlist.id > 0);
 
-    for (const auto &song : songs) {
-        QCOMPARE(song[QStringLiteral("album")].toString(), QStringLiteral("Album 0"));
-    }
+    QCOMPARE(m_db.getAllPlaylists().size(), 1);
+    QCOMPARE(m_db.getAllPlaylists().first().name, QStringLiteral("Favorites"));
+    QCOMPARE(m_db.getAllPlaylists().first().songCount, 0);
+
+    playlist.name = QStringLiteral("Renamed");
+    QVERIFY(m_db.updatePlaylist(playlist));
+    QCOMPARE(m_db.getAllPlaylists().first().name, QStringLiteral("Renamed"));
+
+    Song song;
+    song.path = QStringLiteral("/music/plsong.mp3");
+    QVERIFY(m_db.addSong(song));
+
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, song.id, 0));
+    QCOMPARE(m_db.getAllPlaylists().first().songCount, 1);
+
+    QVERIFY(m_db.removePlaylist(playlist.id));
+    QCOMPARE(m_db.getAllPlaylists().size(), 0);
 }
 
-void TestDatabase::testDeleteSong()
+void TestDatabase::testPlaylistSongs()
 {
-    auto songs = m_db->getAllSongs();
-    QVERIFY(!songs.isEmpty());
+    Playlist playlist;
+    playlist.name = QStringLiteral("Ordered");
+    QVERIFY(m_db.addPlaylist(playlist));
 
-    int idToDelete = songs.first()[QStringLiteral("id")].toInt();
-    int countBefore = m_db->songCount();
+    Song first;
+    first.path = QStringLiteral("/music/pl_first.mp3");
+    first.title = QStringLiteral("First");
+    Song second;
+    second.path = QStringLiteral("/music/pl_second.mp3");
+    second.title = QStringLiteral("Second");
+    QVERIFY(m_db.addSong(first));
+    QVERIFY(m_db.addSong(second));
 
-    QVERIFY(m_db->deleteSong(idToDelete));
-    QCOMPARE(m_db->songCount(), countBefore - 1);
-}
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, first.id, 1));
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, second.id, 2));
 
-void TestDatabase::testDeleteNonExistentSong()
-{
-    int countBefore = m_db->songCount();
-    QVERIFY(m_db->deleteSong(99999));
-    QCOMPARE(m_db->songCount(), countBefore);
-}
-
-void TestDatabase::testTransactionCommit()
-{
-    QVERIFY(m_db->beginTransaction());
-
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("path")] = QStringLiteral("/music/transaction.mp3");
-    song[QStringLiteral("title")] = QStringLiteral("Transaction Song");
-    song[QStringLiteral("artist")] = QStringLiteral("Transaction Artist");
-
-    QVERIFY(m_db->insertSong(song));
-    QVERIFY(m_db->commit());
-
-    // Verify the song was committed
-    auto songs = m_db->getSongsByArtist(QStringLiteral("Transaction Artist"));
-    QCOMPARE(songs.size(), 1);
-}
-
-void TestDatabase::testTransactionRollback()
-{
-    int countBefore = m_db->songCount();
-
-    QVERIFY(m_db->beginTransaction());
-
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("path")] = QStringLiteral("/music/rollback.mp3");
-    song[QStringLiteral("title")] = QStringLiteral("Rollback Song");
-    song[QStringLiteral("artist")] = QStringLiteral("Rollback Artist");
-
-    QVERIFY(m_db->insertSong(song));
-    QVERIFY(m_db->rollback());
-
-    // Verify the song was rolled back
-    QCOMPARE(m_db->songCount(), countBefore);
-}
-
-void TestDatabase::testInvalidQuery()
-{
-    QList<QHash<QString, QVariant>> results = m_db->query(QStringLiteral("SELECT * FROM nonexistent_table"));
-    QVERIFY(results.isEmpty());
-    QVERIFY(m_db->lastError().isValid());
-}
-
-void TestDatabase::testDuplicateInsert()
-{
-    // Insert a song
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("path")] = QStringLiteral("/music/duplicate.mp3");
-    song[QStringLiteral("title")] = QStringLiteral("Duplicate Song");
-    song[QStringLiteral("artist")] = QStringLiteral("Duplicate Artist");
-
-    QVERIFY(m_db->insertSong(song));
-
-    // Insert the same song again (should succeed - no unique constraint on path)
-    QVERIFY(m_db->insertSong(song));
-
-    auto songs = m_db->getSongsByArtist(QStringLiteral("Duplicate Artist"));
+    const QList<Song> songs = m_db.getPlaylistSongs(playlist.id);
     QCOMPARE(songs.size(), 2);
+    // Ordered by position.
+    QCOMPARE(songs.at(0).path, first.path);
+    QCOMPARE(songs.at(1).path, second.path);
+
+    QVERIFY(m_db.removeSongFromPlaylist(playlist.id, first.id));
+    QCOMPARE(m_db.getPlaylistSongs(playlist.id).size(), 1);
 }
 
-void TestDatabase::testSongCount()
+void TestDatabase::testUpdatePlayCount()
 {
-    int count = m_db->songCount();
-    QVERIFY(count > 0);
+    Song song;
+    song.path = QStringLiteral("/music/count.mp3");
+    QVERIFY(m_db.addSong(song));
 
-    // Insert one more
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("path")] = QStringLiteral("/music/count.mp3");
-    song[QStringLiteral("title")] = QStringLiteral("Count Song");
-    song[QStringLiteral("artist")] = QStringLiteral("Count Artist");
+    QVERIFY(m_db.updatePlayCount(song.id));
+    QVERIFY(m_db.updatePlayCount(song.id));
 
-    QVERIFY(m_db->insertSong(song));
-    QCOMPARE(m_db->songCount(), count + 1);
+    const Song stored = m_db.getSong(song.id);
+    QCOMPARE(stored.playCount, 2);
+    QVERIFY(stored.lastPlayed.isValid());
 }
 
-void TestDatabase::testClearDatabase()
+void TestDatabase::testSetFavorite()
 {
-    m_db->clear();
-    QCOMPARE(m_db->songCount(), 0);
+    Song song;
+    song.path = QStringLiteral("/music/fav.mp3");
+    QVERIFY(m_db.addSong(song));
 
-    auto songs = m_db->getAllSongs();
-    QVERIFY(songs.isEmpty());
+    QVERIFY(m_db.setFavorite(song.id, true));
+    QVERIFY(m_db.getSong(song.id).favorite);
+
+    QVERIFY(m_db.setFavorite(song.id, false));
+    QVERIFY(!m_db.getSong(song.id).favorite);
 }
 
 QTEST_MAIN(TestDatabase)

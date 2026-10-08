@@ -59,6 +59,17 @@ void PlaylistController::addSong(qint64 playlistId, qint64 songId)
     emit playlistsChanged();
 }
 
+void PlaylistController::addSongs(qint64 playlistId, const QVariantList &songIds)
+{
+    bool changed = false;
+    for (int i = 0; i < songIds.size(); ++i) {
+        changed = m_db.addSongToPlaylist(playlistId, songIds.at(i).toLongLong(), i) || changed;
+    }
+    if (changed) {
+        emit playlistsChanged();
+    }
+}
+
 void PlaylistController::removeSong(qint64 playlistId, qint64 songId)
 {
     m_db.removeSongFromPlaylist(playlistId, songId);

@@ -1,64 +1,42 @@
 #include <QtTest>
 #include <QDir>
 #include <QFile>
-#include <QUrl>
+#include <QFileInfo>
+#include <QSet>
 #include <QTemporaryDir>
 
 #include "../TestHelpers.h"
+#include "library/Scanner.h"
 
 /**
- * @brief Tests for file scanner
- *
- * Tests directory scanning, file discovery, and filtering
- * of audio files.
+ * @brief Tests for the real file scanner (src/library/Scanner.cpp).
  */
 class TestScanner : public QObject
 {
     Q_OBJECT
 
 private slots:
-    void initTestCase();
-    void cleanupTestCase();
     void init();
 
-    // Directory scanning tests
     void testScanEmptyDirectory();
-    void testScanDirectoryWithAudioFiles();
-    void testScanDirectoryWithMixedFiles();
+    void testScanWithAudioFiles();
+    void testScanWithMixedFiles();
     void testScanNonExistentDirectory();
-    void testScanNestedDirectories();
-
-    // File filtering tests
-    void testAudioFileExtensionFiltering();
-    void testSupportedFormats();
-
-    // File discovery tests
-    void testFindAudioFiles();
-    void testFindAudioFilesRecursive();
-
-    // Error handling tests
-    void testScanWithPermissionError();
-    void testScanWithInvalidPath();
+    void testScanSingleAudioFile();
+    void testScanRecursive();
+    void testIsSupportedAudioFile();
+    void testSupportedExtensionsCaseInsensitive();
 
 private:
     QTemporaryDir m_tempDir;
 };
 
-void TestScanner::initTestCase()
-{
-    QVERIFY(m_tempDir.isValid());
-}
-
-void TestScanner::cleanupTestCase()
-{
-}
-
+// Each test starts from a clean directory so files never accumulate.
 void TestScanner::init()
 {
-    // Start each test with an empty temp directory so files
-    // created by previous tests do not accumulate
     QDir root(m_tempDir.path());
-    const auto entries = root.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
+    const auto entries = root.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot
+                                            | QDir::Hidden | QDir::System);
     for (const QFileInfo &info : entries) {
         if (info.isDir()) {
             QDir(info.absoluteFilePath()).removeRecursively();
@@ -70,173 +48,107 @@ void TestScanner::init()
 
 void TestScanner::testScanEmptyDirectory()
 {
-    QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 0);
-    QVERIFY(files.isEmpty());
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path());
+    QCOMPARE(found.size(), 0);
 }
 
-void TestScanner::testScanDirectoryWithAudioFiles()
+void TestScanner::testScanWithAudioFiles()
 {
-    QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 5);
+    const QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 5);
     QCOMPARE(files.size(), 5);
 
-    // Verify all files exist
-    for (const QString &file : files) {
-        QVERIFY(QFile::exists(file));
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path());
+    QCOMPARE(found.size(), 5);
+
+    // Every found path must exist and be one of the created files.
+    QSet<QString> created(files.begin(), files.end());
+    for (const QString &path : found) {
+        QVERIFY(QFile::exists(path));
+        QVERIFY(created.contains(path));
     }
 }
 
-void TestScanner::testScanDirectoryWithMixedFiles()
+void TestScanner::testScanWithMixedFiles()
 {
-    // Create audio files
-    QStringList audioFiles = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+    bool ok = TestHelpers::createDummyAudioFile(m_tempDir.filePath(QStringLiteral("a.mp3")));
+    ok = TestHelpers::createDummyAudioFile(m_tempDir.filePath(QStringLiteral("b.flac"))) && ok;
+    ok = TestHelpers::createDummyAudioFile(m_tempDir.filePath(QStringLiteral("c.ogg"))) && ok;
+    QVERIFY(ok);
 
-    // Create non-audio files
     QFile txtFile(m_tempDir.filePath(QStringLiteral("readme.txt")));
     QVERIFY(txtFile.open(QIODevice::WriteOnly));
-    txtFile.write("This is not an audio file");
+    txtFile.write("not audio");
     txtFile.close();
 
-    QFile jpgFile(m_tempDir.filePath(QStringLiteral("cover.jpg")));
-    QVERIFY(jpgFile.open(QIODevice::WriteOnly));
-    jpgFile.write("fake image data");
-    jpgFile.close();
+    QFile imgFile(m_tempDir.filePath(QStringLiteral("cover.jpg")));
+    QVERIFY(imgFile.open(QIODevice::WriteOnly));
+    imgFile.write("not an image");
+    imgFile.close();
 
-    // Scan should only find audio files
-    QDir dir(m_tempDir.path());
-    QStringList audioFilters;
-    audioFilters << QStringLiteral("*.mp3") << QStringLiteral("*.ogg") << QStringLiteral("*.flac") << QStringLiteral("*.wav");
-
-    QStringList foundFiles = dir.entryList(audioFilters, QDir::Files);
-    QCOMPARE(foundFiles.size(), 3);
+    // Only the supported audio extensions must be reported.
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path());
+    QCOMPARE(found.size(), 3);
+    for (const QString &path : found) {
+        QVERIFY(Scanner::isSupportedAudioFile(path));
+    }
 }
 
 void TestScanner::testScanNonExistentDirectory()
 {
-    QDir dir(QStringLiteral("/nonexistent/path/that/does/not/exist"));
-    QStringList files = dir.entryList(QDir::Files);
-    QVERIFY(files.isEmpty());
+    Scanner scanner;
+    const auto found = scanner.scan(QStringLiteral("/nonexistent/musicrep/path"));
+    QCOMPARE(found.size(), 0);
 }
 
-void TestScanner::testScanNestedDirectories()
+void TestScanner::testScanSingleAudioFile()
 {
-    // Create nested directory structure
-    QDir nestedDir(m_tempDir.filePath(QStringLiteral("artist/album")));
-    QVERIFY(nestedDir.mkpath(QStringLiteral(".")));
+    // A single audio file at the root must be reported, and nothing else.
+    QVERIFY(TestHelpers::createDummyAudioFile(
+        QDir(m_tempDir.path()).filePath(QStringLiteral("song.mp3"))));
 
-    // Create files in nested directory
-    QStringList nestedFiles = TestHelpers::createTestMusicDirectory(nestedDir.path(), 3);
-
-    // Recursive scan should find all files
-    QDir dir(m_tempDir.path());
-    QStringList audioFilters;
-    audioFilters << QStringLiteral("*.mp3") << QStringLiteral("*.ogg") << QStringLiteral("*.flac");
-
-    QStringList foundFiles;
-    QDirIterator it(dir.path(), audioFilters, QDir::Files, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        foundFiles.append(it.next());
-    }
-
-    QCOMPARE(foundFiles.size(), 3);
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path());
+    QCOMPARE(found.size(), 1);
+    QCOMPARE(found.first(), m_tempDir.filePath(QStringLiteral("song.mp3")));
 }
 
-void TestScanner::testAudioFileExtensionFiltering()
+void TestScanner::testScanRecursive()
 {
-    QStringList supportedExtensions = {
-        QStringLiteral(".mp3"),
-        QStringLiteral(".ogg"),
-        QStringLiteral(".flac"),
-        QStringLiteral(".wav"),
-        QStringLiteral(".m4a"),
-        QStringLiteral(".opus")
-    };
-
-    // Verify all expected extensions are supported
-    QVERIFY(supportedExtensions.contains(QStringLiteral(".mp3")));
-    QVERIFY(supportedExtensions.contains(QStringLiteral(".ogg")));
-    QVERIFY(supportedExtensions.contains(QStringLiteral(".flac")));
-    QVERIFY(supportedExtensions.contains(QStringLiteral(".wav")));
-}
-
-void TestScanner::testSupportedFormats()
-{
-    // Test that common audio formats are recognized
-    QStringList audioFiles;
-    audioFiles << QStringLiteral("song.mp3")
-               << QStringLiteral("song.ogg")
-               << QStringLiteral("song.flac")
-               << QStringLiteral("song.wav")
-               << QStringLiteral("song.m4a")
-               << QStringLiteral("song.opus");
-
-    for (const QString &file : audioFiles) {
-        QVERIFY(file.endsWith(QStringLiteral(".mp3")) ||
-                file.endsWith(QStringLiteral(".ogg")) ||
-                file.endsWith(QStringLiteral(".flac")) ||
-                file.endsWith(QStringLiteral(".wav")) ||
-                file.endsWith(QStringLiteral(".m4a")) ||
-                file.endsWith(QStringLiteral(".opus")));
-    }
-}
-
-void TestScanner::testFindAudioFiles()
-{
-    QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 5);
-
-    QDir dir(m_tempDir.path());
-    QStringList audioFilters;
-    audioFilters << QStringLiteral("*.mp3") << QStringLiteral("*.ogg") << QStringLiteral("*.flac");
-
-    QStringList foundFiles = dir.entryList(audioFilters, QDir::Files);
-    QCOMPARE(foundFiles.size(), 5);
-}
-
-void TestScanner::testFindAudioFilesRecursive()
-{
-    // Create files in root
+    // Files in the root directory.
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
 
-    // Create files in subdirectory
-    QDir subDir(m_tempDir.filePath(QStringLiteral("subdir")));
-    QVERIFY(subDir.mkpath(QStringLiteral(".")));
-    TestHelpers::createTestMusicDirectory(subDir.path(), 3);
+    // Files in nested directories.
+    QDir nested(m_tempDir.filePath(QStringLiteral("artist/album")));
+    QVERIFY(nested.mkpath(QStringLiteral(".")));
+    TestHelpers::createTestMusicDirectory(nested.path(), 3);
 
-    // Recursive scan
-    QDir dir(m_tempDir.path());
-    QStringList audioFilters;
-    audioFilters << QStringLiteral("*.mp3") << QStringLiteral("*.ogg") << QStringLiteral("*.flac");
-
-    QStringList foundFiles;
-    QDirIterator it(dir.path(), audioFilters, QDir::Files, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        foundFiles.append(it.next());
-    }
-
-    QCOMPARE(foundFiles.size(), 5);
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path());
+    QCOMPARE(found.size(), 5);
 }
 
-void TestScanner::testScanWithPermissionError()
+void TestScanner::testIsSupportedAudioFile()
 {
-    // This test verifies that scanning handles permission errors gracefully
-    // In a real implementation, this would test actual permission scenarios
-    QDir dir(QStringLiteral("/root"));
-    // Should not crash, just return empty or handle gracefully
-    QStringList files = dir.entryList(QDir::Files);
-    // We can't guarantee the result, but it shouldn't crash
-    QVERIFY(true);
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.mp3")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.flac")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.ogg")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.m4a")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.wav")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("song.opus")));
+
+    QVERIFY(!Scanner::isSupportedAudioFile(QStringLiteral("cover.jpg")));
+    QVERIFY(!Scanner::isSupportedAudioFile(QStringLiteral("readme.txt")));
+    QVERIFY(!Scanner::isSupportedAudioFile(QStringLiteral("song.mp4")));
 }
 
-void TestScanner::testScanWithInvalidPath()
+void TestScanner::testSupportedExtensionsCaseInsensitive()
 {
-    // A regular file path is invalid for directory listing
-    QFile file(m_tempDir.filePath(QStringLiteral("not_a_dir.txt")));
-    QVERIFY(file.open(QIODevice::WriteOnly));
-    file.close();
-
-    QDir dir(file.fileName());
-    QStringList files = dir.entryList(QDir::Files);
-    // Listing a path that is not a directory should return an empty list
-    QVERIFY(files.isEmpty());
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("SONG.MP3")));
+    QVERIFY(Scanner::isSupportedAudioFile(QStringLiteral("Song.Flac")));
+    QVERIFY(!Scanner::isSupportedAudioFile(QStringLiteral("Song.TXT")));
 }
 
 QTEST_MAIN(TestScanner)

@@ -22,6 +22,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     QuickControls2
     Multimedia
     Sql
+    Concurrent
     Test
 )
 
@@ -52,6 +53,9 @@ qt_add_resources(RESOURCES resources/qml.qrc)
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${RESOURCES})
 
+# The installed name (and desktop Exec=) is `musicrep`.
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME musicrep)
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${TAGLIB_INCLUDE_DIRS}
@@ -64,6 +68,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::QuickControls2
     Qt6::Multimedia
     Qt6::Sql
+    Qt6::Concurrent
     ${TAGLIB_LIBRARIES}
 )
 
@@ -81,7 +86,19 @@ endif()
 enable_testing()
 add_subdirectory(tests)
 
-# Install
+# Install: binary (`musicrep`), desktop entry and icon.
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
 )
+
+install(FILES ${CMAKE_SOURCE_DIR}/musicrep.desktop
+    DESTINATION share/applications
+    RENAME musicrep.desktop
+)
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/images/pngwing.com.png)
+    install(FILES ${CMAKE_SOURCE_DIR}/images/pngwing.com.png
+        DESTINATION share/icons/hicolor/1024x1024/apps
+        RENAME musicrep.png
+    )
+endif()

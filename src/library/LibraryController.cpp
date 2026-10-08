@@ -2,6 +2,7 @@
 
 #include <QStandardPaths>
 #include <QDir>
+#include <QtConcurrent>
 
 LibraryController::LibraryController(QObject *parent)
     : QObject(parent)
@@ -9,6 +10,9 @@ LibraryController::LibraryController(QObject *parent)
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dataPath);
     m_db.open(dataPath + "/library.db");
+
+    connect(&m_scanWatcher, &QFutureWatcher<QList<Song>>::finished,
+            this, &LibraryController::handleScanFinished);
 }
 
 QVector<QVariant> LibraryController::songs() const
@@ -49,17 +53,43 @@ QVector<QVariant> LibraryController::genres() const
 
 void LibraryController::scan(const QString &directory)
 {
+    if (m_scanRunning) {
+        return;
+    }
+    m_scanRunning = true;
     emit scanStarted();
 
-    QVector<QString> files = m_scanner.scan(directory);
-    for (const QString &filePath : files) {
-        Song song = m_metadataReader.read(filePath);
-        if (!song.path.isEmpty()) {
-            m_db.addSong(song);
+    // File walking and metadata extraction are CPU/IO-bound and thread-safe:
+    // run them off the UI thread with local copies of Scanner/MetadataReader.
+    m_scanWatcher.setFuture(QtConcurrent::run([directory]() {
+        Scanner scanner;
+        MetadataReader reader;
+        QList<Song> songs;
+        const QVector<QString> files = scanner.scan(directory);
+        songs.reserve(files.size());
+        for (const QString &filePath : files) {
+            const Song song = reader.read(filePath);
+            if (!song.path.isEmpty()) {
+                songs.append(song);
+            }
         }
+        return songs;
+    }));
+}
+
+// Runs on the main thread (delivered by the event loop).
+void LibraryController::handleScanFinished()
+{
+    const QList<Song> found = m_scanWatcher.result();
+    for (const Song &song : found) {
+        // addSong() needs a non-const Song& (it stores the generated id);
+        // duplicate paths are silently rejected.
+        Song mutableSong = song;
+        m_db.addSong(mutableSong);
     }
 
     m_songs = m_db.getAllSongs().toVector();
+    m_scanRunning = false;
     emit libraryChanged();
     emit scanFinished();
 }

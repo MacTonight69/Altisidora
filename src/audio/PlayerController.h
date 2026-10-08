@@ -65,6 +65,18 @@ public slots:
      * title, artist and highlight the current row without a DB lookup.
      */
     void loadSong(const QVariantMap &song);
+    /**
+     * @brief Set the context queue used by next()/previous().
+     *
+     * QML passes the visible song list (e.g. the songs view model) so the
+     * transport controls can navigate within it. loadSong() locates the
+     * loaded song inside the queue by path.
+     */
+    void setQueue(const QVariantList &songs);
+
+    // Queue state
+    bool canGoNext() const;
+    bool canGoPrevious() const;
 
 signals:
     void stateChanged(PlaybackState::State newState);
@@ -94,4 +106,8 @@ private:
     qint64 m_position;
     qint64 m_duration;
     float m_volume;
+
+    // Context queue backing next()/previous().
+    QVector<QVariantMap> m_queue;
+    int m_queueIndex = -1;
 };

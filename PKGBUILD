@@ -22,11 +22,12 @@ optdepends=(
 
 build() {
     cd "$srcdir/$pkgname"
-    cmake -B build -DCMAKE_BUILD_TYPE=Release
+    cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
     cmake --build build -j$(nproc)
 }
 
 package() {
     cd "$srcdir/$pkgname"
+    # Installs binary (`musicrep`), desktop entry and icon (CMake install rules).
     DESTDIR="$pkgdir" cmake --install build
 }

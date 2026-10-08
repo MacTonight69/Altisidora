@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QSqlQuery>
+#include <QSignalSpy>
 
 #include "../../src/library/LibraryController.h"
 #include "../TestHelpers.h"
@@ -31,6 +32,7 @@ private slots:
 
 private:
     void removeDatabaseFiles();
+    bool waitForScanFinished(LibraryController *controller);
 
     QTemporaryDir m_tempDir;
 };
@@ -71,8 +73,9 @@ void tst_library_scan::testFullScanWorkflow()
 
     LibraryController controller;
 
-    // Step 3: scan
+    // Step 3: scan (asynchronous)
     controller.scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished(&controller));
 
     // Step 4: songs were ingested
     QCOMPARE(controller.songCount(), 5);
@@ -92,6 +95,7 @@ void tst_library_scan::testFullScanWorkflow()
     txtFile.close();
 
     controller.scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 5);
 }
 
@@ -108,6 +112,7 @@ void tst_library_scan::testPersistenceAcrossRestart()
     {
         LibraryController firstSession;
         firstSession.scan(restartDir);
+        QVERIFY(waitForScanFinished(&firstSession));
         QCOMPARE(firstSession.songCount(), 3);
     } // firstSession destroyed -> application restart
 
@@ -116,6 +121,12 @@ void tst_library_scan::testPersistenceAcrossRestart()
     LibraryController secondSession;
     secondSession.refresh();
     QCOMPARE(secondSession.songCount(), 3);
+}
+
+bool tst_library_scan::waitForScanFinished(LibraryController *controller)
+{
+    QSignalSpy finishedSpy(controller, &LibraryController::scanFinished);
+    return finishedSpy.wait(10000);
 }
 
 QTEST_MAIN(tst_library_scan)

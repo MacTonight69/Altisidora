@@ -79,14 +79,37 @@ void PlayerController::stop()
 
 void PlayerController::next()
 {
-    // TODO: Implement queue-based navigation
-    // For now, this is a placeholder for future queue integration
+    if (!canGoNext()) {
+        return;
+    }
+    // Keep playing if playback was in progress, otherwise just load.
+    const bool wasPlaying = (m_playbackState == PlaybackState::Playing);
+    loadSong(m_queue.at(++m_queueIndex));
+    if (wasPlaying) {
+        m_player->play();
+    }
 }
 
 void PlayerController::previous()
 {
-    // TODO: Implement queue-based navigation
-    // For now, this is a placeholder for future queue integration
+    if (!canGoPrevious()) {
+        return;
+    }
+    const bool wasPlaying = (m_playbackState == PlaybackState::Playing);
+    loadSong(m_queue.at(--m_queueIndex));
+    if (wasPlaying) {
+        m_player->play();
+    }
+}
+
+bool PlayerController::canGoNext() const
+{
+    return m_queueIndex >= 0 && m_queueIndex + 1 < m_queue.size();
+}
+
+bool PlayerController::canGoPrevious() const
+{
+    return m_queueIndex > 0;
 }
 
 void PlayerController::seek(qint64 position)
@@ -143,7 +166,27 @@ void PlayerController::loadSong(const QVariantMap &song)
     // load() resets currentSong to the bare URL; restore the full
     // metadata map so the UI can display the song details.
     m_currentSong = song;
+
+    // Locate the song inside the queue so next()/previous() can navigate.
+    m_queueIndex = -1;
+    for (int i = 0; i < m_queue.size(); ++i) {
+        if (m_queue.at(i).value(QStringLiteral("path")).toString() == path) {
+            m_queueIndex = i;
+            break;
+        }
+    }
+
     emit currentSongChanged(m_currentSong);
+}
+
+void PlayerController::setQueue(const QVariantList &songs)
+{
+    m_queue.clear();
+    m_queue.reserve(songs.size());
+    for (const QVariant &entry : songs) {
+        m_queue.append(entry.toMap());
+    }
+    m_queueIndex = -1;
 }
 
 void PlayerController::handlePlaybackStateChanged()
@@ -202,8 +245,14 @@ void PlayerController::handleMediaStatusChanged()
     case QMediaPlayer::StalledMedia:
     case QMediaPlayer::BufferingMedia:
     case QMediaPlayer::BufferedMedia:
-    case QMediaPlayer::EndOfMedia:
         // These states don't change our playback state
+        break;
+    case QMediaPlayer::EndOfMedia:
+        // Advance the queue automatically, continuing playback.
+        if (canGoNext()) {
+            next();
+            m_player->play();
+        }
         break;
     }
 }

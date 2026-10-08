@@ -22,7 +22,7 @@ the controllers are in place. All tests pass.
 | Audio | `src/audio/` | Implemented | `PlayerController` wrapping QMediaPlayer/QAudioOutput; `load(url)` for raw URLs and `loadSong(map)` to keep library metadata for the UI |
 | Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title), `LibraryController` (scan/search/refresh) |
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
-| GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu |
+| GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (click / Ctrl / Shift / Ctrl+A) with batch add to playlist |
 | Tests | `tests/` | In progress | Infrastructure complete; see below |
 | Packaging | root | Initial | `PKGBUILD`, `.desktop`, GitHub Actions CI (Ubuntu) |
 
@@ -44,16 +44,18 @@ Run with `ctest --output-on-failure` from the build directory.
 
 | Suite | Type | Status |
 |---|---|---|
-| tst_database | unit (MockDatabase) | Real tests |
-| tst_models | unit | Real tests |
-| tst_player | unit (MockPlayer) | Real tests |
-| tst_scanner | unit | Real tests |
-| tst_metadata | unit | Real tests |
+| tst_database | unit (real DatabaseManager + SQLite) | Real tests |
+| tst_models | unit (Song/Album/Artist/Genre/Playlist) | Real tests |
+| tst_player | unit (real PlayerController, backend-independent) | Real tests |
+| tst_scanner | unit (real Scanner) | Real tests |
+| tst_metadata | unit (real MetadataReader + TagLib) | Real tests |
 | tst_library | unit (real LibraryController) | Real tests |
 | tst_playlist | unit (real PlaylistController) | Real tests |
 | tst_settings | unit (real SettingsController) | Real tests |
 | tst_library_scan | integration (real scan + persistence across restart) | Real tests |
-| tst_playback | integration | Stub (needs a real playback workflow) |
+| tst_playback | integration (scan → library → `loadSong` data flow) | Actual audio playback needs a media backend, out of CI scope |
+
+All test binaries run headless (`QT_QPA_PLATFORM=offscreen` set via CTest).
 
 Test isolation:
 
@@ -64,19 +66,18 @@ Test isolation:
 
 ## Known limitations
 
-- Scanning runs synchronously on the calling thread; the UI freezes while a
-  large folder is scanned (the overlay is shown via a deferred timer, but the
-  scan itself blocks). Background scanning (threading) is not implemented yet.
 - `MetadataReader` does not extract embedded artwork yet; album cards use a
   generated placeholder color.
 - Tag text from files whose ID3 tags genuinely declare a legacy encoding
   (e.g. Shift-JIS mislabeled as ISO-8859-1) is not normalized. UTF-8 and
   UTF-16 ID3v2 tags are read correctly; a real Shift-JIS tag re-decode fallback
   is not implemented yet.
-- No playback queue: `next()`/`previous()` are placeholders; one song must be
-  double-clicked at a time.
-- `tst_playback` is a stub; a real playback workflow test requires an audio
-  backend in CI.
+- The playback queue is set from the Songs and Playlists views (double-click
+  loads the visible list as context). There is no "play an album/artist"
+  entry point in the browse views yet.
+- `tst_playback` covers the data flow up to `PlayerController::loadSong()`;
+  actual audio playback (needs a media backend with decoders) is not exercised
+  in CI.
 - `LibraryController` does not load existing songs in its constructor; callers
   must invoke `refresh()` (done in `main.cpp` and `main.qml`).
 - Migrations: only schema version 1 exists; `DatabaseManager::migrate()` is a
@@ -85,8 +86,6 @@ Test isolation:
 
 ## Next steps
 
-1. Background library scanning (threading) without blocking the UI.
-2. Artwork extraction and display (embedded tags → `artwork_path`).
-3. Playback queue and end-of-track handling in `PlayerController`.
-4. Play an album/artist directly from the browse views.
-5. Test the PKGBUILD on CachyOS.
+1. Artwork extraction and display (embedded tags → `artwork_path`).
+2. Play an album/artist directly from the browse views.
+3. Test the PKGBUILD on CachyOS.

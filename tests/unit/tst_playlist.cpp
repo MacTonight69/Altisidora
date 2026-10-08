@@ -3,6 +3,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
+#include <QSqlQuery>
 
 #include "../../src/app/PlaylistController.h"
 
@@ -30,6 +31,7 @@ private slots:
     void testPlaylistsChangedSignal();
     void testGetPlaylistSongsForUnknownPlaylist();
     void testAddRemoveSongDoesNotCrash();
+    void testAddSongsBatch();
 
 private:
     void removeDatabaseFiles();
@@ -180,6 +182,51 @@ void tst_playlist::testAddRemoveSongDoesNotCrash()
     // Removing it again must also be safe
     m_controller->removeSong(ids.first(), 1);
     QVERIFY(m_controller->getPlaylistSongs(ids.first()).isEmpty());
+}
+
+void tst_playlist::testAddSongsBatch()
+{
+    // Seed real songs so the JOIN in getPlaylistSongs() can resolve them.
+    // Plain SQL on the shared default connection (no temporary
+    // DatabaseManager instance: its destructor would close that connection).
+    QList<qint64> songIds;
+    for (int i = 1; i <= 3; ++i) {
+        QSqlQuery insert;
+        insert.prepare(QStringLiteral("INSERT INTO songs (path, title) VALUES (:path, :title)"));
+        insert.bindValue(":path", QStringLiteral("/music/%1.mp3").arg(i));
+        insert.bindValue(":title", QStringLiteral("Song %1").arg(i));
+        QVERIFY(insert.exec());
+        songIds.append(insert.lastInsertId().toLongLong());
+    }
+
+    m_controller->createPlaylist(QStringLiteral("Batch"));
+    const QList<qint64> ids = playlistIds();
+    QCOMPARE(ids.size(), 1);
+    const qint64 playlistId = ids.first();
+
+    QVariantList batch;
+    for (const qint64 id : songIds)
+        batch.append(id);
+
+    QSignalSpy spy(m_controller, &PlaylistController::playlistsChanged);
+    QVERIFY(spy.isValid());
+    m_controller->addSongs(playlistId, batch);
+
+    // The whole batch is notified exactly once.
+    QCOMPARE(spy.count(), 1);
+
+    // All songs were inserted, in the given order.
+    const QVector<QVariant> songs = m_controller->getPlaylistSongs(playlistId);
+    QCOMPARE(songs.size(), 3);
+    QCOMPARE(songs.at(0).toMap().value(QStringLiteral("title")).toString(), QStringLiteral("Song 1"));
+    QCOMPARE(songs.at(1).toMap().value(QStringLiteral("title")).toString(), QStringLiteral("Song 2"));
+    QCOMPARE(songs.at(2).toMap().value(QStringLiteral("title")).toString(), QStringLiteral("Song 3"));
+
+    // An empty batch must not emit anything.
+    QSignalSpy emptySpy(m_controller, &PlaylistController::playlistsChanged);
+    m_controller->addSongs(playlistId, QVariantList{});
+    QCOMPARE(emptySpy.count(), 0);
+    QCOMPARE(m_controller->getPlaylistSongs(playlistId).size(), 3);
 }
 
 QTEST_MAIN(tst_playlist)

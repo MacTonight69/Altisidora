@@ -37,6 +37,32 @@ Rectangle {
         return m + ":" + (s < 10 ? "0" + s : "" + s)
     }
 
+    // Play the playlist from the beginning, in its stored order.
+    function playPlaylist() {
+        if (playlistSongs.length === 0)
+            return
+        Player.setQueue(playlistSongs)
+        Player.loadSong(playlistSongs[0])
+        Player.play()
+    }
+
+    // Play the whole playlist in random order (Fisher–Yates over a copy).
+    // next()/previous() afterwards navigate the shuffled order.
+    function playShuffled() {
+        if (playlistSongs.length === 0)
+            return
+        var songs = playlistSongs.slice()
+        for (var i = songs.length - 1; i > 0; --i) {
+            var j = Math.floor(Math.random() * (i + 1))
+            var tmp = songs[i]
+            songs[i] = songs[j]
+            songs[j] = tmp
+        }
+        Player.setQueue(songs)
+        Player.loadSong(songs[0])
+        Player.play()
+    }
+
     Connections {
         target: Playlists
         function onPlaylistsChanged() {
@@ -318,6 +344,50 @@ Rectangle {
                         color: "#6c7086"
                         font.pixelSize: 12
                     }
+
+                    Button {
+                        id: playPlaylistButton
+                        text: qsTr("Play")
+                        focusPolicy: Qt.NoFocus
+                        font.pixelSize: 12
+                        enabled: playlistsView.playlistSongs.length > 0
+                        opacity: enabled ? 1.0 : 0.4
+                        contentItem: Text {
+                            text: playPlaylistButton.text
+                            font: playPlaylistButton.font
+                            color: "#1e1e2e"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            radius: 4
+                            color: playPlaylistButton.down ? "#74a8f7"
+                                   : playPlaylistButton.hovered ? "#9cc7fb" : "#89b4fa"
+                        }
+                        onClicked: playlistsView.playPlaylist()
+                    }
+
+                    Button {
+                        id: shuffleButton
+                        text: qsTr("Shuffle")
+                        focusPolicy: Qt.NoFocus
+                        font.pixelSize: 12
+                        enabled: playlistsView.playlistSongs.length > 0
+                        opacity: enabled ? 1.0 : 0.4
+                        contentItem: Text {
+                            text: shuffleButton.text
+                            font: shuffleButton.font
+                            color: "#1e1e2e"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            radius: 4
+                            color: shuffleButton.down ? "#e3945a"
+                                   : shuffleButton.hovered ? "#f7bd92" : "#fab387"
+                        }
+                        onClicked: playlistsView.playShuffled()
+                    }
                 }
 
                 Rectangle {
@@ -361,6 +431,8 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             onDoubleClicked: {
+                                // Make the playlist the navigation context for next/previous.
+                                Player.setQueue(playlistsView.playlistSongs)
                                 Player.loadSong(modelData)
                                 Player.play()
                             }

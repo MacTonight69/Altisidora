@@ -18,6 +18,7 @@ pause()
 stop()
 next()
 previous()
+setQueue(songList)
 seek(position)
 setVolume(volume)
 load(url)
@@ -27,6 +28,11 @@ loadSong(songMap)
 `loadSong()` receives the QVariantMap of a library song (as exposed by
 `LibraryController`/`PlaylistController`) so the UI can display title, artist
 and highlight the current row without touching the database.
+
+`setQueue()` receives the visible song list (as exposed by the Songs/Playlists
+views) and makes it the navigation context for `next()`/`previous()`;
+`loadSong()` locates the loaded song inside the queue by its `path`. When the
+last track ends (`EndOfMedia`) the next queued song starts automatically.
 
 State information should include:
 
@@ -61,6 +67,10 @@ arrays of QVariantMap keyed with the `Song`/`Album`/`Artist`/`Genre` field
 names (`id`, `path`, `title`, `artist`, `album`, `duration`, `songCount`, …)
 and are notified through `libraryChanged()`.
 
+`scan(directory)` is asynchronous: the filesystem walk and metadata extraction
+run on a worker thread, results are committed on the main thread, and QML is
+notified through `scanStarted()`/`scanFinished()`/`libraryChanged()`.
+
 Artist, album and genre names stored on songs are resolved from normalized
 tables (`artists`, `albums`, `genres`) at scan time and joined back on read.
 
@@ -75,10 +85,16 @@ createPlaylist()
 deletePlaylist()
 renamePlaylist()
 addSong()
+addSongs(playlistId, songIds)
 removeSong()
 moveSong()
 getPlaylists()
 ```
+
+`addSongs()` inserts a batch of song ids into a playlist in order and notifies
+`playlistsChanged()` once for the whole batch. The GUI uses it to add the
+multi-selected songs in the Songs view (the selection bar passes the array of
+ids; the per-row "+ Playlist" button passes a single-element array).
 
 ---
 

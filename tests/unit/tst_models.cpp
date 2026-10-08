@@ -1,299 +1,232 @@
 #include <QtTest>
-#include <QHash>
-#include <QVariant>
+#include <QDateTime>
+
+#include "models/Song.h"
+#include "models/Album.h"
+#include "models/Artist.h"
+#include "models/Genre.h"
+#include "models/Playlist.h"
 
 /**
- * @brief Tests for domain models
+ * @brief Tests for the real domain models (src/models).
  *
- * Tests the Song model and related data structures defined in the API contracts.
- * Since the actual model classes are not yet implemented, this test validates
- * the conceptual model structure and data integrity.
+ * Validates default values, round-trip conversion (toVariantMap /
+ * fromVariantMap) and Playlist invariants.
  */
 class TestModels : public QObject
 {
     Q_OBJECT
 
 private slots:
-    void initTestCase();
-    void cleanupTestCase();
-
-    // Song model tests
-    void testSongCreation();
     void testSongDefaultValues();
-    void testSongFieldAccess();
-    void testSongEquality();
-    void testSongCopy();
+    void testSongVariantRoundTrip();
+    void testSongFromVariantMapPartial();
 
-    // Playlist model tests
-    void testPlaylistCreation();
-    void testPlaylistAddSong();
-    void testPlaylistRemoveSong();
-    void testPlaylistMoveSong();
+    void testAlbumDefaultValues();
+    void testAlbumVariantRoundTrip();
 
-    // Collection tests
-    void testSongCollection();
-    void testSongCollectionSearch();
-    void testSongCollectionFilter();
+    void testArtistDefaultValues();
+    void testArtistVariantRoundTrip();
+
+    void testGenreDefaultValues();
+    void testGenreVariantRoundTrip();
+
+    void testPlaylistDefaults();
+    void testPlaylistConstructor();
+    void testPlaylistIsValid();
 };
-
-void TestModels::initTestCase()
-{
-}
-
-void TestModels::cleanupTestCase()
-{
-}
-
-void TestModels::testSongCreation()
-{
-    // Test that a song can be created with basic fields
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("id")] = 1;
-    song[QStringLiteral("path")] = QStringLiteral("/music/test.mp3");
-    song[QStringLiteral("title")] = QStringLiteral("Test Song");
-    song[QStringLiteral("artist")] = QStringLiteral("Test Artist");
-    song[QStringLiteral("album")] = QStringLiteral("Test Album");
-
-    QVERIFY(song.contains(QStringLiteral("id")));
-    QVERIFY(song.contains(QStringLiteral("path")));
-    QVERIFY(song.contains(QStringLiteral("title")));
-    QVERIFY(song.contains(QStringLiteral("artist")));
-    QVERIFY(song.contains(QStringLiteral("album")));
-
-    QCOMPARE(song[QStringLiteral("id")].toInt(), 1);
-    QCOMPARE(song[QStringLiteral("title")].toString(), QStringLiteral("Test Song"));
-}
 
 void TestModels::testSongDefaultValues()
 {
-    // Test that songs have appropriate default values
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("id")] = 1;
-    song[QStringLiteral("path")] = QStringLiteral("/music/test.mp3");
-
-    // Default values should be sensible
-    QCOMPARE(song.value(QStringLiteral("play_count"), 0).toInt(), 0);
-    QCOMPARE(song.value(QStringLiteral("favorite"), 0).toInt(), 0);
-    QCOMPARE(song.value(QStringLiteral("year"), 0).toInt(), 0);
-    QCOMPARE(song.value(QStringLiteral("track_number"), 0).toInt(), 0);
-    QCOMPARE(song.value(QStringLiteral("disc_number"), 0).toInt(), 0);
-    QCOMPARE(song.value(QStringLiteral("duration"), 0).toInt(), 0);
+    Song song;
+    QCOMPARE(song.id, 0);
+    QVERIFY(song.path.isEmpty());
+    QVERIFY(song.title.isEmpty());
+    QVERIFY(song.artist.isEmpty());
+    QVERIFY(song.album.isEmpty());
+    QVERIFY(song.genre.isEmpty());
+    QCOMPARE(song.year, 0);
+    QCOMPARE(song.trackNumber, 0);
+    QCOMPARE(song.discNumber, 0);
+    QCOMPARE(song.duration, qint64(0));
+    QVERIFY(song.artworkPath.isEmpty());
+    QVERIFY(!song.dateAdded.isValid());
+    QVERIFY(!song.lastPlayed.isValid());
+    QCOMPARE(song.playCount, 0);
+    QVERIFY(!song.favorite);
 }
 
-void TestModels::testSongFieldAccess()
+void TestModels::testSongVariantRoundTrip()
 {
-    // Test all fields defined in the API contract
-    QHash<QString, QVariant> song;
-    song[QStringLiteral("id")] = 42;
-    song[QStringLiteral("path")] = QStringLiteral("/music/song.flac");
-    song[QStringLiteral("title")] = QStringLiteral("My Song");
-    song[QStringLiteral("artist")] = QStringLiteral("My Artist");
-    song[QStringLiteral("album")] = QStringLiteral("My Album");
-    song[QStringLiteral("genre")] = QStringLiteral("Rock");
-    song[QStringLiteral("year")] = 2024;
-    song[QStringLiteral("track_number")] = 3;
-    song[QStringLiteral("disc_number")] = 1;
-    song[QStringLiteral("duration")] = 240000;
-    song[QStringLiteral("artwork")] = QStringLiteral("/artwork/cover.jpg");
-    song[QStringLiteral("date_added")] = QStringLiteral("2024-01-15");
-    song[QStringLiteral("last_played")] = QStringLiteral("2024-01-20");
-    song[QStringLiteral("play_count")] = 15;
-    song[QStringLiteral("favorite")] = 1;
+    Song original;
+    original.id = 42;
+    original.path = QStringLiteral("/music/song.flac");
+    original.title = QStringLiteral("My Song");
+    original.artist = QStringLiteral("My Artist");
+    original.album = QStringLiteral("My Album");
+    original.genre = QStringLiteral("Rock");
+    original.year = 2024;
+    original.trackNumber = 3;
+    original.discNumber = 1;
+    original.duration = 240000;
+    original.artworkPath = QStringLiteral("/artwork/cover.jpg");
+    original.dateAdded = QDateTime(QDate(2024, 1, 15), QTime(10, 30));
+    original.lastPlayed = QDateTime(QDate(2024, 1, 20), QTime(21, 0));
+    original.playCount = 15;
+    original.favorite = true;
 
-    QCOMPARE(song[QStringLiteral("id")].toInt(), 42);
-    QCOMPARE(song[QStringLiteral("title")].toString(), QStringLiteral("My Song"));
-    QCOMPARE(song[QStringLiteral("artist")].toString(), QStringLiteral("My Artist"));
-    QCOMPARE(song[QStringLiteral("album")].toString(), QStringLiteral("My Album"));
-    QCOMPARE(song[QStringLiteral("genre")].toString(), QStringLiteral("Rock"));
-    QCOMPARE(song[QStringLiteral("year")].toInt(), 2024);
-    QCOMPARE(song[QStringLiteral("track_number")].toInt(), 3);
-    QCOMPARE(song[QStringLiteral("disc_number")].toInt(), 1);
-    QCOMPARE(song[QStringLiteral("duration")].toInt(), 240000);
-    QCOMPARE(song[QStringLiteral("play_count")].toInt(), 15);
-    QCOMPARE(song[QStringLiteral("favorite")].toInt(), 1);
+    const QVariantMap map = original.toVariantMap();
+    QCOMPARE(map.size(), 15);
+
+    const Song restored = Song::fromVariantMap(map);
+    QCOMPARE(restored.id, original.id);
+    QCOMPARE(restored.path, original.path);
+    QCOMPARE(restored.title, original.title);
+    QCOMPARE(restored.artist, original.artist);
+    QCOMPARE(restored.album, original.album);
+    QCOMPARE(restored.genre, original.genre);
+    QCOMPARE(restored.year, original.year);
+    QCOMPARE(restored.trackNumber, original.trackNumber);
+    QCOMPARE(restored.discNumber, original.discNumber);
+    QCOMPARE(restored.duration, original.duration);
+    QCOMPARE(restored.artworkPath, original.artworkPath);
+    QCOMPARE(restored.dateAdded, original.dateAdded);
+    QCOMPARE(restored.lastPlayed, original.lastPlayed);
+    QCOMPARE(restored.playCount, original.playCount);
+    QCOMPARE(restored.favorite, original.favorite);
 }
 
-void TestModels::testSongEquality()
+void TestModels::testSongFromVariantMapPartial()
 {
-    QHash<QString, QVariant> song1;
-    song1[QStringLiteral("id")] = 1;
-    song1[QStringLiteral("title")] = QStringLiteral("Song A");
+    QVariantMap map;
+    map[QStringLiteral("id")] = 7;
+    map[QStringLiteral("path")] = QStringLiteral("/music/partial.mp3");
 
-    QHash<QString, QVariant> song2;
-    song2[QStringLiteral("id")] = 1;
-    song2[QStringLiteral("title")] = QStringLiteral("Song A");
-
-    QHash<QString, QVariant> song3;
-    song3[QStringLiteral("id")] = 2;
-    song3[QStringLiteral("title")] = QStringLiteral("Song B");
-
-    QVERIFY(song1 == song2);
-    QVERIFY(song1 != song3);
+    // Missing keys fall back to safe defaults instead of crashing.
+    const Song song = Song::fromVariantMap(map);
+    QCOMPARE(song.id, 7);
+    QCOMPARE(song.path, QStringLiteral("/music/partial.mp3"));
+    QVERIFY(song.title.isEmpty());
+    QCOMPARE(song.year, 0);
+    QCOMPARE(song.duration, qint64(0));
+    QCOMPARE(song.playCount, 0);
+    QVERIFY(!song.favorite);
 }
 
-void TestModels::testSongCopy()
+void TestModels::testAlbumDefaultValues()
 {
-    QHash<QString, QVariant> original;
-    original[QStringLiteral("id")] = 1;
-    original[QStringLiteral("title")] = QStringLiteral("Original");
-
-    QHash<QString, QVariant> copy = original;
-    QVERIFY(original == copy);
-
-    copy[QStringLiteral("title")] = QStringLiteral("Modified");
-    QVERIFY(original != copy);
-    QCOMPARE(original[QStringLiteral("title")].toString(), QStringLiteral("Original"));
+    Album album;
+    QCOMPARE(album.id, 0);
+    QVERIFY(album.title.isEmpty());
+    QVERIFY(album.artist.isEmpty());
+    QCOMPARE(album.year, 0);
+    QCOMPARE(album.songCount, 0);
+    QVERIFY(album.artworkPath.isEmpty());
 }
 
-void TestModels::testPlaylistCreation()
+void TestModels::testAlbumVariantRoundTrip()
 {
-    QHash<QString, QVariant> playlist;
-    playlist[QStringLiteral("id")] = 1;
-    playlist[QStringLiteral("name")] = QStringLiteral("My Playlist");
+    Album original;
+    original.id = 11;
+    original.title = QStringLiteral("Dark Side of the Moon");
+    original.artist = QStringLiteral("Pink Floyd");
+    original.year = 1973;
+    original.songCount = 10;
+    original.artworkPath = QStringLiteral("/artwork/dsotm.jpg");
 
-    QVERIFY(playlist.contains(QStringLiteral("id")));
-    QVERIFY(playlist.contains(QStringLiteral("name")));
-    QCOMPARE(playlist[QStringLiteral("name")].toString(), QStringLiteral("My Playlist"));
+    const Album restored = Album::fromVariantMap(original.toVariantMap());
+    QCOMPARE(restored.id, original.id);
+    QCOMPARE(restored.title, original.title);
+    QCOMPARE(restored.artist, original.artist);
+    QCOMPARE(restored.year, original.year);
+    QCOMPARE(restored.songCount, original.songCount);
+    QCOMPARE(restored.artworkPath, original.artworkPath);
 }
 
-void TestModels::testPlaylistAddSong()
+void TestModels::testArtistDefaultValues()
 {
-    QList<QHash<QString, QVariant>> playlist;
-
-    QHash<QString, QVariant> song1;
-    song1[QStringLiteral("id")] = 1;
-    song1[QStringLiteral("title")] = QStringLiteral("Song 1");
-
-    QHash<QString, QVariant> song2;
-    song2[QStringLiteral("id")] = 2;
-    song2[QStringLiteral("title")] = QStringLiteral("Song 2");
-
-    playlist.append(song1);
-    playlist.append(song2);
-
-    QCOMPARE(playlist.size(), 2);
-    QCOMPARE(playlist[0][QStringLiteral("title")].toString(), QStringLiteral("Song 1"));
-    QCOMPARE(playlist[1][QStringLiteral("title")].toString(), QStringLiteral("Song 2"));
+    Artist artist;
+    QCOMPARE(artist.id, 0);
+    QVERIFY(artist.name.isEmpty());
+    QCOMPARE(artist.songCount, 0);
+    QCOMPARE(artist.albumCount, 0);
 }
 
-void TestModels::testPlaylistRemoveSong()
+void TestModels::testArtistVariantRoundTrip()
 {
-    QList<QHash<QString, QVariant>> playlist;
+    Artist original;
+    original.id = 3;
+    original.name = QStringLiteral("Queen");
+    original.songCount = 15;
+    original.albumCount = 4;
 
-    QHash<QString, QVariant> song1;
-    song1[QStringLiteral("id")] = 1;
-    QHash<QString, QVariant> song2;
-    song2[QStringLiteral("id")] = 2;
-    QHash<QString, QVariant> song3;
-    song3[QStringLiteral("id")] = 3;
-
-    playlist.append(song1);
-    playlist.append(song2);
-    playlist.append(song3);
-
-    // Remove middle song
-    playlist.removeAt(1);
-
-    QCOMPARE(playlist.size(), 2);
-    QCOMPARE(playlist[0][QStringLiteral("id")].toInt(), 1);
-    QCOMPARE(playlist[1][QStringLiteral("id")].toInt(), 3);
+    const Artist restored = Artist::fromVariantMap(original.toVariantMap());
+    QCOMPARE(restored.id, original.id);
+    QCOMPARE(restored.name, original.name);
+    QCOMPARE(restored.songCount, original.songCount);
+    QCOMPARE(restored.albumCount, original.albumCount);
 }
 
-void TestModels::testPlaylistMoveSong()
+void TestModels::testGenreDefaultValues()
 {
-    QList<QHash<QString, QVariant>> playlist;
-
-    for (int i = 1; i <= 5; ++i) {
-        QHash<QString, QVariant> song;
-        song[QStringLiteral("id")] = i;
-        song[QStringLiteral("title")] = QStringLiteral("Song %1").arg(i);
-        playlist.append(song);
-    }
-
-    // Move song from position 0 to position 3
-    QHash<QString, QVariant> moved = playlist.takeAt(0);
-    playlist.insert(3, moved);
-
-    QCOMPARE(playlist.size(), 5);
-    QCOMPARE(playlist[0][QStringLiteral("id")].toInt(), 2);
-    QCOMPARE(playlist[3][QStringLiteral("id")].toInt(), 1);
-    QCOMPARE(playlist[4][QStringLiteral("id")].toInt(), 5);
+    Genre genre;
+    QCOMPARE(genre.id, 0);
+    QVERIFY(genre.name.isEmpty());
+    QCOMPARE(genre.songCount, 0);
 }
 
-void TestModels::testSongCollection()
+void TestModels::testGenreVariantRoundTrip()
 {
-    QList<QHash<QString, QVariant>> collection;
+    Genre original;
+    original.id = 9;
+    original.name = QStringLiteral("Jazz");
+    original.songCount = 23;
 
-    for (int i = 0; i < 10; ++i) {
-        QHash<QString, QVariant> song;
-        song[QStringLiteral("id")] = i;
-        song[QStringLiteral("title")] = QStringLiteral("Song %1").arg(i);
-        song[QStringLiteral("artist")] = QStringLiteral("Artist %1").arg(i % 3);
-        collection.append(song);
-    }
-
-    QCOMPARE(collection.size(), 10);
+    const Genre restored = Genre::fromVariantMap(original.toVariantMap());
+    QCOMPARE(restored.id, original.id);
+    QCOMPARE(restored.name, original.name);
+    QCOMPARE(restored.songCount, original.songCount);
 }
 
-void TestModels::testSongCollectionSearch()
+void TestModels::testPlaylistDefaults()
 {
-    QList<QHash<QString, QVariant>> collection;
-
-    QHash<QString, QVariant> song1;
-    song1[QStringLiteral("title")] = QStringLiteral("Bohemian Rhapsody");
-    song1[QStringLiteral("artist")] = QStringLiteral("Queen");
-    collection.append(song1);
-
-    QHash<QString, QVariant> song2;
-    song2[QStringLiteral("title")] = QStringLiteral("Stairway to Heaven");
-    song2[QStringLiteral("artist")] = QStringLiteral("Led Zeppelin");
-    collection.append(song2);
-
-    QHash<QString, QVariant> song3;
-    song3[QStringLiteral("title")] = QStringLiteral("Bohemian Like You");
-    song3[QStringLiteral("artist")] = QStringLiteral("The Dandy Warhols");
-    collection.append(song3);
-
-    // Search for "Bohemian"
-    QList<QHash<QString, QVariant>> results;
-    for (const auto &song : collection) {
-        if (song[QStringLiteral("title")].toString().contains(QStringLiteral("Bohemian"))) {
-            results.append(song);
-        }
-    }
-
-    QCOMPARE(results.size(), 2);
+    Playlist playlist;
+    QCOMPARE(playlist.id, qint64(0));
+    QVERIFY(playlist.name.isEmpty());
+    QVERIFY(playlist.description.isEmpty());
+    QVERIFY(!playlist.dateCreated.isValid());
+    QCOMPARE(playlist.songCount, 0);
+    QVERIFY(!playlist.isValid());
 }
 
-void TestModels::testSongCollectionFilter()
+void TestModels::testPlaylistConstructor()
 {
-    QList<QHash<QString, QVariant>> collection;
+    const QDateTime created(QDate(2024, 5, 1), QTime(12, 0));
+    Playlist playlist(5, QStringLiteral("Workout"), QStringLiteral("Gym"),
+                      created, 12);
 
-    for (int i = 0; i < 10; ++i) {
-        QHash<QString, QVariant> song;
-        song[QStringLiteral("id")] = i;
-        song[QStringLiteral("artist")] = QStringLiteral("Artist %1").arg(i % 2);
-        song[QStringLiteral("favorite")] = (i % 3 == 0) ? 1 : 0;
-        collection.append(song);
-    }
+    QCOMPARE(playlist.id, qint64(5));
+    QCOMPARE(playlist.name, QStringLiteral("Workout"));
+    QCOMPARE(playlist.description, QStringLiteral("Gym"));
+    QCOMPARE(playlist.dateCreated, created);
+    QCOMPARE(playlist.songCount, 12);
+    QVERIFY(playlist.isValid());
+}
 
-    // Filter by artist
-    QList<QHash<QString, QVariant>> artist0Songs;
-    for (const auto &song : collection) {
-        if (song[QStringLiteral("artist")].toString() == QStringLiteral("Artist 0")) {
-            artist0Songs.append(song);
-        }
-    }
-    QCOMPARE(artist0Songs.size(), 5);
+void TestModels::testPlaylistIsValid()
+{
+    Playlist emptyName;
+    emptyName.id = 1;
+    QVERIFY(!emptyName.isValid());
 
-    // Filter by favorite
-    QList<QHash<QString, QVariant>> favorites;
-    for (const auto &song : collection) {
-        if (song[QStringLiteral("favorite")].toInt() == 1) {
-            favorites.append(song);
-        }
-    }
-    QCOMPARE(favorites.size(), 4);
+    Playlist zeroId;
+    zeroId.name = QStringLiteral("No id");
+    QVERIFY(!zeroId.isValid());
+
+    Playlist valid;
+    valid.id = 1;
+    valid.name = QStringLiteral("Valid");
+    QVERIFY(valid.isValid());
 }
 
 QTEST_MAIN(TestModels)

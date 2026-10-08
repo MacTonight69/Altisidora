@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QVector>
 #include <QVariant>
+#include <QFutureWatcher>
 
 #include "../models/Song.h"
 #include "../models/Artist.h"
@@ -37,6 +38,13 @@ public:
     QVector<QVariant> genres() const;
 
 public slots:
+    /**
+     * @brief Scan a directory in the background.
+     *
+     * The filesystem walk and metadata extraction run on a worker thread; the
+     * results are committed to the database and reported through
+     * scanFinished() on the main thread, so the UI stays responsive.
+     */
     void scan(const QString &directory);
     void refresh();
     QVector<QVariant> search(const QString &query) const;
@@ -47,6 +55,9 @@ signals:
     void scanFinished();
     void libraryChanged();
 
+private slots:
+    void handleScanFinished();
+
 private:
     QVariantMap songToVariant(const Song &song) const;
     QVariantMap albumToVariant(const Album &album) const;
@@ -54,7 +65,10 @@ private:
     QVariantMap genreToVariant(const Genre &genre) const;
 
     DatabaseManager m_db;
-    Scanner m_scanner;
-    MetadataReader m_metadataReader;
     QVector<Song> m_songs;
+
+    // Background scan machinery. Scanner/MetadataReader are used by the
+    // worker thread only through local copies created in scan().
+    QFutureWatcher<QList<Song>> m_scanWatcher;
+    bool m_scanRunning = false;
 };

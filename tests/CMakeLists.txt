@@ -53,6 +53,23 @@ set(UNIT_TESTS
 )
 
 # Production sources exercised by specific tests
+set(tst_models_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/models/Song.cpp
+    ${CMAKE_SOURCE_DIR}/src/models/Album.cpp
+    ${CMAKE_SOURCE_DIR}/src/models/Artist.cpp
+    ${CMAKE_SOURCE_DIR}/src/models/Genre.cpp
+)
+set(tst_database_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
+)
+set(tst_player_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.cpp
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.h
+    ${CMAKE_SOURCE_DIR}/src/audio/PlaybackState.h
+)
+set(tst_scanner_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
+)
 set(tst_settings_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/app/SettingsController.cpp
 )
@@ -96,6 +113,7 @@ foreach(test_name ${UNIT_TESTS})
         Qt6::Test
         Qt6::Multimedia
         Qt6::Sql
+        Qt6::Concurrent
         TestHelpers
         TestMocks
     )
@@ -107,6 +125,7 @@ foreach(test_name ${UNIT_TESTS})
 
     set_tests_properties(${test_name} PROPERTIES
         TIMEOUT 60
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 endforeach()
 
@@ -118,6 +137,15 @@ set(INTEGRATION_TESTS
 
 # Production sources exercised by specific integration tests
 set(tst_library_scan_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
+)
+set(tst_playback_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.cpp
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.h
+    ${CMAKE_SOURCE_DIR}/src/audio/PlaybackState.h
     ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
     ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
@@ -150,6 +178,7 @@ foreach(test_name ${INTEGRATION_TESTS})
         Qt6::Test
         Qt6::Multimedia
         Qt6::Sql
+        Qt6::Concurrent
         TestHelpers
         TestMocks
     )
@@ -161,5 +190,6 @@ foreach(test_name ${INTEGRATION_TESTS})
 
     set_tests_properties(${test_name} PROPERTIES
         TIMEOUT 120
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 endforeach()

@@ -7,9 +7,99 @@ import QtQuick.Layouts
 Rectangle {
     id: songsView
 
+    // The song list area is a deep blue, not white/black.
+    color: "#20305c"
+
     property var songs: []
-    property int targetSongId: -1
-    color: "transparent"
+
+    // ---- selection state ----
+    property var selectedIds: new Set()
+    property int selectedCount: 0
+    property int selectionAnchor: -1
+    property var targetSongIds: []
+    property bool addFromSelection: false
+
+    function clearSelection() {
+        selectedIds.clear()
+        selectedCount = 0
+    }
+
+    function toggle(id) {
+        if (selectedIds.has(id))
+            selectedIds.delete(id)
+        else
+            selectedIds.add(id)
+        selectedCount = selectedIds.size
+    }
+
+    function selectRange(fromIndex, toIndex) {
+        var lo = Math.min(fromIndex, toIndex)
+        var hi = Math.min(Math.max(fromIndex, toIndex), songs.length - 1)
+        clearSelection()
+        for (var i = lo; i <= hi; ++i) {
+            var song = songs[i]
+            if (song && song.id !== undefined)
+                selectedIds.add(song.id)
+        }
+        selectedCount = selectedIds.size
+    }
+
+    function selectAll() {
+        selectRange(0, songs.length - 1)
+    }
+
+    function onRowClicked(index, id, modifiers) {
+        var ctrl = (modifiers & Qt.ControlModifier) !== 0
+        var shift = (modifiers & Qt.ShiftModifier) !== 0
+        if (ctrl) {
+            toggle(id)
+            return
+        }
+        if (shift && selectionAnchor >= 0) {
+            selectRange(selectionAnchor, index)
+            return
+        }
+        // Plain left click only plays: it never changes the selection on its
+        // own, but re-anchors Shift+click ranges. Selection happens with
+        // right click, Ctrl+left click, or Shift+left click.
+        selectionAnchor = index
+        playSong(index)
+    }
+
+    // Right click only selects this song (replacing the selection); it
+    // never starts playback.
+    function onRowRightClicked(index, id) {
+        clearSelection()
+        selectedIds.add(id)
+        selectedCount = 1
+        selectionAnchor = index
+    }
+
+    function playSong(index) {
+        var song = songs[index]
+        if (!song)
+            return
+        // The visible list is the navigation context for next/previous.
+        Player.setQueue(songs)
+        Player.loadSong(song)
+        Player.play()
+    }
+
+    // Create the playlist, add the pending targets and (when the add came
+    // from the selection bar) clear the selection.
+    function addTargetSongsToPlaylist(name) {
+        Playlists.createPlaylist(name)
+        var list = Playlists.playlists
+        for (var i = 0; i < list.length; ++i) {
+            if (list[i].name === name) {
+                Playlists.addSongs(list[i].id, targetSongIds)
+                break
+            }
+        }
+        if (addFromSelection)
+            clearSelection()
+        targetSongIds = []
+    }
 
     function formatDuration(ms) {
         var total = Math.floor(Number(ms || 0) / 1000)
@@ -64,6 +154,65 @@ Rectangle {
             color: "#313244"
         }
 
+        // ---- selection toolbar (visible when songs are selected) ----
+        RowLayout {
+            id: selectionBar
+            Layout.fillWidth: true
+            Layout.preferredHeight: 34
+            Layout.topMargin: 8
+            spacing: 10
+            visible: songsView.selectedCount > 0
+
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("%n song(s) selected", "", songsView.selectedCount)
+                color: "#89b4fa"
+                font.pixelSize: 12
+                elide: Text.ElideRight
+            }
+
+            ToolButton {
+                id: addSelectedButton
+                text: qsTr("+ Playlist")
+                focusPolicy: Qt.NoFocus
+                hoverEnabled: true
+                padding: 8
+                contentItem: Text {
+                    text: addSelectedButton.text
+                    font: addSelectedButton.font
+                    color: "#1e1e2e"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: 4
+                    color: addSelectedButton.hovered ? "#9cc7fb" : "#89b4fa"
+                }
+                onClicked: {
+                    songsView.addFromSelection = true
+                    songsView.targetSongIds = Array.from(songsView.selectedIds)
+                    addToMenu.popup()
+                }
+            }
+
+            Button {
+                id: clearSelectionButton
+                text: qsTr("Clear selection")
+                focusPolicy: Qt.NoFocus
+                flat: true
+                font.pixelSize: 12
+                contentItem: Text {
+                    text: clearSelectionButton.text
+                    font: clearSelectionButton.font
+                    color: clearSelectionButton.hovered ? "#f38ba8" : "#a6adc8"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle { color: "transparent" }
+                onClicked: songsView.clearSelection()
+            }
+        }
+
         // ---- song list ----
         ListView {
             id: songList
@@ -73,7 +222,18 @@ Rectangle {
             clip: true
             spacing: 2
             boundsBehavior: Flickable.StopAtBounds
+            focus: true
             ScrollBar.vertical: ScrollBar { }
+
+            Keys.onPressed: function (event) {
+                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                    songsView.selectAll()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Escape) {
+                    songsView.clearSelection()
+                    event.accepted = true
+                }
+            }
 
             delegate: Rectangle {
                 id: songRow
@@ -81,15 +241,23 @@ Rectangle {
                 height: 40
                 radius: 6
 
+                required property int index
                 required property var modelData
                 property var song: modelData
                 property bool isCurrent: Player.currentSong !== undefined
                                          && Player.currentSong !== null
                                          && Player.currentSong.id !== undefined
                                          && Player.currentSong.id === song.id
+                // Depends on selectedCount so it re-evaluates when the
+                // selection (either as a Set or its size) changes.
+                property bool isSelected: songsView.selectedCount > 0
+                                          && songsView.selectedIds.has(song.id)
 
-                color: isCurrent ? "#252637"
-                       : songMouse.containsMouse ? "#232435" : "transparent"
+                color: isSelected ? "#45301f"
+                       : isCurrent ? "#26366b"
+                       : songMouse.containsMouse ? "#2a3c6d" : "transparent"
+                border.color: isSelected ? "#fab387" : "transparent"
+                border.width: isSelected ? 2 : 0
                 Behavior on color {
                     ColorAnimation { duration: 100 }
                 }
@@ -98,9 +266,14 @@ Rectangle {
                     id: songMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    onDoubleClicked: {
-                        Player.loadSong(songRow.song)
-                        Player.play()
+                    // Left = play, right = select, Ctrl/Shift+left = multi.
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: function (mouse) {
+                        if (mouse.button === Qt.RightButton) {
+                            songsView.onRowRightClicked(songRow.index, songRow.song.id)
+                            return
+                        }
+                        songsView.onRowClicked(songRow.index, songRow.song.id, mouse.modifiers)
                     }
                 }
 
@@ -113,21 +286,23 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: songRow.song.title ? songRow.song.title : qsTr("Unknown title")
-                        color: "#cdd6f4"
+                        // Blue at rest, lighter blue on hover, orange when selected.
+                        color: songRow.isSelected ? "#fab387"
+                               : songMouse.containsMouse ? "#a6c9fb" : "#89b4fa"
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
                     Text {
                         Layout.preferredWidth: 160
                         text: songRow.song.artist ? songRow.song.artist : ""
-                        color: "#a6adc8"
+                        color: songRow.isSelected ? "#e0b18d" : "#8b9ed4"
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
                     Text {
                         Layout.preferredWidth: 160
                         text: songRow.song.album ? songRow.song.album : ""
-                        color: "#a6adc8"
+                        color: songRow.isSelected ? "#e0b18d" : "#8b9ed4"
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
@@ -135,7 +310,7 @@ Rectangle {
                         Layout.preferredWidth: 50
                         horizontalAlignment: Text.AlignRight
                         text: songsView.formatDuration(songRow.song.duration)
-                        color: "#6c7086"
+                        color: songRow.isSelected ? "#d3a680" : "#5c6caa"
                         font.pixelSize: 12
                     }
 
@@ -146,10 +321,16 @@ Rectangle {
                         hoverEnabled: true
                         padding: 4
 
+                        ToolTip.visible: addToButton.hovered
+                        ToolTip.text: qsTr("Add to playlist")
+                        ToolTip.delay: 400
+
                         contentItem: Text {
-                            text: qsTr("+ Playlist")
-                            color: addToButton.hovered ? "#89b4fa" : "#a6adc8"
-                            font.pixelSize: 11
+                            text: qsTr("+")
+                            color: addToButton.down ? "#f2935e"
+                                   : addToButton.hovered ? "#fab387" : "#89b4fa"
+                            font.pixelSize: 16
+                            font.bold: true
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -158,7 +339,9 @@ Rectangle {
                             color: addToButton.hovered ? "#313244" : "transparent"
                         }
                         onClicked: {
-                            songsView.targetSongId = songRow.song.id
+                            // Single-song add always targets just this row.
+                            songsView.addFromSelection = false
+                            songsView.targetSongIds = [songRow.song.id]
                             addToMenu.popup()
                         }
                     }
@@ -177,7 +360,7 @@ Rectangle {
         font.pixelSize: 15
     }
 
-    // ---- add to playlist menu ----
+    // ---- add to playlist menu (acts on songsView.targetSongIds) ----
     Menu {
         id: addToMenu
         title: qsTr("Add to playlist")
@@ -187,7 +370,13 @@ Rectangle {
             delegate: MenuItem {
                 required property var modelData
                 text: modelData.name
-                onTriggered: Playlists.addSong(modelData.id, songsView.targetSongId)
+                onTriggered: {
+                    Playlists.addSongs(modelData.id, songsView.targetSongIds)
+                    // Batch add from the selection bar: the added songs
+                    // leave the selection.
+                    if (songsView.addFromSelection)
+                        songsView.clearSelection()
+                }
             }
             onObjectAdded: (index, object) => addToMenu.insertItem(index, object)
             onObjectRemoved: (index, object) => addToMenu.removeItem(object)
@@ -196,16 +385,61 @@ Rectangle {
         MenuItem {
             text: qsTr("New playlist…")
             onTriggered: {
-                var name = qsTr("Playlist %1").arg(Playlists.playlists.length + 1)
-                Playlists.createPlaylist(name)
-                var list = Playlists.playlists
-                for (var i = 0; i < list.length; ++i) {
-                    if (list[i].name === name) {
-                        Playlists.addSong(list[i].id, songsView.targetSongId)
-                        break
-                    }
+                newPlaylistNameField.text = qsTr("Playlist %1")
+                                            .arg(Playlists.playlists.length + 1)
+                newPlaylistDialog.open()
+            }
+        }
+    }
+
+    // ---- name prompt for "New playlist…" ----
+    Dialog {
+        id: newPlaylistDialog
+        title: qsTr("New playlist")
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onOpened: newPlaylistNameField.forceActiveFocus()
+
+        contentItem: ColumnLayout {
+            spacing: 10
+            implicitWidth: 320
+
+            Text {
+                text: qsTr("Name for the new playlist:")
+                color: "#cdd6f4"
+                font.pixelSize: 13
+            }
+
+            TextField {
+                id: newPlaylistNameField
+                Layout.fillWidth: true
+                Layout.preferredHeight: 34
+                placeholderText: qsTr("Playlist name")
+                placeholderTextColor: "#6c7086"
+                color: "#cdd6f4"
+                selectionColor: "#45475a"
+                selectedTextColor: "#11111b"
+                font.pixelSize: 13
+                leftPadding: 10
+                rightPadding: 10
+                onAccepted: newPlaylistDialog.accept()
+                background: Rectangle {
+                    radius: 6
+                    color: "#1e1e2e"
+                    border.width: 1
+                    border.color: newPlaylistNameField.activeFocus ? "#89b4fa" : "#313244"
                 }
             }
+        }
+
+        onAccepted: {
+            // Empty input falls back to a generated name so the batch add
+            // still happens.
+            var name = newPlaylistNameField.text.trim()
+            if (name.length === 0)
+                name = qsTr("Playlist %1").arg(Playlists.playlists.length + 1)
+            songsView.addTargetSongsToPlaylist(name)
         }
     }
 }

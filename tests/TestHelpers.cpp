@@ -2,6 +2,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QSet>
+#include <QGlobalStatic>
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QSqlRecord>
@@ -19,11 +21,39 @@ TestHelpers::TestHelpers(QObject *parent)
 
 TestHelpers::~TestHelpers() = default;
 
+namespace {
+
+// Tracks directories created by createTempDirectory() so they are removed
+// when the test process exits (QTemporaryDir alone cannot be returned by
+// value: its destructor would delete the directory on return).
+class TempDirectoryRegistry
+{
+public:
+    ~TempDirectoryRegistry()
+    {
+        for (const QString &path : std::as_const(paths)) {
+            QDir(path).removeRecursively();
+        }
+    }
+
+    void add(const QString &path) { paths.insert(path); }
+
+private:
+    QSet<QString> paths;
+};
+
+Q_GLOBAL_STATIC(TempDirectoryRegistry, g_tempDirectoryRegistry)
+
+} // namespace
+
 QString TestHelpers::createTempDirectory()
 {
-    QTemporaryDir dir;
-    if (dir.isValid()) {
-        return dir.path();
+    // Create the directory under QDir::tempPath() instead of relying on a
+    // QTemporaryDir local (which is destroyed when this function returns).
+    const QString path = QDir::temp().filePath(uniqueString(QStringLiteral("musicrep")));
+    if (QDir().mkpath(path)) {
+        g_tempDirectoryRegistry->add(path);
+        return path;
     }
     return QString();
 }
