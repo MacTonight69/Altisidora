@@ -28,6 +28,7 @@ Rectangle {
         id: tButton
         property string iconText: ""
         property bool primary: false
+        property bool circular: false
         focusPolicy: Qt.NoFocus
         hoverEnabled: true
         padding: 8
@@ -40,7 +41,10 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
-            radius: tButton.primary ? 17 : 6
+            // circular => a perfect circle (radius follows the height);
+            // otherwise keep the rounded look.
+            radius: tButton.circular ? height / 2
+                   : tButton.primary ? 17 : 6
             color: tButton.primary
                    ? (tButton.down ? Theme.accentPressed : tButton.hovered ? Theme.accentHover : Theme.accent)
                    : (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : "transparent")
@@ -137,6 +141,11 @@ Rectangle {
                 }
                 TransportButton {
                     primary: true
+                    circular: true
+                    // Fixed square footprint: the glyph swap (⏸/▶) cannot
+                    // resize the button, so it never shifts position.
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
                     iconText: Player.isPlaying ? "\u23F8" : "\u25B6" // ⏸ / ▶
                     onClicked: {
                         if (Player.isPlaying)
