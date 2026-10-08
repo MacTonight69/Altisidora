@@ -466,7 +466,9 @@ ApplicationWindow {
 
     Component {
         id: songDetailComponent
-        SongListDetailView { }
+        SongListDetailView {
+            onBackRequested: contentStack.pop()
+        }
     }
 
     Component {

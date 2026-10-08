@@ -21,6 +21,9 @@ Rectangle {
     property string primaryKey: ""      // album title or artist name
     property string secondaryKey: ""    // album artist (albums only)
     property var modelSongs: []
+    // The StackView attached property is unreliable inside descendants of a
+    // pushed component; main.qml owns the stack and handles the pop.
+    signal backRequested()
 
     function reload() {
         if (detail.filterType === "artist")
@@ -70,11 +73,7 @@ Rectangle {
                     radius: 6
                     color: backButton.hovered ? Theme.rowHover : "transparent"
                 }
-                onClicked: {
-                    var stack = StackView.view
-                    if (stack)
-                        stack.pop()
-                }
+                onClicked: detail.backRequested()
             }
 
             ColumnLayout {
