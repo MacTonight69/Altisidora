@@ -155,6 +155,9 @@ ApplicationWindow {
     FolderDialog {
         id: folderDialog
         title: qsTr("Select music folder")
+        // Open in the user's personal folder so the scan targets are easy
+        // to reach when scanning a folder.
+        currentFolder: personalMusicFolder
         onAccepted: {
             var path = root.folderToPath(selectedFolder)
             AppSettings.musicDirectory = path

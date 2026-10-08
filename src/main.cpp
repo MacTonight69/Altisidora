@@ -10,6 +10,7 @@
 #include <QFileInfo>
 #include <QMouseEvent>
 #include <QRectF>
+#include <QUrl>
 
 #include "audio/PlayerController.h"
 #include "audio/PlaybackState.h"
@@ -137,6 +138,11 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("Library"), &library);
     engine.rootContext()->setContextProperty(QStringLiteral("Playlists"), &playlists);
     engine.rootContext()->setContextProperty(QStringLiteral("AppSettings"), &appSettings);
+    // Where the "Scan library" picker starts: the same personal folder the
+    // first-launch scan defaults to (Music location, else home folder).
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("personalMusicFolder"),
+        QUrl::fromLocalFile(personalMusicFolder()));
 
     engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
 
