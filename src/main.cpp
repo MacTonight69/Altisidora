@@ -3,6 +3,9 @@
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QIcon>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFileInfo>
 
 #include "audio/PlayerController.h"
 #include "audio/PlaybackState.h"
@@ -10,6 +13,24 @@
 #include "app/PlaylistController.h"
 #include "app/SettingsController.h"
 #include "mpris/MprisPlayer.h"
+
+namespace {
+
+/**
+ * @brief The user's personal music folder to default to on first launch.
+ *
+ * Prefers the standard Music location (respects the desktop locale, e.g.
+ * ~/Música); falls back to the home folder when it does not exist.
+ */
+QString personalMusicFolder()
+{
+    const QString location = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
+    if (!location.isEmpty() && QFileInfo(location).isDir())
+        return location;
+    return QDir::homePath();
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -28,12 +49,15 @@ int main(int argc, char *argv[])
     // Load persisted library data on startup
     library.refresh();
 
-    // Automatic scan of the personal folder. Runs in the background, skips
-    // audio <= 30 s and never re-adds paths that are already in the
-    // database. Only skipped once the user manages an explicit music
-    // directory through "Scan library".
-    if (appSettings.musicDirectory().isEmpty() || library.songCount() == 0) {
-        library.scanPersonalMusic();
+    // First launch: no music folder is configured yet and the library is
+    // empty, so the app defaults to the user's personal folder and scans
+    // it once in the background (skipping audio <= 30 s and paths already
+    // in the database). The folder is remembered, so later launches only
+    // scan when the user asks for it from "Scan library".
+    if (appSettings.musicDirectory().isEmpty() && library.songCount() == 0) {
+        const QString personalFolder = personalMusicFolder();
+        appSettings.setMusicDirectory(personalFolder);
+        library.scanPersonalMusic(personalFolder);
     }
 
     // Expose playback to the desktop as an MPRIS media player, so MangoWM /
