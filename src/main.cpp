@@ -1,5 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQmlContext>
 #include <QIcon>
 
@@ -41,6 +42,18 @@ int main(int argc, char *argv[])
     mpris.registerService();
 
     QQmlApplicationEngine engine;
+
+    // Theme provider (QML component). Exposed as a context property so
+    // every document can bind to Theme.<role> without imports; the object
+    // lives for the whole application, parented to the engine.
+    QQmlComponent themeComponent(&engine, QUrl(QStringLiteral("qrc:/qml/themes/Theme.qml")));
+    if (QObject *theme = themeComponent.create()) {
+        theme->setParent(&engine);
+        engine.rootContext()->setContextProperty(QStringLiteral("Theme"), theme);
+    }
+    if (themeComponent.isError())
+        qWarning() << themeComponent.errors();
+
     engine.rootContext()->setContextProperty(QStringLiteral("Player"), &player);
     engine.rootContext()->setContextProperty(QStringLiteral("Library"), &library);
     engine.rootContext()->setContextProperty(QStringLiteral("Playlists"), &playlists);

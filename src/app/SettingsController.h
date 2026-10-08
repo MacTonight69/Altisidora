@@ -16,6 +16,7 @@ class SettingsController : public QObject
     Q_PROPERTY(QString musicDirectory READ musicDirectory WRITE setMusicDirectory NOTIFY settingsChanged)
     Q_PROPERTY(bool shuffle READ shuffle WRITE setShuffle NOTIFY settingsChanged)
     Q_PROPERTY(bool repeat READ repeat WRITE setRepeat NOTIFY settingsChanged)
+    Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY settingsChanged)
 
 public:
     explicit SettingsController(QObject *parent = nullptr);
@@ -23,11 +24,13 @@ public:
     QString musicDirectory() const;
     bool shuffle() const;
     bool repeat() const;
+    QString theme() const;
 
 public slots:
     void setMusicDirectory(const QString &path);
     void setShuffle(bool enabled);
     void setRepeat(bool enabled);
+    void setTheme(const QString &name);
     QVariant getSetting(const QString &key, const QVariant &defaultValue) const;
     void setSetting(const QString &key, const QVariant &value);
     void save();
@@ -41,4 +44,5 @@ private:
     QString m_musicDirectory;
     bool m_shuffle;
     bool m_repeat;
+    QString m_theme;
 };

@@ -90,9 +90,9 @@ Rectangle {
             Layout.preferredWidth: 280
             Layout.fillHeight: true
             radius: 6
-            color: "#181825"
+            color: Theme.bgAlt
             border.width: 1
-            border.color: "#313244"
+            border.color: Theme.border
 
             ColumnLayout {
                 anchors.fill: parent
@@ -101,7 +101,7 @@ Rectangle {
 
                 Text {
                     text: qsTr("Playlists")
-                    color: "#cdd6f4"
+                    color: Theme.textPrimary
                     font.pixelSize: 15
                     font.bold: true
                 }
@@ -115,18 +115,18 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 34
                         placeholderText: qsTr("New playlist name")
-                        placeholderTextColor: "#6c7086"
-                        color: "#cdd6f4"
-                        selectionColor: "#45475a"
-                        selectedTextColor: "#11111b"
+                        placeholderTextColor: Theme.textMuted
+                        color: Theme.textPrimary
+                        selectionColor: Theme.fieldSelection
+                        selectedTextColor: Theme.fieldSelectedText
                         font.pixelSize: 13
                         leftPadding: 10
                         rightPadding: 10
                         background: Rectangle {
                             radius: 6
-                            color: "#1e1e2e"
+                            color: Theme.field
                             border.width: 1
-                            border.color: newPlaylistField.activeFocus ? "#89b4fa" : "#313244"
+                            border.color: newPlaylistField.activeFocus ? Theme.accent : Theme.border
                         }
                         onAccepted: createButton.clicked()
                     }
@@ -164,8 +164,8 @@ Rectangle {
                         property bool isSelected: playlistsView.selectedPlaylistId === modelData.id
                         property bool renaming: false
 
-                        color: isSelected ? "#252637"
-                               : plMouse.containsMouse ? "#20212f" : "transparent"
+                        color: isSelected ? Theme.rowActive
+                               : plMouse.containsMouse ? Theme.rowHover : "transparent"
                         Behavior on color {
                             ColorAnimation { duration: 100 }
                         }
@@ -201,7 +201,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: modelData.name
-                                    color: plRow.isSelected ? "#89b4fa" : "#cdd6f4"
+                                    color: plRow.isSelected ? Theme.accent : Theme.textPrimary
                                     font.pixelSize: 13
                                     font.bold: plRow.isSelected
                                     elide: Text.ElideRight
@@ -210,7 +210,7 @@ Rectangle {
                                     Layout.fillWidth: true
                                     text: modelData.songCount + (modelData.songCount === 1
                                                                   ? qsTr(" song") : qsTr(" songs"))
-                                    color: "#6c7086"
+                                    color: Theme.textMuted
                                     font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
@@ -222,16 +222,16 @@ Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 30
                                 font.pixelSize: 13
-                                color: "#cdd6f4"
-                                selectionColor: "#45475a"
-                                selectedTextColor: "#11111b"
+                                color: Theme.textPrimary
+                                selectionColor: Theme.fieldSelection
+                                selectedTextColor: Theme.fieldSelectedText
                                 leftPadding: 8
                                 rightPadding: 8
                                 background: Rectangle {
                                     radius: 4
-                                    color: "#1e1e2e"
+                                    color: Theme.field
                                     border.width: 1
-                                    border.color: "#89b4fa"
+                                    border.color: Theme.accent
                                 }
                                 onAccepted: {
                                     var name = text.trim()
@@ -255,14 +255,14 @@ Rectangle {
 
                                 contentItem: Text {
                                     text: qsTr("Rename")
-                                    color: renameButton.hovered ? "#cdd6f4" : "#a6adc8"
+                                    color: renameButton.hovered ? Theme.textPrimary : Theme.textSecondary
                                     font.pixelSize: 11
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                 }
                                 background: Rectangle {
                                     radius: 4
-                                    color: renameButton.hovered ? "#313244" : "transparent"
+                                    color: renameButton.hovered ? Theme.border : "transparent"
                                 }
                                 onClicked: plRow.startRename()
                             }
@@ -277,14 +277,14 @@ Rectangle {
 
                                 contentItem: Text {
                                     text: qsTr("Delete")
-                                    color: deleteButton.hovered ? "#f38ba8" : "#a6adc8"
+                                    color: deleteButton.hovered ? Theme.danger : Theme.textSecondary
                                     font.pixelSize: 11
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                 }
                                 background: Rectangle {
                                     radius: 4
-                                    color: deleteButton.hovered ? "#3b1e2a" : "transparent"
+                                    color: deleteButton.hovered ? Theme.dangerBg : "transparent"
                                 }
                                 onClicked: {
                                     if (plRow.isSelected)
@@ -304,7 +304,7 @@ Rectangle {
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
                     text: qsTr("No playlists yet — create one above")
-                    color: "#6c7086"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                 }
             }
@@ -315,9 +315,9 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: 6
-            color: "#181825"
+            color: Theme.bgAlt
             border.width: 1
-            border.color: "#313244"
+            border.color: Theme.border
 
             ColumnLayout {
                 anchors.fill: parent
@@ -332,7 +332,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: playlistsView.selectedName
-                        color: "#cdd6f4"
+                        color: Theme.textPrimary
                         font.pixelSize: 15
                         font.bold: true
                         elide: Text.ElideRight
@@ -341,7 +341,7 @@ Rectangle {
                         text: playlistsView.playlistSongs.length
                               + (playlistsView.playlistSongs.length === 1
                                  ? qsTr(" song") : qsTr(" songs"))
-                        color: "#6c7086"
+                        color: Theme.textMuted
                         font.pixelSize: 12
                     }
 
@@ -355,14 +355,14 @@ Rectangle {
                         contentItem: Text {
                             text: playPlaylistButton.text
                             font: playPlaylistButton.font
-                            color: "#1e1e2e"
+                            color: Theme.onAccent
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             radius: 4
-                            color: playPlaylistButton.down ? "#74a8f7"
-                                   : playPlaylistButton.hovered ? "#9cc7fb" : "#89b4fa"
+                            color: playPlaylistButton.down ? Theme.accentPressed
+                                   : playPlaylistButton.hovered ? Theme.accentHover : Theme.accent
                         }
                         onClicked: playlistsView.playPlaylist()
                     }
@@ -377,14 +377,14 @@ Rectangle {
                         contentItem: Text {
                             text: shuffleButton.text
                             font: shuffleButton.font
-                            color: "#1e1e2e"
+                            color: Theme.onAccent
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             radius: 4
-                            color: shuffleButton.down ? "#e3945a"
-                                   : shuffleButton.hovered ? "#f7bd92" : "#fab387"
+                            color: shuffleButton.down ? Theme.accentAltPressed
+                                   : shuffleButton.hovered ? Theme.accentAltHover : Theme.accentAlt
                         }
                         onClicked: playlistsView.playShuffled()
                     }
@@ -394,7 +394,7 @@ Rectangle {
                     visible: playlistsView.selectedPlaylistId >= 0
                     Layout.fillWidth: true
                     Layout.preferredHeight: 1
-                    color: "#313244"
+                    color: Theme.border
                 }
 
                 ListView {
@@ -420,8 +420,8 @@ Rectangle {
                                                  && Player.currentSong.id !== undefined
                                                  && Player.currentSong.id === modelData.id
 
-                        color: isCurrent ? "#252637"
-                               : plSongMouse.containsMouse ? "#20212f" : "transparent"
+                        color: isCurrent ? Theme.rowActive
+                               : plSongMouse.containsMouse ? Theme.rowHover : "transparent"
                         Behavior on color {
                             ColorAnimation { duration: 100 }
                         }
@@ -447,14 +447,14 @@ Rectangle {
                             Text {
                                 Layout.fillWidth: true
                                 text: modelData.title ? modelData.title : qsTr("Unknown title")
-                                color: "#cdd6f4"
+                                color: Theme.textPrimary
                                 font.pixelSize: 13
                                 elide: Text.ElideRight
                             }
                             Text {
                                 Layout.preferredWidth: 150
                                 text: modelData.artist ? modelData.artist : ""
-                                color: "#a6adc8"
+                                color: Theme.textSecondary
                                 font.pixelSize: 12
                                 elide: Text.ElideRight
                             }
@@ -462,7 +462,7 @@ Rectangle {
                                 Layout.preferredWidth: 44
                                 horizontalAlignment: Text.AlignRight
                                 text: playlistsView.formatDuration(modelData.duration)
-                                color: "#6c7086"
+                                color: Theme.textMuted
                                 font.pixelSize: 12
                             }
                             ToolButton {
@@ -474,14 +474,14 @@ Rectangle {
 
                                 contentItem: Text {
                                     text: "\u2715"
-                                    color: removeFromPlaylist.hovered ? "#f38ba8" : "#a6adc8"
+                                    color: removeFromPlaylist.hovered ? Theme.danger : Theme.textSecondary
                                     font.pixelSize: 11
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                 }
                                 background: Rectangle {
                                     radius: 4
-                                    color: removeFromPlaylist.hovered ? "#3b1e2a" : "transparent"
+                                    color: removeFromPlaylist.hovered ? Theme.dangerBg : "transparent"
                                 }
                                 onClicked: Playlists.removeSong(playlistsView.selectedPlaylistId,
                                                                 modelData.id)
@@ -499,7 +499,7 @@ Rectangle {
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
                     text: qsTr("Select a playlist, or create a new one")
-                    color: "#6c7086"
+                    color: Theme.textMuted
                     font.pixelSize: 14
                 }
 
@@ -512,7 +512,7 @@ Rectangle {
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
                     text: qsTr("This playlist is empty")
-                    color: "#6c7086"
+                    color: Theme.textMuted
                     font.pixelSize: 14
                 }
             }

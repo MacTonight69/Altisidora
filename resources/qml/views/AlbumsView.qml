@@ -54,9 +54,9 @@ Rectangle {
                 anchors.fill: parent
                 anchors.margins: 8
                 radius: 6
-                color: albumMouse.containsMouse ? "#20212f" : "#181825"
+                color: albumMouse.containsMouse ? Theme.rowHover : Theme.bgAlt
                 border.width: 1
-                border.color: albumMouse.containsMouse ? "#89b4fa" : "#313244"
+                border.color: albumMouse.containsMouse ? Theme.accent : Theme.border
 
                 Behavior on color {
                     ColorAnimation { duration: 120 }
@@ -94,7 +94,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: modelData.title ? modelData.title : qsTr("Unknown album")
-                        color: "#cdd6f4"
+                        color: Theme.textPrimary
                         font.pixelSize: 13
                         font.bold: true
                         elide: Text.ElideRight
@@ -103,7 +103,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: modelData.artist ? modelData.artist : ""
-                        color: "#a6adc8"
+                        color: Theme.textSecondary
                         font.pixelSize: 11
                         elide: Text.ElideRight
                     }
@@ -111,7 +111,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: modelData.year ? String(modelData.year) : qsTr("Unknown year")
-                        color: "#6c7086"
+                        color: Theme.textMuted
                         font.pixelSize: 11
                         elide: Text.ElideRight
                     }
@@ -125,7 +125,7 @@ Rectangle {
         anchors.centerIn: parent
         visible: Library.albums.length === 0
         text: qsTr("No albums yet — press Scan library")
-        color: "#6c7086"
+        color: Theme.textMuted
         font.pixelSize: 15
     }
 }

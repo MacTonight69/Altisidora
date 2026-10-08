@@ -17,20 +17,28 @@ ApplicationWindow {
     minimumHeight: 600
     visible: true
     title: qsTr("Altisidora")
-    color: "#1e1e2e"
+    color: Theme.bg
 
-    palette.window: "#1e1e2e"
-    palette.windowText: "#cdd6f4"
-    palette.base: "#181825"
-    palette.alternateBase: "#232435"
-    palette.text: "#cdd6f4"
-    palette.placeholderText: "#6c7086"
-    palette.button: "#313244"
-    palette.buttonText: "#cdd6f4"
-    palette.highlight: "#89b4fa"
-    palette.highlightedText: "#1e1e2e"
-    palette.toolTipBase: "#313244"
-    palette.toolTipText: "#cdd6f4"
+    palette.window: Theme.bg
+    palette.windowText: Theme.textPrimary
+    palette.base: Theme.bgAlt
+    palette.alternateBase: Theme.rowActive
+    palette.text: Theme.textPrimary
+    palette.placeholderText: Theme.textMuted
+    palette.button: Theme.border
+    palette.buttonText: Theme.textPrimary
+    palette.highlight: Theme.accent
+    palette.highlightedText: Theme.onAccent
+    palette.toolTipBase: Theme.field
+    palette.toolTipText: Theme.textPrimary
+
+    Component.onCompleted: root.applyTheme(AppSettings.theme)
+
+    function applyTheme(name) {
+        Theme.apply(name)
+        if (name !== AppSettings.theme)
+            AppSettings.theme = name
+    }
 
     // ---- state ----
     property int currentNav: 0
@@ -122,14 +130,14 @@ ApplicationWindow {
             Rectangle {
                 Layout.preferredWidth: 210
                 Layout.fillHeight: true
-                color: "#181825"
+                color: Theme.bgAlt
 
                 Rectangle {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.right: parent.right
                     width: 1
-                    color: "#313244"
+                    color: Theme.border
                 }
 
                 ColumnLayout {
@@ -140,11 +148,11 @@ ApplicationWindow {
                     // Brand logo: large and centered, covering most of the sidebar.
                     Image {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 140
+                        Layout.preferredHeight: 168
                         Layout.topMargin: 4
                         source: "qrc:/images/LogoApp.png"
-                        sourceSize.width: 320
-                        sourceSize.height: 320
+                        sourceSize.width: 512
+                        sourceSize.height: 512
                         fillMode: Image.PreserveAspectFit
                         smooth: true
                     }
@@ -167,8 +175,8 @@ ApplicationWindow {
                             property int navIndex: index
                             property string label: modelData
 
-                            color: root.currentNav === navIndex ? "#252637"
-                                   : navMouse.containsMouse ? "#20212f" : "transparent"
+                            color: root.currentNav === navIndex ? Theme.rowActive
+                                   : navMouse.containsMouse ? Theme.rowHover : "transparent"
                             Behavior on color {
                                 ColorAnimation { duration: 120 }
                             }
@@ -180,7 +188,7 @@ ApplicationWindow {
                                 width: 3
                                 height: parent.height - 16
                                 radius: 2
-                                color: "#89b4fa"
+                                color: Theme.accent
                                 visible: root.currentNav === navRow.navIndex
                             }
 
@@ -190,7 +198,7 @@ ApplicationWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                                 // Show the "Alt+N" number hint next to the label.
                                 text: (navRow.navIndex + 1) + "\u2002\u2002" + navRow.label
-                                color: root.currentNav === navRow.navIndex ? "#89b4fa" : "#cdd6f4"
+                                color: root.currentNav === navRow.navIndex ? Theme.accent : Theme.textPrimary
                                 font.pixelSize: 14
                                 font.bold: root.currentNav === navRow.navIndex
                             }
@@ -212,7 +220,7 @@ ApplicationWindow {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
-                        color: "#313244"
+                        color: Theme.border
                     }
 
                     Item {
@@ -231,14 +239,14 @@ ApplicationWindow {
                         contentItem: Text {
                             text: scanButton.text
                             font: scanButton.font
-                            color: "#1e1e2e"
+                            color: Theme.onAccent
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
                             radius: 6
-                            color: scanButton.down ? "#74a8f7"
-                                   : scanButton.hovered ? "#9cc7fb" : "#89b4fa"
+                            color: scanButton.down ? Theme.accentPressed
+                                   : scanButton.hovered ? Theme.accentHover : Theme.accent
                             Behavior on color {
                                 ColorAnimation { duration: 120 }
                             }
@@ -257,14 +265,14 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 56
-                    color: "#1e1e2e"
+                    color: Theme.bg
 
                     Rectangle {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
                         height: 1
-                        color: "#313244"
+                        color: Theme.border
                     }
 
                     RowLayout {
@@ -275,7 +283,7 @@ ApplicationWindow {
 
                         Text {
                             text: root.navLabels[root.currentNav]
-                            color: "#cdd6f4"
+                            color: Theme.textPrimary
                             font.pixelSize: 17
                             font.bold: true
                         }
@@ -332,7 +340,7 @@ ApplicationWindow {
         z: 100
         anchors.fill: parent
         visible: root.scanning
-        color: "#d91e1e2e"
+        color: Theme.scrim
 
         MouseArea {
             anchors.fill: parent
@@ -350,13 +358,13 @@ ApplicationWindow {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Scanning library…")
-                color: "#cdd6f4"
+                color: Theme.textPrimary
                 font.pixelSize: 15
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("This may take a moment")
-                color: "#6c7086"
+                color: Theme.textMuted
                 font.pixelSize: 12
             }
         }

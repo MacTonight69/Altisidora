@@ -23,6 +23,7 @@ private slots:
     void testDefaults();
     void testSetMusicDirectory();
     void testSetShuffleAndRepeat();
+    void testSetTheme();
     void testSettingsChangedSignal();
     void testNoSignalWhenValueUnchanged();
     void testGenericGetSet();
@@ -63,6 +64,7 @@ void tst_settings::testDefaults()
     QVERIFY(settings.musicDirectory().isEmpty());
     QVERIFY(!settings.shuffle());
     QVERIFY(!settings.repeat());
+    QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
 
     // Unknown keys fall back to the provided default
     QCOMPARE(settings.getSetting(QStringLiteral("does.not.exist"), 42).toInt(), 42);
@@ -91,6 +93,19 @@ void tst_settings::testSetShuffleAndRepeat()
     QVERIFY(!settings.repeat());
 }
 
+void tst_settings::testSetTheme()
+{
+    SettingsController settings;
+
+    QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
+    settings.setTheme(QStringLiteral("Kawai"));
+    QCOMPARE(settings.theme(), QStringLiteral("Kawai"));
+    settings.setTheme(QStringLiteral("The Niggest"));
+    QCOMPARE(settings.theme(), QStringLiteral("The Niggest"));
+    settings.setTheme(QStringLiteral("Mimy"));
+    QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
+}
+
 void tst_settings::testSettingsChangedSignal()
 {
     SettingsController settings;
@@ -103,8 +118,11 @@ void tst_settings::testSettingsChangedSignal()
     settings.setMusicDirectory(QStringLiteral("/music"));
     QCOMPARE(spy.count(), 2);
 
-    settings.setSetting(QStringLiteral("volume"), 0.5);
+    settings.setTheme(QStringLiteral("Vacui"));
     QCOMPARE(spy.count(), 3);
+
+    settings.setSetting(QStringLiteral("volume"), 0.5);
+    QCOMPARE(spy.count(), 4);
 }
 
 void tst_settings::testNoSignalWhenValueUnchanged()
@@ -144,6 +162,7 @@ void tst_settings::testPersistenceAcrossInstances()
         first.setMusicDirectory(QStringLiteral("/home/user/Music"));
         first.setShuffle(true);
         first.setRepeat(true);
+        first.setTheme(QStringLiteral("Good Technic"));
         first.save();
     }
 
@@ -152,6 +171,7 @@ void tst_settings::testPersistenceAcrossInstances()
     QCOMPARE(second.musicDirectory(), QStringLiteral("/home/user/Music"));
     QVERIFY(second.shuffle());
     QVERIFY(second.repeat());
+    QCOMPARE(second.theme(), QStringLiteral("Good Technic"));
 }
 
 QTEST_MAIN(tst_settings)

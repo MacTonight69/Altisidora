@@ -6,7 +6,7 @@ Rectangle {
     id: controls
 
     implicitHeight: 80
-    color: "#181825"
+    color: Theme.bgAlt
 
     property string errorText: ""
 
@@ -34,7 +34,7 @@ Rectangle {
 
         contentItem: Text {
             text: tButton.iconText
-            color: tButton.primary ? "#1e1e2e" : "#cdd6f4"
+            color: tButton.primary ? Theme.onAccent : Theme.textPrimary
             font.pixelSize: tButton.primary ? 17 : 14
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -42,8 +42,8 @@ Rectangle {
         background: Rectangle {
             radius: tButton.primary ? 17 : 6
             color: tButton.primary
-                   ? (tButton.down ? "#74a8f7" : tButton.hovered ? "#9cc7fb" : "#89b4fa")
-                   : (tButton.down ? "#3b3d55" : tButton.hovered ? "#313244" : "transparent")
+                   ? (tButton.down ? Theme.accentPressed : tButton.hovered ? Theme.accentHover : Theme.accent)
+                   : (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : "transparent")
             Behavior on color {
                 ColorAnimation { duration: 100 }
             }
@@ -58,7 +58,7 @@ Rectangle {
         anchors.right: parent.right
         height: visible ? 24 : 0
         visible: controls.errorText !== ""
-        color: "#3a1d28"
+        color: Theme.dangerBg
         z: 1
 
         Text {
@@ -67,7 +67,7 @@ Rectangle {
             anchors.rightMargin: 14
             verticalAlignment: Text.AlignVCenter
             text: controls.errorText
-            color: "#f38ba8"
+            color: Theme.danger
             font.pixelSize: 12
             elide: Text.ElideRight
         }
@@ -107,7 +107,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 text: controls.songTitle
-                color: "#cdd6f4"
+                color: Theme.textPrimary
                 font.pixelSize: 13
                 font.bold: true
                 elide: Text.ElideRight
@@ -116,7 +116,7 @@ Rectangle {
                 Layout.fillWidth: true
                 visible: controls.songArtist !== ""
                 text: controls.songArtist
-                color: "#a6adc8"
+                color: Theme.textSecondary
                 font.pixelSize: 11
                 elide: Text.ElideRight
             }
@@ -163,7 +163,7 @@ Rectangle {
                     Layout.preferredWidth: 44
                     horizontalAlignment: Text.AlignRight
                     text: controls.formatTime(Player.position)
-                    color: "#a6adc8"
+                    color: Theme.textSecondary
                     font.pixelSize: 11
                 }
 
@@ -191,7 +191,7 @@ Rectangle {
                     Layout.preferredWidth: 44
                     horizontalAlignment: Text.AlignLeft
                     text: controls.formatTime(Player.duration)
-                    color: "#a6adc8"
+                    color: Theme.textSecondary
                     font.pixelSize: 11
                 }
             }
@@ -205,7 +205,7 @@ Rectangle {
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
                 text: Math.round(Player.volume * 100) + "%"
-                color: "#a6adc8"
+                color: Theme.textSecondary
                 font.pixelSize: 11
             }
 

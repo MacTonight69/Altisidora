@@ -12,9 +12,9 @@ Rectangle {
     implicitWidth: 320
     implicitHeight: 34
     radius: 6
-    color: field.activeFocus ? "#232435" : "#181825"
+    color: field.activeFocus ? Theme.fieldFocus : Theme.field
     border.width: 1
-    border.color: field.activeFocus ? "#89b4fa" : "#313244"
+    border.color: field.activeFocus ? Theme.accent : Theme.border
 
     Behavior on border.color {
         ColorAnimation { duration: 120 }
@@ -33,10 +33,10 @@ Rectangle {
             padding: 0
             background: Item { }
             placeholderText: qsTr("Search songs…")
-            placeholderTextColor: "#6c7086"
-            color: "#cdd6f4"
-            selectionColor: "#45475a"
-            selectedTextColor: "#11111b"
+            placeholderTextColor: Theme.textMuted
+            color: Theme.textPrimary
+            selectionColor: Theme.fieldSelection
+            selectedTextColor: Theme.fieldSelectedText
             font.pixelSize: 13
             verticalAlignment: TextInput.AlignVCenter
             onTextChanged: searchBar.queryChanged(text)
@@ -55,14 +55,14 @@ Rectangle {
 
             contentItem: Text {
                 text: "\u2715"
-                color: clearButton.hovered ? "#cdd6f4" : "#a6adc8"
+                color: clearButton.hovered ? Theme.textPrimary : Theme.textSecondary
                 font.pixelSize: 11
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
                 radius: 4
-                color: clearButton.hovered ? "#313244" : "transparent"
+                color: clearButton.hovered ? Theme.border : "transparent"
             }
             onClicked: {
                 field.text = ""

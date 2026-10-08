@@ -40,9 +40,58 @@ Rectangle {
 
         Text {
             text: qsTr("Settings")
-            color: "#cdd6f4"
+            color: Theme.textPrimary
             font.pixelSize: 20
             font.bold: true
+        }
+
+        // ---- appearance (theme) ----
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 640
+            implicitHeight: appearanceColumn.implicitHeight + 32
+            radius: 6
+            color: Theme.bgAlt
+            border.width: 1
+            border.color: Theme.border
+
+            ColumnLayout {
+                id: appearanceColumn
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                Text {
+                    text: qsTr("Appearance")
+                    color: Theme.textPrimary
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("Theme")
+                        color: Theme.textSecondary
+                        font.pixelSize: 13
+                        elide: Text.ElideRight
+                    }
+
+                    ComboBox {
+                        id: themeCombo
+                        Layout.preferredWidth: 210
+                        model: Theme.themeNames
+                        currentIndex: Math.max(0, Theme.themeNames.indexOf(AppSettings.theme))
+                        onActivated: {
+                            Theme.apply(currentText)
+                            AppSettings.theme = currentText
+                        }
+                    }
+                }
+            }
         }
 
         // ---- music folder ----
@@ -51,9 +100,9 @@ Rectangle {
             Layout.maximumWidth: 640
             implicitHeight: folderColumn.implicitHeight + 32
             radius: 6
-            color: "#181825"
+            color: Theme.bgAlt
             border.width: 1
-            border.color: "#313244"
+            border.color: Theme.border
 
             ColumnLayout {
                 id: folderColumn
@@ -63,7 +112,7 @@ Rectangle {
 
                 Text {
                     text: qsTr("Music folder")
-                    color: "#cdd6f4"
+                    color: Theme.textPrimary
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -75,7 +124,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: settingsView.prettyPath(AppSettings.musicDirectory)
-                        color: "#a6adc8"
+                        color: Theme.textSecondary
                         font.pixelSize: 13
                         elide: Text.ElideMiddle
                     }
@@ -92,7 +141,7 @@ Rectangle {
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
                     text: qsTr("Pick the folder that contains your music, then press “Scan library” in the sidebar to import it.")
-                    color: "#6c7086"
+                    color: Theme.textMuted
                     font.pixelSize: 11
                 }
             }
@@ -104,9 +153,9 @@ Rectangle {
             Layout.maximumWidth: 640
             implicitHeight: playbackColumn.implicitHeight + 32
             radius: 6
-            color: "#181825"
+            color: Theme.bgAlt
             border.width: 1
-            border.color: "#313244"
+            border.color: Theme.border
 
             ColumnLayout {
                 id: playbackColumn
@@ -116,7 +165,7 @@ Rectangle {
 
                 Text {
                     text: qsTr("Playback")
-                    color: "#cdd6f4"
+                    color: Theme.textPrimary
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -158,7 +207,7 @@ Rectangle {
                 id: savedHint
                 visible: false
                 text: qsTr("Settings saved")
-                color: "#a6e3a1"
+                color: Theme.success
                 font.pixelSize: 12
             }
 

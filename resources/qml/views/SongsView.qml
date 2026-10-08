@@ -7,8 +7,8 @@ import QtQuick.Layouts
 Rectangle {
     id: songsView
 
-    // The song list area is a deep blue, not white/black.
-    color: "#20305c"
+    // The song list area uses the current theme's page background.
+    color: Theme.viewBg
 
     property var songs: []
 
@@ -132,26 +132,26 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 text: qsTr("Title")
-                color: "#6c7086"
+                color: Theme.textMuted
                 font.pixelSize: 11
             }
             Text {
                 Layout.preferredWidth: 160
                 text: qsTr("Artist")
-                color: "#6c7086"
+                color: Theme.textMuted
                 font.pixelSize: 11
             }
             Text {
                 Layout.preferredWidth: 160
                 text: qsTr("Album")
-                color: "#6c7086"
+                color: Theme.textMuted
                 font.pixelSize: 11
             }
             Text {
                 Layout.preferredWidth: 50
                 horizontalAlignment: Text.AlignRight
                 text: qsTr("Duration")
-                color: "#6c7086"
+                color: Theme.textMuted
                 font.pixelSize: 11
             }
         }
@@ -159,7 +159,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
-            color: "#313244"
+            color: Theme.border
         }
 
         // ---- selection toolbar (visible when songs are selected) ----
@@ -174,7 +174,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 text: qsTr("%n song(s) selected", "", songsView.selectedCount)
-                color: "#89b4fa"
+                color: Theme.accent
                 font.pixelSize: 12
                 elide: Text.ElideRight
             }
@@ -188,13 +188,13 @@ Rectangle {
                 contentItem: Text {
                     text: addSelectedButton.text
                     font: addSelectedButton.font
-                    color: "#1e1e2e"
+                    color: Theme.onAccent
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
                     radius: 4
-                    color: addSelectedButton.hovered ? "#9cc7fb" : "#89b4fa"
+                    color: addSelectedButton.hovered ? Theme.accentHover : Theme.accent
                 }
                 onClicked: {
                     songsView.addFromSelection = true
@@ -212,7 +212,7 @@ Rectangle {
                 contentItem: Text {
                     text: clearSelectionButton.text
                     font: clearSelectionButton.font
-                    color: clearSelectionButton.hovered ? "#f38ba8" : "#a6adc8"
+                    color: clearSelectionButton.hovered ? Theme.danger : Theme.textSecondary
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -268,10 +268,10 @@ Rectangle {
                 property bool isSelected: songsView.selectedCount > 0
                                           && songsView.selectedIds.has(song.id)
 
-                color: isSelected ? "#45301f"
-                       : isCurrent ? "#26366b"
-                       : songMouse.containsMouse ? "#2a3c6d" : "transparent"
-                border.color: isSelected ? "#fab387" : "transparent"
+                color: isSelected ? Theme.selection
+                       : isCurrent ? Theme.rowCurrent
+                       : songMouse.containsMouse ? Theme.rowHover : "transparent"
+                border.color: isSelected ? Theme.selectionBorder : "transparent"
                 border.width: isSelected ? 2 : 0
                 Behavior on color {
                     ColorAnimation { duration: 100 }
@@ -301,23 +301,23 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: songRow.song.title ? songRow.song.title : qsTr("Unknown title")
-                        // Blue at rest, lighter blue on hover, orange when selected.
-                        color: songRow.isSelected ? "#fab387"
-                               : songMouse.containsMouse ? "#a6c9fb" : "#89b4fa"
+                        // Accent at rest, lighter on hover, selection colour when selected.
+                        color: songRow.isSelected ? Theme.selectionText
+                               : songMouse.containsMouse ? Theme.accentAltHover : Theme.accentAlt
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
                     Text {
                         Layout.preferredWidth: 160
                         text: songRow.song.artist ? songRow.song.artist : ""
-                        color: songRow.isSelected ? "#e0b18d" : "#8b9ed4"
+                        color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
                     Text {
                         Layout.preferredWidth: 160
                         text: songRow.song.album ? songRow.song.album : ""
-                        color: songRow.isSelected ? "#e0b18d" : "#8b9ed4"
+                        color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
@@ -325,7 +325,7 @@ Rectangle {
                         Layout.preferredWidth: 50
                         horizontalAlignment: Text.AlignRight
                         text: songsView.formatDuration(songRow.song.duration)
-                        color: songRow.isSelected ? "#d3a680" : "#5c6caa"
+                        color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textMuted
                         font.pixelSize: 12
                     }
 
@@ -342,8 +342,8 @@ Rectangle {
 
                         contentItem: Text {
                             text: qsTr("+")
-                            color: addToButton.down ? "#f2935e"
-                                   : addToButton.hovered ? "#fab387" : "#89b4fa"
+                            color: addToButton.down ? Theme.accentAltPressed
+                                   : addToButton.hovered ? Theme.accentAltHover : Theme.accentAlt
                             font.pixelSize: 16
                             font.bold: true
                             horizontalAlignment: Text.AlignHCenter
@@ -351,7 +351,7 @@ Rectangle {
                         }
                         background: Rectangle {
                             radius: 4
-                            color: addToButton.hovered ? "#313244" : "transparent"
+                            color: addToButton.hovered ? Theme.border : "transparent"
                         }
                         onClicked: {
                             // Single-song add always targets just this row.
@@ -371,7 +371,7 @@ Rectangle {
         visible: songsView.songs.length === 0
         text: Library.songs.length === 0 ? qsTr("No songs yet — press Scan library")
                                          : qsTr("No songs match your search")
-        color: "#6c7086"
+        color: Theme.textMuted
         font.pixelSize: 15
     }
 
@@ -422,7 +422,7 @@ Rectangle {
 
             Text {
                 text: qsTr("Name for the new playlist:")
-                color: "#cdd6f4"
+                color: Theme.textPrimary
                 font.pixelSize: 13
             }
 
@@ -431,19 +431,19 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
                 placeholderText: qsTr("Playlist name")
-                placeholderTextColor: "#6c7086"
-                color: "#cdd6f4"
-                selectionColor: "#45475a"
-                selectedTextColor: "#11111b"
+                placeholderTextColor: Theme.textMuted
+                color: Theme.textPrimary
+                selectionColor: Theme.fieldSelection
+                selectedTextColor: Theme.fieldSelectedText
                 font.pixelSize: 13
                 leftPadding: 10
                 rightPadding: 10
                 onAccepted: newPlaylistDialog.accept()
                 background: Rectangle {
                     radius: 6
-                    color: "#1e1e2e"
+                    color: Theme.field
                     border.width: 1
-                    border.color: newPlaylistNameField.activeFocus ? "#89b4fa" : "#313244"
+                    border.color: newPlaylistNameField.activeFocus ? Theme.accent : Theme.border
                 }
             }
         }
