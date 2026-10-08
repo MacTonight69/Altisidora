@@ -137,20 +137,16 @@ ApplicationWindow {
                     anchors.margins: 14
                     spacing: 4
 
-                    RowLayout {
-                        spacing: 8
+                    // Brand logo: large and centered, covering most of the sidebar.
+                    Image {
                         Layout.fillWidth: true
-
-                        // Brand logo (images/Altisidora.png via qrc).
-                        Image {
-                            source: "qrc:/images/Altisidora.png"
-                            sourceSize.width: 160
-                            sourceSize.height: 160
-                            Layout.preferredWidth: 44
-                            Layout.preferredHeight: 44
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                        }
+                        Layout.preferredHeight: 140
+                        Layout.topMargin: 4
+                        source: "qrc:/images/Altisidora.png"
+                        sourceSize.width: 320
+                        sourceSize.height: 320
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
                     }
 
                     Item {
