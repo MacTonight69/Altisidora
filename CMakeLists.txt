@@ -100,9 +100,9 @@ install(FILES ${CMAKE_SOURCE_DIR}/altisidora.desktop
     RENAME altisidora.desktop
 )
 
-if(EXISTS ${CMAKE_SOURCE_DIR}/images/pngwing.com.png)
-    install(FILES ${CMAKE_SOURCE_DIR}/images/pngwing.com.png
-        DESTINATION share/icons/hicolor/1024x1024/apps
+if(EXISTS ${CMAKE_SOURCE_DIR}/images/Altisidora.png)
+    install(FILES ${CMAKE_SOURCE_DIR}/images/Altisidora.png
+        DESTINATION share/icons/hicolor/512x512/apps
         RENAME altisidora.png
     )
 endif()

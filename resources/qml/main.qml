@@ -139,17 +139,17 @@ ApplicationWindow {
 
                     RowLayout {
                         spacing: 8
+                        Layout.fillWidth: true
 
-                        Text {
-                            text: "\u266A"
-                            color: "#89b4fa"
-                            font.pixelSize: 22
-                        }
-                        Text {
-                            text: "Altisidora"
-                            color: "#cdd6f4"
-                            font.pixelSize: 20
-                            font.bold: true
+                        // Brand logo (images/Altisidora.png via qrc).
+                        Image {
+                            source: "qrc:/images/Altisidora.png"
+                            sourceSize.width: 160
+                            sourceSize.height: 160
+                            Layout.preferredWidth: 44
+                            Layout.preferredHeight: 44
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
                         }
                     }
 

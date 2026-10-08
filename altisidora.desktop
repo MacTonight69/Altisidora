@@ -4,6 +4,6 @@ Name=Altisidora
 Comment=Native Linux music player
 Exec=altisidora
 Icon=altisidora
-Categories=Audio;Music;Player;
+Categories=AudioVideo;Audio;Music;Player;
 Terminal=false
 StartupNotify=true

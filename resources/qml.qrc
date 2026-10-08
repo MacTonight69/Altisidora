@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>qml/main.qml</file>
+        <file alias="images/Altisidora.png">../images/Altisidora.png</file>
         <file>qml/components/PlayerControls.qml</file>
         <file>qml/components/SearchBar.qml</file>
         <file>qml/views/SongsView.qml</file>
