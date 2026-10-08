@@ -67,8 +67,16 @@ Rectangle {
     }
 
     // Right click only selects this song (replacing the selection); it
-    // never starts playback.
+    // never starts playback. A right click on an already-selected song
+    // deselects it (toggle off).
     function onRowRightClicked(index, id) {
+        if (selectedIds.has(id)) {
+            selectedIds.delete(id)
+            selectedCount = selectedIds.size
+            if (selectedCount === 0)
+                selectionAnchor = -1
+            return
+        }
         clearSelection()
         selectedIds.add(id)
         selectedCount = 1
