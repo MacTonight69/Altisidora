@@ -2,10 +2,14 @@
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QQuickItem>
+#include <QQuickWindow>
 #include <QIcon>
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
+#include <QMouseEvent>
+#include <QRectF>
 
 #include "audio/PlayerController.h"
 #include "audio/PlaybackState.h"
@@ -29,6 +33,57 @@ QString personalMusicFolder()
         return location;
     return QDir::homePath();
 }
+
+/**
+ * @brief Blurs the search bar when the user clicks anywhere outside it.
+ *
+ * Most of the UI uses Qt.NoFocus controls, so nothing steals focus away
+ * from the search TextField by itself. A window-level event filter drops
+ * the search bar's focus on any mouse press outside its bounds.
+ */
+class SearchBarFocusFilter : public QObject
+{
+public:
+    SearchBarFocusFilter(QQuickWindow *window, QQuickItem *searchBar)
+        : m_window(window)
+        , m_searchBar(searchBar)
+    {
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() != QEvent::MouseButtonPress || !m_window || !m_searchBar)
+            return QObject::eventFilter(watched, event);
+
+        QQuickItem *focused = m_window->activeFocusItem();
+        // Only act when the focus actually lives inside the search bar
+        // (its internal text editor); leave other inputs alone.
+        if (!focused || !isInside(focused, m_searchBar))
+            return QObject::eventFilter(watched, event);
+
+        const auto *mouse = static_cast<const QMouseEvent *>(event);
+        const QPointF tl = m_searchBar->mapToScene(QPointF(0, 0));
+        const QPointF br = m_searchBar->mapToScene(
+            QPointF(m_searchBar->width(), m_searchBar->height()));
+        if (!QRectF(tl, br).contains(mouse->scenePosition()))
+            focused->setFocus(false); // clicking outside blurs the search bar
+
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    static bool isInside(QQuickItem *child, QQuickItem *ancestor)
+    {
+        for (QQuickItem *it = child; it; it = it->parentItem()) {
+            if (it == ancestor)
+                return true;
+        }
+        return false;
+    }
+
+    QQuickWindow *m_window = nullptr;
+    QQuickItem *m_searchBar = nullptr;
+};
 
 } // namespace
 
@@ -87,6 +142,20 @@ int main(int argc, char *argv[])
 
     if (engine.rootObjects().isEmpty()) {
         return -1;
+    }
+
+    // Clicking anywhere outside the search bar drops its focus. The rest
+    // of the UI is mostly Qt.NoFocus, so QML never blurs it on its own.
+    if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first())) {
+        if (auto *searchBar = qobject_cast<QQuickItem *>(
+                window->findChild<QObject *>(QStringLiteral("searchBar")))) {
+            // The filter must outlive this scope (it lives until the app exits):
+            // parent it to the window it filters so it is not destroyed
+            // as soon as the block ends.
+            auto *blurFilter = new SearchBarFocusFilter(window, searchBar);
+            blurFilter->setParent(window);
+            window->installEventFilter(blurFilter);
+        }
     }
 
     return app.exec();

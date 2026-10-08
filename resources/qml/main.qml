@@ -304,6 +304,7 @@ ApplicationWindow {
 
                         SearchBar {
                             id: searchBar
+                            objectName: "searchBar"
                             Layout.preferredWidth: 320
                             Layout.preferredHeight: 34
 
