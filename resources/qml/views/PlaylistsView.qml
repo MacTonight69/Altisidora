@@ -134,6 +134,7 @@ Rectangle {
                     Button {
                         id: createButton
                         Layout.preferredHeight: 34
+                        focusPolicy: Qt.NoFocus
                         text: qsTr("Add")
                         enabled: newPlaylistField.text.trim().length > 0
                         onClicked: {

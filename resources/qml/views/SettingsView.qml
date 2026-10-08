@@ -132,6 +132,7 @@ Rectangle {
                     Button {
                         id: chooseButton
                         Layout.preferredHeight: 32
+                        focusPolicy: Qt.NoFocus
                         text: qsTr("Choose…")
                         onClicked: dirDialog.open()
                     }
@@ -195,6 +196,7 @@ Rectangle {
             Button {
                 id: saveButton
                 Layout.preferredHeight: 34
+                focusPolicy: Qt.NoFocus
                 text: qsTr("Save settings")
                 onClicked: {
                     AppSettings.save()
