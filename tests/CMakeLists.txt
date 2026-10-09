@@ -50,6 +50,7 @@ set(UNIT_TESTS
     tst_library
     tst_playlist
     tst_settings
+    tst_theme_fonts
     tst_mpris
 )
 
@@ -127,6 +128,13 @@ foreach(test_name ${UNIT_TESTS})
         TestMocks
         PkgConfig::MPV
     )
+
+    if(test_name STREQUAL "tst_theme_fonts")
+        target_link_libraries(${test_name} PRIVATE Qt6::Qml Qt6::Quick)
+        target_compile_definitions(${test_name} PRIVATE
+            THEME_QML_DIR="${CMAKE_SOURCE_DIR}/resources/qml/themes"
+        )
+    endif()
 
     if(test_name STREQUAL "tst_mpris")
         target_link_libraries(${test_name} PRIVATE Qt6::DBus)
