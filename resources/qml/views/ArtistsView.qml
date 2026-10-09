@@ -112,6 +112,7 @@ Rectangle {
                             text: modelData.name && modelData.name.length > 0
                                   ? modelData.name.charAt(0).toUpperCase() : "?"
                             color: Theme.accentAlt
+                            font.family: Theme.fontFamily
                             font.pixelSize: 15
                             font.bold: true
                         }
@@ -121,6 +122,7 @@ Rectangle {
                         Layout.fillWidth: true
                         text: modelData.name
                         color: Theme.textPrimary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 14
                         elide: Text.ElideRight
                     }
@@ -130,6 +132,7 @@ Rectangle {
                         text: modelData.songCount + (modelData.songCount === 1
                                                       ? qsTr(" song") : qsTr(" songs"))
                         color: Theme.textSecondary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 12
                     }
                 }
@@ -145,6 +148,7 @@ Rectangle {
               ? qsTr("No artists yet — press Scan library")
               : qsTr("No artists match your search")
         color: Theme.textMuted
+        font.family: Theme.fontFamily
         font.pixelSize: 15
     }
 }

@@ -49,6 +49,7 @@ Rectangle {
         Text {
             text: qsTr("Settings")
             color: Theme.textPrimary
+            font.family: Theme.fontFamily
             font.pixelSize: 20
             font.bold: true
         }
@@ -72,6 +73,7 @@ Rectangle {
                 Text {
                     text: qsTr("Appearance")
                     color: Theme.textPrimary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -84,11 +86,13 @@ Rectangle {
                         Layout.fillWidth: true
                         text: qsTr("Theme")
                         color: Theme.textSecondary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
 
                     ComboBox {
+                        font.family: Theme.fontFamily
                         id: themeCombo
                         Layout.preferredWidth: 210
                         model: Theme.themeNames
@@ -121,6 +125,7 @@ Rectangle {
                 Text {
                     text: qsTr("Music folder")
                     color: Theme.textPrimary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -133,11 +138,13 @@ Rectangle {
                         Layout.fillWidth: true
                         text: settingsView.prettyPath(AppSettings.musicDirectory)
                         color: Theme.textSecondary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 13
                         elide: Text.ElideMiddle
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: chooseButton
                         Layout.preferredHeight: 32
                         focusPolicy: Qt.NoFocus
@@ -151,6 +158,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     text: qsTr("Pick the folder that contains your music, then press “Scan library” in the sidebar to import it.")
                     color: Theme.textMuted
+                    font.family: Theme.fontFamily
                     font.pixelSize: 11
                 }
             }
@@ -180,11 +188,13 @@ Rectangle {
                         Layout.fillWidth: true
                         text: qsTr("Hidden items")
                         color: Theme.textPrimary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 14
                         font.bold: true
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: hideFolderButton
                         Layout.preferredHeight: 28
                         focusPolicy: Qt.NoFocus
@@ -199,6 +209,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     text: qsTr("Songs and folders you hide stay on disk; they are simply not shown in the lists. Restore them here at any time.")
                     color: Theme.textMuted
+                    font.family: Theme.fontFamily
                     font.pixelSize: 11
                 }
 
@@ -208,6 +219,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     text: qsTr("Nothing hidden yet. Use “Hide” / “Hide folder” on the song list, or “Hide folder…” above.")
                     color: Theme.textMuted
+                    font.family: Theme.fontFamily
                     font.pixelSize: 11
                 }
 
@@ -229,11 +241,13 @@ Rectangle {
                             Layout.fillWidth: true
                             text: modelData
                             color: Theme.textSecondary
+                            font.family: Theme.fontFamily
                             font.pixelSize: 12
                             elide: Text.ElideMiddle
                         }
 
                         Button {
+                            font.family: Theme.fontFamily
                             text: qsTr("Restore")
                             Layout.preferredHeight: 26
                             focusPolicy: Qt.NoFocus
@@ -252,6 +266,7 @@ Rectangle {
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: restoreAllButton
                         Layout.preferredHeight: 28
                         focusPolicy: Qt.NoFocus
@@ -274,6 +289,7 @@ Rectangle {
             spacing: 12
 
             Button {
+                font.family: Theme.fontFamily
                 id: saveButton
                 Layout.preferredHeight: 34
                 focusPolicy: Qt.NoFocus
@@ -290,6 +306,7 @@ Rectangle {
                 visible: false
                 text: qsTr("Settings saved")
                 color: Theme.success
+                font.family: Theme.fontFamily
                 font.pixelSize: 12
             }
 

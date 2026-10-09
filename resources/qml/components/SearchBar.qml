@@ -27,6 +27,7 @@ Rectangle {
         spacing: 6
 
         TextField {
+            font.family: Theme.fontFamily
             id: field
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
@@ -47,6 +48,7 @@ Rectangle {
         }
 
         ToolButton {
+            font.family: Theme.fontFamily
             id: clearButton
             visible: field.text.length > 0
             focusPolicy: Qt.NoFocus
@@ -56,6 +58,7 @@ Rectangle {
             contentItem: Text {
                 text: "\u2715"
                 color: clearButton.hovered ? Theme.textPrimary : Theme.textSecondary
+                font.family: Theme.fontFamily
                 font.pixelSize: 11
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter

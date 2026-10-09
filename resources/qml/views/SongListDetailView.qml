@@ -57,6 +57,7 @@ Rectangle {
             spacing: 12
 
             ToolButton {
+                font.family: Theme.fontFamily
                 id: backButton
                 focusPolicy: Qt.NoFocus
                 hoverEnabled: true
@@ -70,6 +71,7 @@ Rectangle {
                     text: "\u2190"
                     color: backButton.down ? Theme.accentPressed
                            : backButton.hovered ? Theme.accentHover : Theme.textPrimary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 18
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -90,6 +92,7 @@ Rectangle {
                     text: detail.primaryKey.length > 0
                           ? detail.primaryKey : qsTr("Unknown")
                     color: Theme.textPrimary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 16
                     font.bold: true
                     elide: Text.ElideRight
@@ -101,6 +104,7 @@ Rectangle {
                              && detail.secondaryKey.length > 0
                     text: detail.secondaryKey
                     color: Theme.textSecondary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 12
                     elide: Text.ElideRight
                 }
@@ -111,6 +115,7 @@ Rectangle {
                       + (detail.modelSongs.length === 1
                          ? qsTr(" song") : qsTr(" songs"))
                 color: Theme.textMuted
+                font.family: Theme.fontFamily
                 font.pixelSize: 12
             }
         }

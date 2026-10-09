@@ -150,6 +150,7 @@ Rectangle {
                                 text: "\u266A"
                                 color: "#ffffff"
                                 opacity: 0.85
+                                font.family: Theme.fontFamily
                                 font.pixelSize: 36
                             }
                         }
@@ -158,6 +159,7 @@ Rectangle {
                             Layout.fillWidth: true
                             text: modelData.title ? modelData.title : qsTr("Unknown album")
                             color: Theme.textPrimary
+                            font.family: Theme.fontFamily
                             font.pixelSize: 13
                             font.bold: true
                             elide: Text.ElideRight
@@ -167,6 +169,7 @@ Rectangle {
                             Layout.fillWidth: true
                             text: modelData.artist ? modelData.artist : ""
                             color: Theme.textSecondary
+                            font.family: Theme.fontFamily
                             font.pixelSize: 11
                             elide: Text.ElideRight
                         }
@@ -175,6 +178,7 @@ Rectangle {
                             Layout.fillWidth: true
                             text: modelData.year ? String(modelData.year) : qsTr("Unknown year")
                             color: Theme.textMuted
+                            font.family: Theme.fontFamily
                             font.pixelSize: 11
                             elide: Text.ElideRight
                         }
@@ -192,6 +196,7 @@ Rectangle {
               ? qsTr("No albums yet — press Scan library")
               : qsTr("No albums match your search")
         color: Theme.textMuted
+        font.family: Theme.fontFamily
         font.pixelSize: 15
     }
 }

@@ -1,3 +1,4 @@
+#include <QFont>
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -35,6 +36,36 @@ QString personalMusicFolder()
         return location;
     return QDir::homePath();
 }
+
+/**
+ * @brief Applies the active theme's typeface as the application font.
+ *
+ * UI elements bind their font to Theme.fontFamily directly (that is what
+ * restyles them live). This receiver is the complementary half: it sets the
+ * application-wide font too, so surfaces Qt builds on its own — native
+ * dialogs, menus and popups created after the switch — inherit the theme
+ * typeface even though they have no binding of their own.
+ */
+class ThemeFontReceiver : public QObject
+{
+    Q_OBJECT
+public:
+    explicit ThemeFontReceiver(QObject *theme, QObject *parent = nullptr)
+        : QObject(parent)
+        , m_theme(theme)
+    {
+    }
+
+public slots:
+    void applyFont()
+    {
+        QGuiApplication::setFont(
+            QFont(m_theme->property("fontFamily").toString()));
+    }
+
+private:
+    QObject *m_theme = nullptr;
+};
 
 /**
  * @brief Blurs the search bar when the user clicks anywhere outside it.
@@ -157,6 +188,14 @@ int main(int argc, char *argv[])
     if (QObject *theme = themeComponent.create()) {
         theme->setParent(&engine);
         engine.rootContext()->setContextProperty(QStringLiteral("Theme"), theme);
+
+        // The theme's typeface drives the whole UI: it becomes the
+        // application font so every Text and Control picks it up. Applied
+        // once here (the theme already ran its initial apply()) and again
+        // on every later theme change via the applied() signal.
+        auto *fontReceiver = new ThemeFontReceiver(theme, &engine);
+        fontReceiver->applyFont();
+        QObject::connect(theme, SIGNAL(applied()), fontReceiver, SLOT(applyFont()));
     }
     if (themeComponent.isError())
         qWarning() << themeComponent.errors();
@@ -193,3 +232,5 @@ int main(int argc, char *argv[])
 
     return app.exec();
 }
+
+#include "main.moc"

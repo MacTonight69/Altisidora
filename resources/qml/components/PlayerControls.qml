@@ -26,6 +26,7 @@ Rectangle {
 
     component TransportButton: ToolButton {
         id: tButton
+        font.family: Theme.fontFamily
         property string iconText: ""
         property bool primary: false
         property bool circular: false
@@ -66,6 +67,7 @@ Rectangle {
     // made the icon jump sideways when toggling.
     component PlayPauseButton: ToolButton {
         id: ppButton
+        font.family: Theme.fontFamily
         property bool playing: false
         focusPolicy: Qt.NoFocus
         hoverEnabled: true
@@ -141,6 +143,7 @@ Rectangle {
             verticalAlignment: Text.AlignVCenter
             text: controls.errorText
             color: Theme.danger
+            font.family: Theme.fontFamily
             font.pixelSize: 12
             elide: Text.ElideRight
         }
@@ -181,6 +184,7 @@ Rectangle {
                 Layout.fillWidth: true
                 text: controls.songTitle
                 color: Theme.textPrimary
+                font.family: Theme.fontFamily
                 font.pixelSize: 13
                 font.bold: true
                 elide: Text.ElideRight
@@ -190,6 +194,7 @@ Rectangle {
                 visible: controls.songArtist !== ""
                 text: controls.songArtist
                 color: Theme.textSecondary
+                font.family: Theme.fontFamily
                 font.pixelSize: 11
                 elide: Text.ElideRight
             }
@@ -239,6 +244,7 @@ Rectangle {
                     horizontalAlignment: Text.AlignRight
                     text: controls.formatTime(Player.position)
                     color: Theme.textSecondary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 11
                 }
 
@@ -267,6 +273,7 @@ Rectangle {
                     horizontalAlignment: Text.AlignLeft
                     text: controls.formatTime(Player.duration)
                     color: Theme.textSecondary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 11
                 }
             }
@@ -289,6 +296,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
                 text: Math.round(Player.volume * 100) + "%"
                 color: Theme.textSecondary
+                font.family: Theme.fontFamily
                 font.pixelSize: 11
             }
 
@@ -344,6 +352,7 @@ Rectangle {
                 Text {
                     text: qsTr("Ecualizador")
                     color: Theme.textPrimary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -355,10 +364,12 @@ Rectangle {
                 Text {
                     text: Player.eqEnabled ? qsTr("Activo") : qsTr("Desactivado")
                     color: Player.eqEnabled ? Theme.success : Theme.textMuted
+                    font.family: Theme.fontFamily
                     font.pixelSize: 11
                 }
 
                 Switch {
+                    font.family: Theme.fontFamily
                     checked: Player.eqEnabled
                     onToggled: Player.eqEnabled = checked
                 }
@@ -413,6 +424,7 @@ Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: ["31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"][index]
                             color: Theme.textSecondary
+                            font.family: Theme.fontFamily
                             font.pixelSize: 9
                         }
                     }
@@ -426,6 +438,7 @@ Rectangle {
                 Text {
                     text: qsTr("Preset:")
                     color: Theme.textSecondary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 11
                 }
 
@@ -441,6 +454,7 @@ Rectangle {
                             spacing: 2
 
                             Button {
+                                font.family: Theme.fontFamily
                                 text: modelData
                                 checkable: true
                                 checked: Player.eqPreset === modelData
@@ -458,11 +472,13 @@ Rectangle {
                                 contentItem: Text {
                                     text: parent.text
                                     color: parent.checked ? Theme.accentText : Theme.textPrimary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: 11
                                 }
                             }
 
                             Button {
+                                font.family: Theme.fontFamily
                                 visible: !Player.isBuiltInEqPreset(modelData)
                                 text: "\u2715"
                                 implicitWidth: 20
@@ -482,6 +498,7 @@ Rectangle {
                                 contentItem: Text {
                                     text: parent.text
                                     color: parent.hovered ? Theme.danger : Theme.textSecondary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: 10
                                 }
                             }
@@ -494,6 +511,7 @@ Rectangle {
                 }
 
                 Button {
+                    font.family: Theme.fontFamily
                     text: qsTr("Reset")
                     font.pixelSize: 11
                     padding: 6
@@ -507,6 +525,7 @@ Rectangle {
                     contentItem: Text {
                         text: parent.text
                         color: Theme.textPrimary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 11
                     }
 
@@ -520,6 +539,7 @@ Rectangle {
                 spacing: 6
 
                 TextField {
+                    font.family: Theme.fontFamily
                     id: eqPresetNameField
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
@@ -541,6 +561,7 @@ Rectangle {
                 }
 
                 Button {
+                    font.family: Theme.fontFamily
                     id: saveEqPresetButton
                     Layout.preferredHeight: 32
                     focusPolicy: Qt.NoFocus
@@ -561,6 +582,7 @@ Rectangle {
                     contentItem: Text {
                         text: parent.text
                         color: parent.enabled ? Theme.accentText : Theme.textMuted
+                        font.family: Theme.fontFamily
                         font.pixelSize: 11
                     }
 

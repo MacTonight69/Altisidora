@@ -17,6 +17,7 @@ RowLayout {
     spacing: 6
 
     Button {
+        font.family: Theme.fontFamily
         id: playAllButton
         focusPolicy: Qt.NoFocus
         flat: true
@@ -38,6 +39,7 @@ RowLayout {
     }
 
     Button {
+        font.family: Theme.fontFamily
         id: shuffleButton
         focusPolicy: Qt.NoFocus
         flat: true

@@ -19,6 +19,11 @@ QtObject {
     // until a theme explicitly sets its own bundled font.
     property string fontFamily: ""
 
+    // Fired at the end of apply(), once every role (font included) is in
+    // place. main.cpp listens and mirrors the typeface into the application
+    // font (QGuiApplication::setFont) for Qt-owned surfaces like dialogs.
+    signal applied()
+
     // ---- base roles (defaults: the Mimy palette) ----
     property color bg: "#eef0f6"
     property color bgAlt: "#ffffff"
@@ -101,6 +106,8 @@ QtObject {
         fieldFocus = mix(t.field, 1.05)
         borderPressed = mix(t.border, 1.25)
         scrim = Qt.rgba(t.bg.r, t.bg.g, t.bg.b, 0.85)
+
+        applied()
     }
 
     Component.onCompleted: theme.apply(themeName)

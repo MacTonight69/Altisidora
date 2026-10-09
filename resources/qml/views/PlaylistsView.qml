@@ -234,6 +234,7 @@ Rectangle {
                 Text {
                     text: qsTr("Playlists")
                     color: Theme.textPrimary
+                    font.family: Theme.fontFamily
                     font.pixelSize: 15
                     font.bold: true
                 }
@@ -243,6 +244,7 @@ Rectangle {
                     spacing: 6
 
                     TextField {
+                        font.family: Theme.fontFamily
                         id: newPlaylistField
                         Layout.fillWidth: true
                         Layout.preferredHeight: 34
@@ -264,6 +266,7 @@ Rectangle {
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: createButton
                         Layout.preferredHeight: 34
                         focusPolicy: Qt.NoFocus
@@ -335,6 +338,7 @@ Rectangle {
                                     Layout.fillWidth: true
                                     text: modelData.name
                                     color: plRow.isSelected ? Theme.accent : Theme.textPrimary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: 13
                                     font.bold: plRow.isSelected
                                     elide: Text.ElideRight
@@ -344,12 +348,14 @@ Rectangle {
                                     text: modelData.songCount + (modelData.songCount === 1
                                                                   ? qsTr(" song") : qsTr(" songs"))
                                     color: Theme.textMuted
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
                             }
 
                             TextField {
+                                font.family: Theme.fontFamily
                                 id: renameField
                                 visible: plRow.renaming
                                 Layout.fillWidth: true
@@ -379,6 +385,7 @@ Rectangle {
                             }
 
                             ToolButton {
+                                font.family: Theme.fontFamily
                                 id: renameButton
                                 visible: !plRow.renaming
                                          && (plMouse.containsMouse || plRow.isSelected)
@@ -389,6 +396,7 @@ Rectangle {
                                 contentItem: Text {
                                     text: qsTr("Rename")
                                     color: renameButton.hovered ? Theme.textPrimary : Theme.textSecondary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: 11
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
@@ -401,6 +409,7 @@ Rectangle {
                             }
 
                             ToolButton {
+                                font.family: Theme.fontFamily
                                 id: deleteButton
                                 visible: !plRow.renaming
                                          && (plMouse.containsMouse || plRow.isSelected)
@@ -411,6 +420,7 @@ Rectangle {
                                 contentItem: Text {
                                     text: qsTr("Delete")
                                     color: deleteButton.hovered ? Theme.danger : Theme.textSecondary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: 11
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
@@ -438,6 +448,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     text: qsTr("No playlists yet — create one above")
                     color: Theme.textMuted
+                    font.family: Theme.fontFamily
                     font.pixelSize: 13
                 }
             }
@@ -466,6 +477,7 @@ Rectangle {
                         Layout.fillWidth: true
                         text: playlistsView.selectedName
                         color: Theme.textPrimary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 15
                         font.bold: true
                         elide: Text.ElideRight
@@ -475,10 +487,12 @@ Rectangle {
                               + (playlistsView.playlistSongs.length === 1
                                  ? qsTr(" song") : qsTr(" songs"))
                         color: Theme.textMuted
+                        font.family: Theme.fontFamily
                         font.pixelSize: 12
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: playPlaylistButton
                         text: qsTr("Play")
                         focusPolicy: Qt.NoFocus
@@ -501,6 +515,7 @@ Rectangle {
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: shuffleButton
                         text: qsTr("Shuffle")
                         focusPolicy: Qt.NoFocus
@@ -542,11 +557,13 @@ Rectangle {
                         Layout.fillWidth: true
                         text: qsTr("%n song(s) selected", "", playlistsView.selectedSongCount)
                         color: Theme.accent
+                        font.family: Theme.fontFamily
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: removeSelectedButton
                         text: qsTr("Remove")
                         focusPolicy: Qt.NoFocus
@@ -564,6 +581,7 @@ Rectangle {
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: hidePlaylistSelectedButton
                         text: qsTr("Hide")
                         focusPolicy: Qt.NoFocus
@@ -581,6 +599,7 @@ Rectangle {
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: hidePlaylistFolderButton
                         text: qsTr("Hide folder")
                         focusPolicy: Qt.NoFocus
@@ -598,6 +617,7 @@ Rectangle {
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: clearPlaylistSelectionButton
                         text: qsTr("Clear selection")
                         focusPolicy: Qt.NoFocus
@@ -687,6 +707,7 @@ Rectangle {
                                 Layout.fillWidth: true
                                 text: plSongRow.song.title ? plSongRow.song.title : qsTr("Unknown title")
                                 color: plSongRow.isSelected ? Theme.selectionText : Theme.textPrimary
+                                font.family: Theme.fontFamily
                                 font.pixelSize: 13
                                 elide: Text.ElideRight
                             }
@@ -694,6 +715,7 @@ Rectangle {
                                 Layout.preferredWidth: 150
                                 text: plSongRow.song.artist ? plSongRow.song.artist : ""
                                 color: plSongRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
+                                font.family: Theme.fontFamily
                                 font.pixelSize: 12
                                 elide: Text.ElideRight
                             }
@@ -702,9 +724,11 @@ Rectangle {
                                 horizontalAlignment: Text.AlignRight
                                 text: playlistsView.formatDuration(plSongRow.song.duration)
                                 color: plSongRow.isSelected ? Theme.selectionTextMuted : Theme.textMuted
+                                font.family: Theme.fontFamily
                                 font.pixelSize: 12
                             }
                             ToolButton {
+                                font.family: Theme.fontFamily
                                 id: removeFromPlaylist
                                 visible: plSongMouse.containsMouse && !plSongRow.isSelected
                                 focusPolicy: Qt.NoFocus
@@ -714,6 +738,7 @@ Rectangle {
                                 contentItem: Text {
                                     text: "\u2715"
                                     color: removeFromPlaylist.hovered ? Theme.danger : Theme.textSecondary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: 11
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
@@ -740,6 +765,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     text: qsTr("Select a playlist, or create a new one")
                     color: Theme.textMuted
+                    font.family: Theme.fontFamily
                     font.pixelSize: 14
                 }
 
@@ -753,6 +779,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     text: qsTr("This playlist is empty")
                     color: Theme.textMuted
+                    font.family: Theme.fontFamily
                     font.pixelSize: 14
                 }
             }

@@ -232,18 +232,21 @@ Rectangle {
                 Layout.fillWidth: true
                 text: qsTr("Title")
                 color: Theme.textMuted
+                font.family: Theme.fontFamily
                 font.pixelSize: 11
             }
             Text {
                 Layout.preferredWidth: 160
                 text: qsTr("Artist")
                 color: Theme.textMuted
+                font.family: Theme.fontFamily
                 font.pixelSize: 11
             }
             Text {
                 Layout.preferredWidth: 160
                 text: qsTr("Album")
                 color: Theme.textMuted
+                font.family: Theme.fontFamily
                 font.pixelSize: 11
             }
             Text {
@@ -251,6 +254,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
                 text: qsTr("Duration")
                 color: Theme.textMuted
+                font.family: Theme.fontFamily
                 font.pixelSize: 11
             }
         }
@@ -274,11 +278,13 @@ Rectangle {
                 Layout.fillWidth: true
                 text: qsTr("%n song(s) selected", "", songsView.selectedCount)
                 color: Theme.accent
+                font.family: Theme.fontFamily
                 font.pixelSize: 12
                 elide: Text.ElideRight
             }
 
             ToolButton {
+                font.family: Theme.fontFamily
                 id: addSelectedButton
                 text: qsTr("+ Playlist")
                 focusPolicy: Qt.NoFocus
@@ -303,6 +309,7 @@ Rectangle {
             }
 
             Button {
+                font.family: Theme.fontFamily
                 id: hideSelectedButton
                 text: qsTr("Hide")
                 focusPolicy: Qt.NoFocus
@@ -320,6 +327,7 @@ Rectangle {
             }
 
             Button {
+                font.family: Theme.fontFamily
                 id: hideFolderButton
                 text: qsTr("Hide folder")
                 focusPolicy: Qt.NoFocus
@@ -337,6 +345,7 @@ Rectangle {
             }
 
             Button {
+                font.family: Theme.fontFamily
                 id: clearSelectionButton
                 text: qsTr("Clear selection")
                 focusPolicy: Qt.NoFocus
@@ -430,6 +439,7 @@ Rectangle {
                         // Accent at rest, lighter on hover, selection colour when selected.
                         color: songRow.isSelected ? Theme.selectionText
                                : songMouse.containsMouse ? Theme.accentAltHover : Theme.accentAlt
+                        font.family: Theme.fontFamily
                         font.pixelSize: 13
                         elide: Text.ElideRight
                     }
@@ -437,6 +447,7 @@ Rectangle {
                         Layout.preferredWidth: 160
                         text: songRow.song.artist ? songRow.song.artist : ""
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
@@ -444,6 +455,7 @@ Rectangle {
                         Layout.preferredWidth: 160
                         text: songRow.song.album ? songRow.song.album : ""
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
+                        font.family: Theme.fontFamily
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
@@ -452,10 +464,12 @@ Rectangle {
                         horizontalAlignment: Text.AlignRight
                         text: songsView.formatDuration(songRow.song.duration)
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textMuted
+                        font.family: Theme.fontFamily
                         font.pixelSize: 12
                     }
 
                     ToolButton {
+                        font.family: Theme.fontFamily
                         id: addToButton
                         visible: songMouse.containsMouse
                         focusPolicy: Qt.NoFocus
@@ -470,6 +484,7 @@ Rectangle {
                             text: qsTr("+")
                             color: addToButton.down ? Theme.accentAltPressed
                                    : addToButton.hovered ? Theme.accentAltHover : Theme.accentAlt
+                            font.family: Theme.fontFamily
                             font.pixelSize: 16
                             font.bold: true
                             horizontalAlignment: Text.AlignHCenter
@@ -503,6 +518,7 @@ Rectangle {
                    : qsTr("No songs yet — press Scan library"))
                 : qsTr("No songs match your search")
         color: Theme.textMuted
+        font.family: Theme.fontFamily
         font.pixelSize: 15
     }
 
@@ -514,6 +530,7 @@ Rectangle {
         Instantiator {
             model: Playlists.playlists
             delegate: MenuItem {
+                font.family: Theme.fontFamily
                 required property var modelData
                 text: modelData.name
                 onTriggered: {
@@ -554,10 +571,12 @@ Rectangle {
             Text {
                 text: qsTr("Name for the new playlist:")
                 color: Theme.textPrimary
+                font.family: Theme.fontFamily
                 font.pixelSize: 13
             }
 
             TextField {
+                font.family: Theme.fontFamily
                 id: newPlaylistNameField
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34

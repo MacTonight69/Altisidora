@@ -323,6 +323,7 @@ ApplicationWindow {
                                 // Show the "Alt+N" number hint next to the label.
                                 text: (navRow.navIndex + 1) + "\u2002\u2002" + navRow.label
                                 color: root.currentNav === navRow.navIndex ? Theme.accent : Theme.textPrimary
+                                font.family: Theme.fontFamily
                                 font.pixelSize: 14
                                 font.bold: root.currentNav === navRow.navIndex
                             }
@@ -352,6 +353,7 @@ ApplicationWindow {
                     }
 
                     Button {
+                        font.family: Theme.fontFamily
                         id: scanButton
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
@@ -415,6 +417,7 @@ ApplicationWindow {
                         Text {
                             text: root.navLabels[root.currentNav]
                             color: Theme.textPrimary
+                            font.family: Theme.fontFamily
                             font.pixelSize: 17
                             font.bold: true
                         }
@@ -488,12 +491,14 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Scanning library…")
                 color: Theme.textPrimary
+                font.family: Theme.fontFamily
                 font.pixelSize: 15
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("This may take a moment")
                 color: Theme.textMuted
+                font.family: Theme.fontFamily
                 font.pixelSize: 12
             }
         }
