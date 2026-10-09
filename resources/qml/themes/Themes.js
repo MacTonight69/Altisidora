@@ -151,11 +151,11 @@ var themes = {
         success: "#3fb950"
     },
 
-    // Pure white with fine gray borders. Uses the system default typeface
+    // Pure white with fine gray borders. Uses an OS-installed serif family
     // (no bundled font) at the standard 1.0 scale.
     "Vacui": {
         name: "Vacui",
-        fontFamily: "",
+        fontFamily: "Liberation Serif",
         bg: "#fbfbfb",
         bgAlt: "#f4f4f4",
         viewBg: "#fdfdfd",

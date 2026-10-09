@@ -197,11 +197,10 @@ void tst_theme_fonts::testScaleDropsBackOnMimy()
 
 void tst_theme_fonts::testVacuiUsesSystemFontFamily()
 {
-    // Vacui ships no bundled typeface: it must resolve to the system default
-    // (Theme.qml documents the empty string as "system default").
+    // Vacui ships no bundled typeface: it names an OS-installed family.
     applyTheme(QStringLiteral("Vacui"));
     QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Vacui"));
-    QCOMPARE(m_theme->property("fontFamily").toString(), QString());
+    QCOMPARE(m_theme->property("fontFamily").toString(), QStringLiteral("Liberation Serif"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
 }
 
