@@ -34,10 +34,21 @@ ApplicationWindow {
 
     Component.onCompleted: root.applyTheme(AppSettings.theme)
 
+    // Every settings change re-applies the theme so the typography scale
+    // assigned at theme-change time stays the source of truth, no matter
+    // where the change comes from (in-app combo, config edit, ...).
+    Connections {
+        target: AppSettings
+        function onSettingsChanged() {
+            root.applyTheme(AppSettings.theme)
+        }
+    }
+
     function applyTheme(name) {
         Theme.apply(name)
         if (name !== AppSettings.theme)
             AppSettings.theme = name
+        AppSettings.fontScale = Theme.fontScale
     }
 
     // ---- state ----

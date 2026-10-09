@@ -23,6 +23,7 @@ private slots:
     void testDefaults();
     void testSetMusicDirectory();
     void testSetTheme();
+    void testFontScale();
     void testSettingsChangedSignal();
     void testNoSignalWhenValueUnchanged();
     void testGenericGetSet();
@@ -62,6 +63,7 @@ void tst_settings::testDefaults()
 
     QVERIFY(settings.musicDirectory().isEmpty());
     QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
+    QCOMPARE(settings.fontScale(), 1.0);
 
     // Unknown keys fall back to the provided default
     QCOMPARE(settings.getSetting(QStringLiteral("does.not.exist"), 42).toInt(), 42);
@@ -88,6 +90,17 @@ void tst_settings::testSetTheme()
     QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
 }
 
+void tst_settings::testFontScale()
+{
+    SettingsController settings;
+
+    QCOMPARE(settings.fontScale(), 1.0);
+    settings.setFontScale(1.4);
+    QCOMPARE(settings.fontScale(), 1.4);
+    settings.setFontScale(1.0);
+    QCOMPARE(settings.fontScale(), 1.0);
+}
+
 void tst_settings::testSettingsChangedSignal()
 {
     SettingsController settings;
@@ -100,8 +113,11 @@ void tst_settings::testSettingsChangedSignal()
     settings.setTheme(QStringLiteral("Vacui"));
     QCOMPARE(spy.count(), 2);
 
-    settings.setSetting(QStringLiteral("volume"), 0.5);
+    settings.setFontScale(1.4);
     QCOMPARE(spy.count(), 3);
+
+    settings.setSetting(QStringLiteral("volume"), 0.5);
+    QCOMPARE(spy.count(), 4);
 }
 
 void tst_settings::testNoSignalWhenValueUnchanged()
@@ -120,6 +136,14 @@ void tst_settings::testNoSignalWhenValueUnchanged()
     // Same value again, no change expected
     settings.setMusicDirectory(QStringLiteral("/music"));
     QCOMPARE(spy.count(), 1);
+
+    // Same fontScale value again, no change expected
+    settings.setFontScale(1.0);
+    QCOMPARE(spy.count(), 1);
+    settings.setFontScale(1.4);
+    QCOMPARE(spy.count(), 2);
+    settings.setFontScale(1.4);
+    QCOMPARE(spy.count(), 2);
 }
 
 void tst_settings::testGenericGetSet()
@@ -140,6 +164,7 @@ void tst_settings::testPersistenceAcrossInstances()
         SettingsController first;
         first.setMusicDirectory(QStringLiteral("/home/user/Music"));
         first.setTheme(QStringLiteral("Good Technic"));
+        first.setFontScale(1.4);
         first.save();
     }
 
@@ -147,6 +172,7 @@ void tst_settings::testPersistenceAcrossInstances()
     SettingsController second;
     QCOMPARE(second.musicDirectory(), QStringLiteral("/home/user/Music"));
     QCOMPARE(second.theme(), QStringLiteral("Good Technic"));
+    QCOMPARE(second.fontScale(), 1.4);
 }
 
 QTEST_MAIN(tst_settings)

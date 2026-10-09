@@ -36,6 +36,20 @@ void SettingsController::setTheme(const QString &name)
     }
 }
 
+double SettingsController::fontScale() const
+{
+    return m_fontScale;
+}
+
+void SettingsController::setFontScale(double scale)
+{
+    if (m_fontScale != scale) {
+        m_fontScale = scale;
+        m_settings.setValue("fontScale", scale);
+        emit settingsChanged();
+    }
+}
+
 QVariant SettingsController::getSetting(const QString &key, const QVariant &defaultValue) const
 {
     return m_settings.value(key, defaultValue);
@@ -51,6 +65,7 @@ void SettingsController::save()
 {
     m_settings.setValue("musicDirectory", m_musicDirectory);
     m_settings.setValue("theme", m_theme);
+    m_settings.setValue("fontScale", m_fontScale);
     m_settings.sync();
 }
 
@@ -58,6 +73,7 @@ void SettingsController::load()
 {
     m_musicDirectory = m_settings.value("musicDirectory").toString();
     m_theme = m_settings.value("theme", QStringLiteral("Mimy")).toString();
+    m_fontScale = qBound(0.5, m_settings.value("fontScale", 1.0).toDouble(), 2.0);
 
     // Theme renames: keep users on their already-selected theme after an
     // upgrade instead of silently falling back to the default.

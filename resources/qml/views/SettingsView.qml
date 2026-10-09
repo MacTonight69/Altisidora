@@ -98,7 +98,8 @@ Rectangle {
                         model: Theme.themeNames
                         currentIndex: Math.max(0, Theme.themeNames.indexOf(AppSettings.theme))
                         onActivated: {
-                            Theme.apply(currentText)
+                            // main.qml reacts to AppSettings.theme and re-applies
+                            // the theme (palette + fontScale) in one place.
                             AppSettings.theme = currentText
                         }
                     }
