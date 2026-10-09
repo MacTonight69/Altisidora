@@ -324,7 +324,7 @@ ApplicationWindow {
                                 text: (navRow.navIndex + 1) + "\u2002\u2002" + navRow.label
                                 color: root.currentNav === navRow.navIndex ? Theme.accent : Theme.textPrimary
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 14
+                                font.pixelSize: 14 * Theme.fontScale
                                 font.bold: root.currentNav === navRow.navIndex
                             }
 
@@ -359,7 +359,7 @@ ApplicationWindow {
                         Layout.preferredHeight: 40
                         focusPolicy: Qt.NoFocus
                         text: qsTr("Scan library")
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * Theme.fontScale
                         font.bold: true
                         onClicked: {
                             // Re-assert the start folder right before
@@ -418,7 +418,7 @@ ApplicationWindow {
                             text: root.navLabels[root.currentNav]
                             color: Theme.textPrimary
                             font.family: Theme.fontFamily
-                            font.pixelSize: 17
+                            font.pixelSize: 17 * Theme.fontScale
                             font.bold: true
                         }
 
@@ -492,14 +492,14 @@ ApplicationWindow {
                 text: qsTr("Scanning library…")
                 color: Theme.textPrimary
                 font.family: Theme.fontFamily
-                font.pixelSize: 15
+                font.pixelSize: 15 * Theme.fontScale
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("This may take a moment")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: 12 * Theme.fontScale
             }
         }
     }

@@ -38,7 +38,7 @@ Rectangle {
             color: Theme.textPrimary
             selectionColor: Theme.fieldSelection
             selectedTextColor: Theme.fieldSelectedText
-            font.pixelSize: 13
+            font.pixelSize: 13 * Theme.fontScale
             verticalAlignment: TextInput.AlignVCenter
             onTextChanged: searchBar.queryChanged(text)
             Keys.onEscapePressed: function (event) {
@@ -59,7 +59,7 @@ Rectangle {
                 text: "\u2715"
                 color: clearButton.hovered ? Theme.textPrimary : Theme.textSecondary
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 11 * Theme.fontScale
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }

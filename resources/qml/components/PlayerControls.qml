@@ -41,7 +41,7 @@ Rectangle {
             text: tButton.iconText
             color: tButton.primary ? Theme.accentText
                  : tButton.active ? Theme.accent : Theme.textPrimary
-            font.pixelSize: tButton.primary ? 17 : 14
+            font.pixelSize: (tButton.primary ? 17 : 14) * Theme.fontScale
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
@@ -144,7 +144,7 @@ Rectangle {
             text: controls.errorText
             color: Theme.danger
             font.family: Theme.fontFamily
-            font.pixelSize: 12
+            font.pixelSize: 12 * Theme.fontScale
             elide: Text.ElideRight
         }
     }
@@ -185,7 +185,7 @@ Rectangle {
                 text: controls.songTitle
                 color: Theme.textPrimary
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: 13 * Theme.fontScale
                 font.bold: true
                 elide: Text.ElideRight
             }
@@ -195,7 +195,7 @@ Rectangle {
                 text: controls.songArtist
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 11 * Theme.fontScale
                 elide: Text.ElideRight
             }
         }
@@ -245,7 +245,7 @@ Rectangle {
                     text: controls.formatTime(Player.position)
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                 }
 
                 Slider {
@@ -274,7 +274,7 @@ Rectangle {
                     text: controls.formatTime(Player.duration)
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                 }
             }
         }
@@ -297,7 +297,7 @@ Rectangle {
                 text: Math.round(Player.volume * 100) + "%"
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 11 * Theme.fontScale
             }
 
             Slider {
@@ -353,7 +353,7 @@ Rectangle {
                     text: qsTr("Ecualizador")
                     color: Theme.textPrimary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * Theme.fontScale
                     font.bold: true
                 }
 
@@ -365,7 +365,7 @@ Rectangle {
                     text: Player.eqEnabled ? qsTr("Activo") : qsTr("Desactivado")
                     color: Player.eqEnabled ? Theme.success : Theme.textMuted
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                 }
 
                 Switch {
@@ -425,7 +425,7 @@ Rectangle {
                             text: ["31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"][index]
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily
-                            font.pixelSize: 9
+                            font.pixelSize: 9 * Theme.fontScale
                         }
                     }
                 }
@@ -439,7 +439,7 @@ Rectangle {
                     text: qsTr("Preset:")
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                 }
 
                 Flow {
@@ -459,7 +459,7 @@ Rectangle {
                                 checkable: true
                                 checked: Player.eqPreset === modelData
                                 onClicked: Player.eqPreset = modelData
-                                font.pixelSize: 11
+                                font.pixelSize: 11 * Theme.fontScale
                                 padding: 6
 
                                 background: Rectangle {
@@ -473,7 +473,7 @@ Rectangle {
                                     text: parent.text
                                     color: parent.checked ? Theme.accentText : Theme.textPrimary
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: 11
+                                    font.pixelSize: 11 * Theme.fontScale
                                 }
                             }
 
@@ -499,7 +499,7 @@ Rectangle {
                                     text: parent.text
                                     color: parent.hovered ? Theme.danger : Theme.textSecondary
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: 10
+                                    font.pixelSize: 10 * Theme.fontScale
                                 }
                             }
                         }
@@ -513,7 +513,7 @@ Rectangle {
                 Button {
                     font.family: Theme.fontFamily
                     text: qsTr("Reset")
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                     padding: 6
 
                     background: Rectangle {
@@ -526,7 +526,7 @@ Rectangle {
                         text: parent.text
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: 11 * Theme.fontScale
                     }
 
                     onClicked: Player.resetEq()
@@ -548,7 +548,7 @@ Rectangle {
                     color: Theme.textPrimary
                     selectionColor: Theme.fieldSelection
                     selectedTextColor: Theme.fieldSelectedText
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                     leftPadding: 10
                     rightPadding: 10
                     background: Rectangle {
@@ -566,7 +566,7 @@ Rectangle {
                     Layout.preferredHeight: 32
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Guardar")
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                     padding: 6
                     enabled: eqPresetNameField.text.trim().length > 0
 
@@ -583,7 +583,7 @@ Rectangle {
                         text: parent.text
                         color: parent.enabled ? Theme.accentText : Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: 11 * Theme.fontScale
                     }
 
                     onClicked: {

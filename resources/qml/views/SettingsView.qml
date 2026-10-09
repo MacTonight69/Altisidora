@@ -50,7 +50,7 @@ Rectangle {
             text: qsTr("Settings")
             color: Theme.textPrimary
             font.family: Theme.fontFamily
-            font.pixelSize: 20
+            font.pixelSize: 20 * Theme.fontScale
             font.bold: true
         }
 
@@ -74,7 +74,7 @@ Rectangle {
                     text: qsTr("Appearance")
                     color: Theme.textPrimary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * Theme.fontScale
                     font.bold: true
                 }
 
@@ -87,7 +87,7 @@ Rectangle {
                         text: qsTr("Theme")
                         color: Theme.textSecondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * Theme.fontScale
                         elide: Text.ElideRight
                     }
 
@@ -126,7 +126,7 @@ Rectangle {
                     text: qsTr("Music folder")
                     color: Theme.textPrimary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * Theme.fontScale
                     font.bold: true
                 }
 
@@ -139,7 +139,7 @@ Rectangle {
                         text: settingsView.prettyPath(AppSettings.musicDirectory)
                         color: Theme.textSecondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * Theme.fontScale
                         elide: Text.ElideMiddle
                     }
 
@@ -159,7 +159,7 @@ Rectangle {
                     text: qsTr("Pick the folder that contains your music, then press “Scan library” in the sidebar to import it.")
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                 }
             }
         }
@@ -189,7 +189,7 @@ Rectangle {
                         text: qsTr("Hidden items")
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 14
+                        font.pixelSize: 14 * Theme.fontScale
                         font.bold: true
                     }
 
@@ -199,7 +199,7 @@ Rectangle {
                         Layout.preferredHeight: 28
                         focusPolicy: Qt.NoFocus
                         text: qsTr("Hide folder…")
-                        font.pixelSize: 11
+                        font.pixelSize: 11 * Theme.fontScale
                         onClicked: hideDirDialog.open()
                     }
                 }
@@ -210,7 +210,7 @@ Rectangle {
                     text: qsTr("Songs and folders you hide stay on disk; they are simply not shown in the lists. Restore them here at any time.")
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                 }
 
                 Text {
@@ -220,7 +220,7 @@ Rectangle {
                     text: qsTr("Nothing hidden yet. Use “Hide” / “Hide folder” on the song list, or “Hide folder…” above.")
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * Theme.fontScale
                 }
 
                 ListView {
@@ -242,7 +242,7 @@ Rectangle {
                             text: modelData
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily
-                            font.pixelSize: 12
+                            font.pixelSize: 12 * Theme.fontScale
                             elide: Text.ElideMiddle
                         }
 
@@ -251,7 +251,7 @@ Rectangle {
                             text: qsTr("Restore")
                             Layout.preferredHeight: 26
                             focusPolicy: Qt.NoFocus
-                            font.pixelSize: 11
+                            font.pixelSize: 11 * Theme.fontScale
                             onClicked: Library.unignorePath(modelData)
                         }
                     }
@@ -271,7 +271,7 @@ Rectangle {
                         Layout.preferredHeight: 28
                         focusPolicy: Qt.NoFocus
                         text: qsTr("Restore all")
-                        font.pixelSize: 11
+                        font.pixelSize: 11 * Theme.fontScale
                         onClicked: {
                             // Unhide each entry; iterate backwards because
                             // every call refreshes the library.
@@ -307,7 +307,7 @@ Rectangle {
                 text: qsTr("Settings saved")
                 color: Theme.success
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: 12 * Theme.fontScale
             }
 
             Timer {

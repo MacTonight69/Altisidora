@@ -19,6 +19,11 @@ QtObject {
     // until a theme explicitly sets its own bundled font.
     property string fontFamily: ""
 
+    // Multiplier applied to every font.pixelSize in the UI. Defaults to 1.0
+    // so themes that omit it keep the standard size; themes can opt into a
+    // larger effective typography by setting fontScale (e.g. 1.2).
+    property real fontScale: 1.0
+
     // Fired at the end of apply(), once every role (font included) is in
     // place. main.cpp listens and mirrors the typeface into the application
     // font (QGuiApplication::setFont) for Qt-owned surfaces like dialogs.
@@ -74,6 +79,7 @@ QtObject {
 
         themeName = t.name
         fontFamily = t.fontFamily !== undefined ? t.fontFamily : ""
+        fontScale = t.fontScale !== undefined ? t.fontScale : 1.0
         bg = t.bg
         bgAlt = t.bgAlt
         viewBg = t.viewBg

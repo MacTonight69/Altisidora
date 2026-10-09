@@ -233,21 +233,21 @@ Rectangle {
                 text: qsTr("Title")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 11 * Theme.fontScale
             }
             Text {
                 Layout.preferredWidth: 160
                 text: qsTr("Artist")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 11 * Theme.fontScale
             }
             Text {
                 Layout.preferredWidth: 160
                 text: qsTr("Album")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 11 * Theme.fontScale
             }
             Text {
                 Layout.preferredWidth: 50
@@ -255,7 +255,7 @@ Rectangle {
                 text: qsTr("Duration")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: 11 * Theme.fontScale
             }
         }
 
@@ -279,7 +279,7 @@ Rectangle {
                 text: qsTr("%n song(s) selected", "", songsView.selectedCount)
                 color: Theme.accent
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: 12 * Theme.fontScale
                 elide: Text.ElideRight
             }
 
@@ -314,7 +314,7 @@ Rectangle {
                 text: qsTr("Hide")
                 focusPolicy: Qt.NoFocus
                 flat: true
-                font.pixelSize: 12
+                font.pixelSize: 12 * Theme.fontScale
                 contentItem: Text {
                     text: hideSelectedButton.text
                     font: hideSelectedButton.font
@@ -332,7 +332,7 @@ Rectangle {
                 text: qsTr("Hide folder")
                 focusPolicy: Qt.NoFocus
                 flat: true
-                font.pixelSize: 12
+                font.pixelSize: 12 * Theme.fontScale
                 contentItem: Text {
                     text: hideFolderButton.text
                     font: hideFolderButton.font
@@ -350,7 +350,7 @@ Rectangle {
                 text: qsTr("Clear selection")
                 focusPolicy: Qt.NoFocus
                 flat: true
-                font.pixelSize: 12
+                font.pixelSize: 12 * Theme.fontScale
                 contentItem: Text {
                     text: clearSelectionButton.text
                     font: clearSelectionButton.font
@@ -440,7 +440,7 @@ Rectangle {
                         color: songRow.isSelected ? Theme.selectionText
                                : songMouse.containsMouse ? Theme.accentAltHover : Theme.accentAlt
                         font.family: Theme.fontFamily
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * Theme.fontScale
                         elide: Text.ElideRight
                     }
                     Text {
@@ -448,7 +448,7 @@ Rectangle {
                         text: songRow.song.artist ? songRow.song.artist : ""
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * Theme.fontScale
                         elide: Text.ElideRight
                     }
                     Text {
@@ -456,7 +456,7 @@ Rectangle {
                         text: songRow.song.album ? songRow.song.album : ""
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * Theme.fontScale
                         elide: Text.ElideRight
                     }
                     Text {
@@ -465,7 +465,7 @@ Rectangle {
                         text: songsView.formatDuration(songRow.song.duration)
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textMuted
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * Theme.fontScale
                     }
 
                     ToolButton {
@@ -485,7 +485,7 @@ Rectangle {
                             color: addToButton.down ? Theme.accentAltPressed
                                    : addToButton.hovered ? Theme.accentAltHover : Theme.accentAlt
                             font.family: Theme.fontFamily
-                            font.pixelSize: 16
+                            font.pixelSize: 16 * Theme.fontScale
                             font.bold: true
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -519,7 +519,7 @@ Rectangle {
                 : qsTr("No songs match your search")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: 15
+        font.pixelSize: 15 * Theme.fontScale
     }
 
     // ---- add to playlist menu (acts on songsView.targetSongIds) ----
@@ -572,7 +572,7 @@ Rectangle {
                 text: qsTr("Name for the new playlist:")
                 color: Theme.textPrimary
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: 13 * Theme.fontScale
             }
 
             TextField {
@@ -585,7 +585,7 @@ Rectangle {
                 color: Theme.textPrimary
                 selectionColor: Theme.fieldSelection
                 selectedTextColor: Theme.fieldSelectedText
-                font.pixelSize: 13
+                font.pixelSize: 13 * Theme.fontScale
                 leftPadding: 10
                 rightPadding: 10
                 onAccepted: newPlaylistDialog.accept()

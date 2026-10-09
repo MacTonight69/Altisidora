@@ -113,7 +113,7 @@ Rectangle {
                                   ? modelData.name.charAt(0).toUpperCase() : "?"
                             color: Theme.accentAlt
                             font.family: Theme.fontFamily
-                            font.pixelSize: 15
+                            font.pixelSize: 15 * Theme.fontScale
                             font.bold: true
                         }
                     }
@@ -123,7 +123,7 @@ Rectangle {
                         text: modelData.name
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 14
+                        font.pixelSize: 14 * Theme.fontScale
                         elide: Text.ElideRight
                     }
 
@@ -133,7 +133,7 @@ Rectangle {
                                                       ? qsTr(" song") : qsTr(" songs"))
                         color: Theme.textSecondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * Theme.fontScale
                     }
                 }
             }
@@ -149,6 +149,6 @@ Rectangle {
               : qsTr("No artists match your search")
         color: Theme.textMuted
         font.family: Theme.fontFamily
-        font.pixelSize: 15
+        font.pixelSize: 15 * Theme.fontScale
     }
 }

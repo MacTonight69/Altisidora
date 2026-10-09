@@ -21,7 +21,7 @@ RowLayout {
         id: playAllButton
         focusPolicy: Qt.NoFocus
         flat: true
-        font.pixelSize: 12
+        font.pixelSize: 12 * Theme.fontScale
         enabled: playToolbar.canPlay
         text: qsTr("Play all")
 
@@ -43,7 +43,7 @@ RowLayout {
         id: shuffleButton
         focusPolicy: Qt.NoFocus
         flat: true
-        font.pixelSize: 12
+        font.pixelSize: 12 * Theme.fontScale
         enabled: playToolbar.canPlay
         text: qsTr("Shuffle")
 

@@ -72,7 +72,7 @@ Rectangle {
                     color: backButton.down ? Theme.accentPressed
                            : backButton.hovered ? Theme.accentHover : Theme.textPrimary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 18
+                    font.pixelSize: 18 * Theme.fontScale
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -93,7 +93,7 @@ Rectangle {
                           ? detail.primaryKey : qsTr("Unknown")
                     color: Theme.textPrimary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 16
+                    font.pixelSize: 16 * Theme.fontScale
                     font.bold: true
                     elide: Text.ElideRight
                 }
@@ -105,7 +105,7 @@ Rectangle {
                     text: detail.secondaryKey
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 12
+                    font.pixelSize: 12 * Theme.fontScale
                     elide: Text.ElideRight
                 }
             }
@@ -116,7 +116,7 @@ Rectangle {
                          ? qsTr(" song") : qsTr(" songs"))
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: 12 * Theme.fontScale
             }
         }
 
