@@ -9,6 +9,14 @@ Rectangle {
 
     property int hiddenCount: Library.ignoredPaths.length
 
+    // Component sizing contract: every control in this view must fit its
+    // own text at the theme's typography scale. The minimums are raised
+    // above the old fixed 26-34px rows so controls feel bigger in EVERY
+    // theme; the scale term keeps them growing for opt-in themes (Coco 1.4
+    // up to Vacui 2.2) instead of clipping fixed-height rows.
+    function rowHeight() { return Math.max(44, Math.ceil(14 * Theme.fontScale) + 18) }
+    function buttonHeight() { return Math.max(38, Math.ceil(11 * Theme.fontScale) + 18) }
+
     function prettyPath(path) {
         if (path === undefined || path === null || path === "")
             return qsTr("Not set")
@@ -93,8 +101,10 @@ Rectangle {
 
                     ComboBox {
                         font.family: Theme.fontFamily
+                        font.pixelSize: 13 * Theme.fontScale
                         id: themeCombo
-                        Layout.preferredWidth: 210
+                        Layout.preferredWidth: 250
+                        Layout.preferredHeight: settingsView.buttonHeight()
                         model: Theme.themeNames
                         currentIndex: Math.max(0, Theme.themeNames.indexOf(AppSettings.theme))
                         onActivated: {
@@ -147,7 +157,7 @@ Rectangle {
                     Button {
                         font.family: Theme.fontFamily
                         id: chooseButton
-                        Layout.preferredHeight: 32
+                        Layout.preferredHeight: settingsView.buttonHeight()
                         focusPolicy: Qt.NoFocus
                         text: qsTr("Choose…")
                         onClicked: dirDialog.open()
@@ -197,7 +207,7 @@ Rectangle {
                     Button {
                         font.family: Theme.fontFamily
                         id: hideFolderButton
-                        Layout.preferredHeight: 28
+                        Layout.preferredHeight: settingsView.buttonHeight()
                         focusPolicy: Qt.NoFocus
                         text: qsTr("Hide folder…")
                         font.pixelSize: 11 * Theme.fontScale
@@ -226,7 +236,7 @@ Rectangle {
 
                 ListView {
                     Layout.fillWidth: true
-                    implicitHeight: Math.min(settingsView.hiddenCount * 34, 170)
+                    implicitHeight: Math.min(settingsView.hiddenCount * settingsView.rowHeight(), 220)
                     visible: settingsView.hiddenCount > 0
                     model: Library.ignoredPaths
                     clip: true
@@ -235,7 +245,7 @@ Rectangle {
                     delegate: RowLayout {
                         required property string modelData
                         width: ListView.view.width
-                        height: 34
+                        height: settingsView.rowHeight()
                         spacing: 8
 
                         Text {
@@ -250,7 +260,7 @@ Rectangle {
                         Button {
                             font.family: Theme.fontFamily
                             text: qsTr("Restore")
-                            Layout.preferredHeight: 26
+                            Layout.preferredHeight: settingsView.buttonHeight()
                             focusPolicy: Qt.NoFocus
                             font.pixelSize: 11 * Theme.fontScale
                             onClicked: Library.unignorePath(modelData)
@@ -269,7 +279,7 @@ Rectangle {
                     Button {
                         font.family: Theme.fontFamily
                         id: restoreAllButton
-                        Layout.preferredHeight: 28
+                        Layout.preferredHeight: settingsView.buttonHeight()
                         focusPolicy: Qt.NoFocus
                         text: qsTr("Restore all")
                         font.pixelSize: 11 * Theme.fontScale
@@ -292,7 +302,7 @@ Rectangle {
             Button {
                 font.family: Theme.fontFamily
                 id: saveButton
-                Layout.preferredHeight: 34
+                Layout.preferredHeight: settingsView.buttonHeight()
                 focusPolicy: Qt.NoFocus
                 text: qsTr("Save settings")
                 onClicked: {

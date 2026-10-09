@@ -81,16 +81,21 @@ void tst_theme_fonts::settle()
 
 void tst_theme_fonts::testThemeDataScaleRule()
 {
-    // Exactly the two opt-in themes scale to 1.4; every other theme is 1.0.
-    const QStringList scaled = {QStringLiteral("Coco"), QStringLiteral("The Niggest")};
+    // Per-theme opt-in typography scale; every other theme stays at 1.0.
+    const QHash<QString, double> scales = {
+        {QStringLiteral("Coco"), 1.4},
+        {QStringLiteral("Maya"), 1.8},
+        {QStringLiteral("Vacui"), 2.2},
+        {QStringLiteral("The Niggest"), 1.4},
+    };
 
     const auto names = m_theme->property("themeNames").toStringList();
-    QVERIFY2(names.size() >= scaled.size(), "theme catalog must contain the scaled themes");
+    QVERIFY2(names.size() >= scales.size(), "theme catalog must contain the scaled themes");
 
     int checked = 0;
     for (const QString &name : names) {
         applyTheme(name);
-        const double expected = scaled.contains(name) ? 1.4 : 1.0;
+        const double expected = scales.value(name, 1.0);
         QCOMPARE(m_theme->property("fontScale").toDouble(), expected);
         ++checked;
     }
@@ -109,9 +114,17 @@ void tst_theme_fonts::testApplyAssignsFontScale()
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
 
-    for (const QString &name : {QStringLiteral("Coco"), QStringLiteral("The Niggest")}) {
+    // Same per-theme contract: each opt-in theme applies its own scale.
+    const QHash<QString, double> scales = {
+        {QStringLiteral("Coco"), 1.4},
+        {QStringLiteral("Maya"), 1.8},
+        {QStringLiteral("Vacui"), 2.2},
+        {QStringLiteral("The Niggest"), 1.4},
+    };
+    const QList<QString> names = scales.keys();
+    for (const QString &name : names) {
         applyTheme(name);
-        QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
+        QCOMPARE(m_theme->property("fontScale").toDouble(), scales.value(name));
     }
 }
 
@@ -177,8 +190,8 @@ void tst_theme_fonts::testBindingRerendersOnApply()
 
 void tst_theme_fonts::testScaleDropsBackOnMimy()
 {
-    applyTheme(QStringLiteral("Coco"));
-    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
+    applyTheme(QStringLiteral("Vacui"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 2.2);
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
 }
@@ -231,19 +244,19 @@ void tst_theme_fonts::testRuntimeThemeSwitchChain()
 
     // Drive the same path the Settings combo uses: switching to a scaled
     // theme must re-apply the palette AND the typography scale, and persist
-    // both to the config. "The Niggest" keeps the spaced-key theme covered
-    // end-to-end.
-    settings.setTheme(QStringLiteral("The Niggest"));
-    QCOMPARE(settings.theme(), QStringLiteral("The Niggest"));
-    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("The Niggest"));
-    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
-    QCOMPARE(settings.fontScale(), 1.4);
+    // both to the config. Maya carries the largest rhythm check: 1.8 in
+    // both the applied palette and the config.
+    settings.setTheme(QStringLiteral("Maya"));
+    QCOMPARE(settings.theme(), QStringLiteral("Maya"));
+    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Maya"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.8);
+    QCOMPARE(settings.fontScale(), 1.8);
 
     // Both values must be persisted to the config file.
     QSettings check(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"));
     QCOMPARE(check.value(QStringLiteral("theme")).toString(),
-             QStringLiteral("The Niggest"));
-    QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.4);
+             QStringLiteral("Maya"));
+    QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.8);
 
     // Switching back to a non-scaled theme drops the scale and persists it.
     settings.setTheme(QStringLiteral("Mimy"));
