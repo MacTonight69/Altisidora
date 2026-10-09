@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QMap>
 #include <QSettings>
 #include <QUrl>
 #include <QVariantList>
@@ -52,7 +53,7 @@ class PlayerController : public QObject
     // Equalizer
     Q_PROPERTY(bool eqEnabled READ eqEnabled WRITE setEqEnabled NOTIFY eqChanged)
     Q_PROPERTY(QVariantList eqGains READ eqGains NOTIFY eqChanged)
-    Q_PROPERTY(QStringList eqPresets READ eqPresets CONSTANT)
+    Q_PROPERTY(QStringList eqPresets READ eqPresets NOTIFY eqChanged)
     Q_PROPERTY(QString eqPreset READ eqPreset WRITE setEqPreset NOTIFY eqChanged)
 
 public:
@@ -121,6 +122,21 @@ public slots:
     Q_INVOKABLE double eqGain(int index) const;
     Q_INVOKABLE void setEqGain(int index, double valueDb);
     Q_INVOKABLE void resetEq();
+    /**
+     * @brief Store the current curve as a user preset.
+     *
+     * @return false when the name is empty or collides with a built-in
+     * preset; true otherwise. Saving over an existing user preset updates it.
+     */
+    Q_INVOKABLE bool saveEqPreset(const QString &name);
+    /**
+     * @brief Remove a user preset. Built-in presets are never removed.
+     */
+    Q_INVOKABLE void deleteEqPreset(const QString &name);
+    /**
+     * @brief Whether the name refers to one of the built-in presets.
+     */
+    Q_INVOKABLE bool isBuiltInEqPreset(const QString &name) const;
     void setEqEnabled(bool enabled);
     void setEqPreset(const QString &name);
 
@@ -154,7 +170,15 @@ private:
     void loadEqSettings();
     void saveEqSettings();
     static std::optional<std::array<double, kEqBandCount>> presetGains(const QString &name);
-    static QString presetNameFor(const std::array<double, kEqBandCount> &gains);
+    /**
+     * @brief Find a preset (built-in first, then user) and copy its gains.
+     */
+    bool loadPreset(const QString &name, std::array<double, kEqBandCount> &out) const;
+    /**
+     * @brief Best preset name that exactly matches a curve (built-in first,
+     * then user), or an empty string for a manual curve.
+     */
+    QString presetNameFor(const std::array<double, kEqBandCount> &gains) const;
 
     mpv_handle *m_mpv = nullptr;
     QTimer *m_pollTimer = nullptr;
@@ -174,6 +198,7 @@ private:
     std::array<double, kEqBandCount> m_eqGains{};
     bool m_eqEnabled = false;
     QString m_eqPreset;
+    QMap<QString, std::array<double, kEqBandCount>> m_userPresets;
 
     QSettings m_settings;
 };

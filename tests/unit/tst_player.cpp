@@ -66,6 +66,10 @@ private slots:
     void testEqPresetApplies();
     void testEqEnableToggle();
     void testEqFilterStringPure();
+    void testEqUnicodePresetName();
+    void testEqSaveCustomPreset();
+    void testEqSaveCustomPresetRejectsInvalid();
+    void testEqDeleteCustomPreset();
 
 private:
     PlayerController *m_player = nullptr;
@@ -394,6 +398,83 @@ void TestPlayer::testEqFilterStringPure()
     QVERIFY(chain.contains(QStringLiteral("equalizer=f=31.5:t=o:w=1:g=3.00")));
     QVERIFY(chain.contains(QStringLiteral("equalizer=f=16000:t=o:w=1:g=-4.00")));
     QVERIFY(chain.contains(QStringLiteral("equalizer=f=500:t=o:w=1:g=0.00")));
+}
+
+void TestPlayer::testEqUnicodePresetName()
+{
+    // Regression: built-in names with non-ASCII characters must survive the
+    // C++ -> QML boundary intact. Using QLatin1String over UTF-8 source
+    // literals corrupted "Clásica" into "ClÃ¡sica" and broke both the label
+    // and the apply/compare paths.
+    QVERIFY(m_player->eqPresets().contains(QStringLiteral("Clásica")));
+
+    m_player->setEqPreset(QStringLiteral("Clásica"));
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Clásica"));
+    QVERIFY(qAbs(m_player->eqGain(0) - 3.0) < 0.001);
+    QVERIFY(qAbs(m_player->eqGain(9) - 4.0) < 0.001);
+}
+
+void TestPlayer::testEqSaveCustomPreset()
+{
+    // Build a distinctive curve and save it under a custom name.
+    m_player->setEqGain(0, 6.0);
+    m_player->setEqGain(9, -3.0);
+
+    QVERIFY(m_player->saveEqPreset(QStringLiteral("Mi curva")));
+    QVERIFY(m_player->eqPresets().contains(QStringLiteral("Mi curva")));
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Mi curva"));
+
+    // A fresh controller over the same redirected QSettings restores it.
+    PlayerController second;
+    QVERIFY(second.eqPresets().contains(QStringLiteral("Mi curva")));
+    second.setEqPreset(QStringLiteral("Mi curva"));
+    QVERIFY(qAbs(second.eqGain(0) - 6.0) < 0.001);
+    QVERIFY(qAbs(second.eqGain(9) - (-3.0)) < 0.001);
+
+    // Saving again under the same name updates the curve in place.
+    second.setEqGain(1, 2.0);
+    QVERIFY(second.saveEqPreset(QStringLiteral("Mi curva")));
+    QVERIFY(qAbs(second.eqGain(1) - 2.0) < 0.001);
+
+    // Clean up so no other test is polluted by this preset.
+    second.deleteEqPreset(QStringLiteral("Mi curva"));
+    QVERIFY(!second.eqPresets().contains(QStringLiteral("Mi curva")));
+}
+
+void TestPlayer::testEqSaveCustomPresetRejectsInvalid()
+{
+    // Empty and whitespace-only names are rejected.
+    QVERIFY(!m_player->saveEqPreset(QString()));
+    QVERIFY(!m_player->saveEqPreset(QStringLiteral("   ")));
+
+    // Built-in names cannot be shadowed by a user preset.
+    QVERIFY(!m_player->saveEqPreset(QStringLiteral("Rock")));
+    QVERIFY(!m_player->saveEqPreset(QStringLiteral("Clásica")));
+
+    // Rejected saves must not grow the list (only the 6 built-ins remain).
+    QCOMPARE(m_player->eqPresets().size(), 6);
+}
+
+void TestPlayer::testEqDeleteCustomPreset()
+{
+    // Deleting an unknown or built-in name is a safe no-op.
+    m_player->deleteEqPreset(QStringLiteral("NoExiste"));
+    m_player->deleteEqPreset(QStringLiteral("Rock"));
+    QCOMPARE(m_player->eqPresets().size(), 6);
+
+    // Save, then delete: the preset disappears and the curve is unnamed.
+    m_player->setEqGain(2, 4.0);
+    QVERIFY(m_player->saveEqPreset(QStringLiteral("Prueba")));
+    QVERIFY(m_player->eqPresets().contains(QStringLiteral("Prueba")));
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Prueba"));
+
+    m_player->deleteEqPreset(QStringLiteral("Prueba"));
+    QVERIFY(!m_player->eqPresets().contains(QStringLiteral("Prueba")));
+    QCOMPARE(m_player->eqPreset(), QString());  // Manual curve has no name.
+
+    // The persistence file no longer references the removed preset.
+    PlayerController second;
+    QVERIFY(!second.eqPresets().contains(QStringLiteral("Prueba")));
 }
 
 QTEST_MAIN(TestPlayer)

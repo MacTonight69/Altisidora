@@ -379,13 +379,18 @@ Rectangle {
                             from: -12
                             to: 12
                             stepSize: 0.5
-                            value: Player.eqGain(index)
+                            // Bind to the eqGains property (NOTIFY eqChanged)
+                            // instead of the eqGain() method: QML tracks
+                            // property dependencies only, so a method call
+                            // would never re-evaluate when a preset applies
+                            // and the sliders would keep stale values.
+                            value: Player.eqGains[index]
                             onMoved: Player.setEqGain(index, value)
                             onPressedChanged: {
                                 if (pressed)
                                     value = value
                                 else
-                                    value = Qt.binding(function () { return Player.eqGain(index) })
+                                    value = Qt.binding(function () { return Player.eqGains[index] })
                             }
                         }
 
@@ -409,28 +414,62 @@ Rectangle {
                     font.pixelSize: 11
                 }
 
-                Repeater {
-                    model: Player.eqPresets
+                Flow {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: implicitHeight
+                    spacing: 6
 
-                    Button {
-                        text: modelData
-                        checkable: true
-                        checked: Player.eqPreset === modelData
-                        onClicked: Player.eqPreset = modelData
-                        font.pixelSize: 11
-                        padding: 6
+                    Repeater {
+                        model: Player.eqPresets
 
-                        background: Rectangle {
-                            radius: 5
-                            color: parent.checked ? Theme.accent
-                                 : (parent.hovered ? Theme.rowHover : "transparent")
-                            border.color: Theme.border
-                        }
+                        Row {
+                            spacing: 2
 
-                        contentItem: Text {
-                            text: parent.text
-                            color: parent.checked ? Theme.accentText : Theme.textPrimary
-                            font.pixelSize: 11
+                            Button {
+                                text: modelData
+                                checkable: true
+                                checked: Player.eqPreset === modelData
+                                onClicked: Player.eqPreset = modelData
+                                font.pixelSize: 11
+                                padding: 6
+
+                                background: Rectangle {
+                                    radius: 5
+                                    color: parent.checked ? Theme.accent
+                                         : (parent.hovered ? Theme.rowHover : "transparent")
+                                    border.color: Theme.border
+                                }
+
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: parent.checked ? Theme.accentText : Theme.textPrimary
+                                    font.pixelSize: 11
+                                }
+                            }
+
+                            Button {
+                                visible: !Player.isBuiltInEqPreset(modelData)
+                                text: "\u2715"
+                                implicitWidth: 20
+                                implicitHeight: 22
+                                focusPolicy: Qt.NoFocus
+                                onClicked: Player.deleteEqPreset(modelData)
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Eliminar preset")
+                                ToolTip.delay: 400
+
+                                background: Rectangle {
+                                    radius: 4
+                                    color: parent.hovered ? Theme.dangerBg : "transparent"
+                                    border.color: parent.hovered ? Theme.danger : "transparent"
+                                }
+
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: parent.hovered ? Theme.danger : Theme.textSecondary
+                                    font.pixelSize: 10
+                                }
+                            }
                         }
                     }
                 }
@@ -457,6 +496,63 @@ Rectangle {
                     }
 
                     onClicked: Player.resetEq()
+                }
+            }
+
+            // ---- guardar una curva como preset de usuario ----
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+
+                TextField {
+                    id: eqPresetNameField
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    placeholderText: qsTr("Nombre del nuevo preset")
+                    placeholderTextColor: Theme.textMuted
+                    color: Theme.textPrimary
+                    selectionColor: Theme.fieldSelection
+                    selectedTextColor: Theme.fieldSelectedText
+                    font.pixelSize: 11
+                    leftPadding: 10
+                    rightPadding: 10
+                    background: Rectangle {
+                        radius: 5
+                        color: Theme.field
+                        border.width: 1
+                        border.color: eqPresetNameField.activeFocus ? Theme.accent : Theme.border
+                    }
+                    onAccepted: saveEqPresetButton.clicked()
+                }
+
+                Button {
+                    id: saveEqPresetButton
+                    Layout.preferredHeight: 32
+                    focusPolicy: Qt.NoFocus
+                    text: qsTr("Guardar")
+                    font.pixelSize: 11
+                    padding: 6
+                    enabled: eqPresetNameField.text.trim().length > 0
+
+                    background: Rectangle {
+                        radius: 5
+                        color: parent.enabled
+                               ? (parent.down ? Theme.accentPressed
+                                  : parent.hovered ? Theme.accentHover : Theme.accent)
+                               : Theme.rowHover
+                        border.color: Theme.border
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        color: parent.enabled ? Theme.accentText : Theme.textMuted
+                        font.pixelSize: 11
+                    }
+
+                    onClicked: {
+                        if (Player.saveEqPreset(eqPresetNameField.text))
+                            eqPresetNameField.text = ""
+                    }
                 }
             }
         }

@@ -105,9 +105,12 @@ QVariantList PlayerController::eqGains() const
 QStringList PlayerController::eqPresets() const
 {
     QStringList names;
-    names.reserve(std::size(kEqPresets));
+    names.reserve(std::size(kEqPresets) + m_userPresets.size());
     for (const EqPreset &preset : kEqPresets) {
-        names.append(QLatin1String(preset.name));
+        names.append(QString::fromUtf8(preset.name));
+    }
+    for (auto it = m_userPresets.constBegin(); it != m_userPresets.constEnd(); ++it) {
+        names.append(it.key());
     }
     return names;
 }
@@ -347,15 +350,15 @@ void PlayerController::setEqEnabled(bool enabled)
 
 void PlayerController::setEqPreset(const QString &name)
 {
-    const auto gains = presetGains(name);
-    if (!gains) {
+    std::array<double, kEqBandCount> gains{};
+    if (!loadPreset(name, gains)) {
         return; // Unknown preset: ignore.
     }
 
     bool samePreset = (m_eqPreset == name);
     bool sameGains = true;
     for (int i = 0; i < kEqBandCount; ++i) {
-        if (qAbs(m_eqGains[i] - (*gains)[i]) > kGainEps) {
+        if (qAbs(m_eqGains[i] - gains[i]) > kGainEps) {
             sameGains = false;
             break;
         }
@@ -364,11 +367,44 @@ void PlayerController::setEqPreset(const QString &name)
         return;
     }
 
-    m_eqGains = *gains;
+    m_eqGains = gains;
     m_eqPreset = name;
     applyEq();
     saveEqSettings();
     emit eqChanged();
+}
+
+bool PlayerController::saveEqPreset(const QString &name)
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty() || isBuiltInEqPreset(trimmed)) {
+        return false;
+    }
+
+    m_userPresets.insert(trimmed, m_eqGains);
+    m_eqPreset = trimmed;
+    saveEqSettings();
+    emit eqChanged();
+    return true;
+}
+
+void PlayerController::deleteEqPreset(const QString &name)
+{
+    if (!m_userPresets.contains(name)) {
+        return; // Unknown or built-in: nothing to remove.
+    }
+
+    m_userPresets.remove(name);
+    if (m_eqPreset == name) {
+        m_eqPreset = presetNameFor(m_eqGains);
+    }
+    saveEqSettings();
+    emit eqChanged();
+}
+
+bool PlayerController::isBuiltInEqPreset(const QString &name) const
+{
+    return presetGains(name).has_value();
 }
 
 QString PlayerController::buildEqFilterString(const std::array<double, kEqBandCount> &gains)
@@ -604,9 +640,32 @@ void PlayerController::loadEqSettings()
     m_eqEnabled = m_settings.value(QStringLiteral("eqEnabled"), false).toBool();
     m_eqPreset = m_settings.value(QStringLiteral("eqPreset"), QStringLiteral("Plano")).toString();
 
+    // User presets: map of name -> list of 10 gains.
+    m_userPresets.clear();
+    const QVariantMap stored = m_settings.value(QStringLiteral("eqUserPresets")).toMap();
+    for (auto it = stored.constBegin(); it != stored.constEnd(); ++it) {
+        const QStringList raw = it.value().toStringList();
+        if (raw.size() != kEqBandCount) {
+            continue;
+        }
+        std::array<double, kEqBandCount> gains{};
+        bool ok = true;
+        for (int i = 0; i < kEqBandCount; ++i) {
+            const double value = raw.at(i).toDouble(&ok);
+            if (!ok) {
+                break;
+            }
+            gains[i] = value;
+        }
+        if (ok) {
+            m_userPresets.insert(it.key(), gains);
+        }
+    }
+
     const QStringList raw = m_settings.value(QStringLiteral("eqGains")).toStringList();
     if (raw.size() != kEqBandCount) {
         m_eqGains.fill(0.0);
+        m_eqPreset = QStringLiteral("Plano");
         return;
     }
 
@@ -622,6 +681,16 @@ void PlayerController::loadEqSettings()
         m_eqGains.fill(0.0);
         m_eqPreset = QStringLiteral("Plano");
     }
+
+    // Legacy configs may persist a pre-fix mojibake preset name (e.g.
+    // "ClÃ¡sica" instead of "Clásica"). When the stored name does not
+    // resolve to a known preset, fall back to the best match for the curve.
+    if (!m_eqPreset.isEmpty()) {
+        std::array<double, kEqBandCount> ignored{};
+        if (!loadPreset(m_eqPreset, ignored)) {
+            m_eqPreset = presetNameFor(m_eqGains);
+        }
+    }
 }
 
 void PlayerController::saveEqSettings()
@@ -634,6 +703,17 @@ void PlayerController::saveEqSettings()
     m_settings.setValue(QStringLiteral("eqEnabled"), m_eqEnabled);
     m_settings.setValue(QStringLiteral("eqGains"), raw);
     m_settings.setValue(QStringLiteral("eqPreset"), m_eqPreset);
+
+    QVariantMap stored;
+    for (auto it = m_userPresets.constBegin(); it != m_userPresets.constEnd(); ++it) {
+        QStringList values;
+        values.reserve(kEqBandCount);
+        for (double gain : it.value()) {
+            values.append(QLocale::c().toString(gain, 'f', 2));
+        }
+        stored.insert(it.key(), values);
+    }
+    m_settings.setValue(QStringLiteral("eqUserPresets"), stored);
     m_settings.sync();
 }
 
@@ -641,14 +721,29 @@ std::optional<std::array<double, PlayerController::kEqBandCount>>
 PlayerController::presetGains(const QString &name)
 {
     for (const EqPreset &preset : kEqPresets) {
-        if (name == QLatin1String(preset.name)) {
+        if (name == QString::fromUtf8(preset.name)) {
             return preset.gains;
         }
     }
     return std::nullopt;
 }
 
-QString PlayerController::presetNameFor(const std::array<double, kEqBandCount> &gains)
+bool PlayerController::loadPreset(const QString &name,
+                                  std::array<double, kEqBandCount> &out) const
+{
+    if (const auto builtIn = presetGains(name)) {
+        out = *builtIn;
+        return true;
+    }
+    const auto it = m_userPresets.constFind(name);
+    if (it == m_userPresets.constEnd()) {
+        return false;
+    }
+    out = it.value();
+    return true;
+}
+
+QString PlayerController::presetNameFor(const std::array<double, kEqBandCount> &gains) const
 {
     for (const EqPreset &preset : kEqPresets) {
         bool match = true;
@@ -659,7 +754,19 @@ QString PlayerController::presetNameFor(const std::array<double, kEqBandCount> &
             }
         }
         if (match) {
-            return QLatin1String(preset.name);
+            return QString::fromUtf8(preset.name);
+        }
+    }
+    for (auto it = m_userPresets.constBegin(); it != m_userPresets.constEnd(); ++it) {
+        bool match = true;
+        for (int i = 0; i < kEqBandCount; ++i) {
+            if (qAbs(it.value()[i] - gains[i]) > 0.25) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return it.key();
         }
     }
     return QString(); // Manual curve: no preset matches.
