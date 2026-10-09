@@ -46,7 +46,7 @@ var themes = {
     // Soft, warm yellows like a desert at noon.
     "Coco": {
         name: "Coco",
-        fontScale: 1.2,
+        fontScale: 1.4,
         fontFamily: "Sunny Brunch",
         bg: "#f5ecd7",
         bgAlt: "#efe2c1",
@@ -73,7 +73,7 @@ var themes = {
     // Red and black, like the colours of anarchism.
     "Maya": {
         name: "Maya",
-        fontScale: 1.2,
+        fontScale: 1.4,
         fontFamily: "Anarchaos",
         bg: "#141414",
         bgAlt: "#0a0a0a",
@@ -154,7 +154,7 @@ var themes = {
     // Pure white with fine gray borders.
     "Vacui": {
         name: "Vacui",
-        fontScale: 1.2,
+        fontScale: 1.4,
         fontFamily: "A Charming Font Leftleaning",
         bg: "#fbfbfb",
         bgAlt: "#f4f4f4",
@@ -207,7 +207,7 @@ var themes = {
     // Completely black.
     "The Niggest": {
         name: "The Niggest",
-        fontScale: 1.2,
+        fontScale: 1.4,
         fontFamily: "Elaesy",
         bg: "#000000",
         bgAlt: "#050505",
