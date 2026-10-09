@@ -7,8 +7,8 @@
 
 var order = [
     "Mimy",
-    "Desertic",
-    "Anarchy",
+    "Coco",
+    "Maya",
     "Comunism",
     "Good Technic",
     "Vacui",
@@ -20,6 +20,7 @@ var themes = {
     // Orange / blue / white, like the flag of the Netherlands.
     "Mimy": {
         name: "Mimy",
+        fontFamily: "Baskervville",
         bg: "#eef0f6",            // window / top bar
         bgAlt: "#ffffff",         // sidebar / panels / cards
         viewBg: "#f7f8fc",        // songs page
@@ -43,8 +44,9 @@ var themes = {
     },
 
     // Soft, warm yellows like a desert at noon.
-    "Desertic": {
-        name: "Desertic",
+    "Coco": {
+        name: "Coco",
+        fontFamily: "Sunny Brunch",
         bg: "#f5ecd7",
         bgAlt: "#efe2c1",
         viewBg: "#faf5e6",
@@ -68,8 +70,9 @@ var themes = {
     },
 
     // Red and black, like the colours of anarchism.
-    "Anarchy": {
-        name: "Anarchy",
+    "Maya": {
+        name: "Maya",
+        fontFamily: "Anarchaos",
         bg: "#141414",
         bgAlt: "#0a0a0a",
         viewBg: "#161616",
@@ -95,6 +98,7 @@ var themes = {
     // Red and yellow, like the colours of communism.
     "Comunism": {
         name: "Comunism",
+        fontFamily: "Konstruktor",
         // Red-dominant flag colours: a dark red base with golden-yellow
         // ornaments (inverted from the original yellow/red look).
         bg: "#591214",
@@ -122,6 +126,7 @@ var themes = {
     // Blue and black, a calm technical look.
     "Good Technic": {
         name: "Good Technic",
+        fontFamily: "Lower Pixel",
         bg: "#0d1117",
         bgAlt: "#060a10",
         viewBg: "#0f151c",
@@ -147,6 +152,7 @@ var themes = {
     // Pure white with fine gray borders.
     "Vacui": {
         name: "Vacui",
+        fontFamily: "A Charming Font Leftleaning",
         bg: "#fbfbfb",
         bgAlt: "#f4f4f4",
         viewBg: "#fdfdfd",
@@ -172,6 +178,7 @@ var themes = {
     // Soft pastel pink tones.
     "Kawai": {
         name: "Kawai",
+        fontFamily: "Handmade Alphabet",
         bg: "#fbeef3",
         bgAlt: "#f6dce7",
         viewBg: "#fdf5f8",
@@ -197,6 +204,7 @@ var themes = {
     // Completely black.
     "The Niggest": {
         name: "The Niggest",
+        fontFamily: "Elaesy",
         bg: "#000000",
         bgAlt: "#050505",
         viewBg: "#000000",

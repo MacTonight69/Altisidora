@@ -267,7 +267,7 @@ ApplicationWindow {
                         Layout.topMargin: 4
                         // Theme-specific brand marks take priority; otherwise pick the
                         // light/dark variant so the logo stays readable.
-                        source: Theme.themeName === "Anarchy"
+                        source: Theme.themeName === "Maya"
                                 ? "qrc:/images/LogoAppRed.png"
                                 : Theme.themeName === "Comunism"
                                   ? "qrc:/images/LogoAppYellow.png"

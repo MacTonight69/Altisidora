@@ -15,6 +15,10 @@ QtObject {
     property string themeName: "Mimy"
     readonly property var themeNames: ThemeData.order
 
+    // Typeface for the whole UI. Empty string means "system default", used
+    // until a theme explicitly sets its own bundled font.
+    property string fontFamily: ""
+
     // ---- base roles (defaults: the Mimy palette) ----
     property color bg: "#eef0f6"
     property color bgAlt: "#ffffff"
@@ -64,6 +68,7 @@ QtObject {
             t = ThemeData.themes["Mimy"]
 
         themeName = t.name
+        fontFamily = t.fontFamily !== undefined ? t.fontFamily : ""
         bg = t.bg
         bgAlt = t.bgAlt
         viewBg = t.viewBg

@@ -1,3 +1,4 @@
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -101,6 +102,26 @@ int main(int argc, char *argv[])
     app.setApplicationName("Altisidora");
     app.setApplicationDisplayName("Altisidora");
     app.setOrganizationName("Altisidora");
+
+    // Bundle the theme fonts so every machine sees the same typefaces
+    // regardless of what is installed at the OS level. Registered before
+    // the QML engine loads, so Theme.fontFamily resolves immediately.
+    {
+        static const char *kAppFonts[] = {
+            ":/fonts/Baskervville.otf",
+            ":/fonts/SunnyBrunch.ttf",
+            ":/fonts/Anarchaos.otf",
+            ":/fonts/Konstruktor.otf",
+            ":/fonts/LowerPixel.otf",
+            ":/fonts/Achaflft.ttf",
+            ":/fonts/HandmadeAlphabet.otf",
+            ":/fonts/Elaesy.otf",
+        };
+        for (const char *path : kAppFonts) {
+            if (QFontDatabase::addApplicationFont(QString::fromLatin1(path)) < 0)
+                qWarning() << "Failed to register bundled font:" << path;
+        }
+    }
 
     // Controller instances shared with QML as context properties
     PlayerController player;

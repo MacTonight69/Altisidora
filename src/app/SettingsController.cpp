@@ -58,4 +58,11 @@ void SettingsController::load()
 {
     m_musicDirectory = m_settings.value("musicDirectory").toString();
     m_theme = m_settings.value("theme", QStringLiteral("Mimy")).toString();
+
+    // Theme renames: keep users on their already-selected theme after an
+    // upgrade instead of silently falling back to the default.
+    if (m_theme == QLatin1String("Desertic"))
+        m_theme = QStringLiteral("Coco");
+    else if (m_theme == QLatin1String("Anarchy"))
+        m_theme = QStringLiteral("Maya");
 }

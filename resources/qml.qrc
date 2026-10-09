@@ -5,6 +5,14 @@
         <file alias="images/LogoAppDark.png">../images/LogoAppDark.png</file>
         <file alias="images/LogoAppRed.png">../images/LogoAppRed.png</file>
         <file alias="images/LogoAppYellow.png">../images/LogoAppYellow.png</file>
+        <file alias="fonts/Achaflft.ttf">../fonts/Achaflft.ttf</file>
+        <file alias="fonts/Anarchaos.otf">../fonts/Anarchaos.otf</file>
+        <file alias="fonts/Baskervville.otf">../fonts/baskervville.regular.otf</file>
+        <file alias="fonts/Elaesy.otf">../fonts/Elaesy-OTF.otf</file>
+        <file alias="fonts/HandmadeAlphabet.otf">../fonts/Handmade Alphabet.otf</file>
+        <file alias="fonts/Konstruktor.otf">../fonts/KonstruktorRegular.otf</file>
+        <file alias="fonts/LowerPixel.otf">../fonts/LowresPixel-Regular.otf</file>
+        <file alias="fonts/SunnyBrunch.ttf">../fonts/Sunny Brunch-SemiBold.ttf</file>
         <file>qml/components/PlayerControls.qml</file>
         <file>qml/components/SearchBar.qml</file>
         <file>qml/components/PlayToolbar.qml</file>
