@@ -164,14 +164,25 @@ Rectangle {
         return m + ":" + (s < 10 ? "0" + s : "" + s)
     }
 
-    // Delete the selected songs from the library (they stay on disk). These
-    // actions are reusable from the toolbar buttons and from the global
-    // Ctrl+D / Ctrl+H / Ctrl+Shift+H shortcuts in main.qml.
+    // Delete the selected songs. In active mode (the default) the audio
+    // files are removed from disk too, so a confirmation dialog runs first;
+    // in passive mode the rows are removed and the paths are registered as
+    // ignored. These actions are reusable from the toolbar buttons and from
+    // the global Ctrl+D / Ctrl+H / Ctrl+Shift+H shortcuts in main.qml.
+    function applyDelete(deleteFiles) {
+        if (songsView.selectedCount === 0)
+            return
+        Library.removeSongs(Array.from(songsView.selectedIds), deleteFiles)
+        songsView.clearSelection()
+    }
+
     function deleteSelected() {
         if (songsView.selectedCount === 0)
             return
-        Library.removeSongs(Array.from(songsView.selectedIds))
-        songsView.clearSelection()
+        if (AppSettings.deleteFilesFromDisk)
+            deleteFromDiskDialog.open()   // irreversibly deletes files
+        else
+            applyDelete(false)
     }
 
     // Hide the selected songs: they stay on disk and in the database, they
@@ -606,5 +617,39 @@ Rectangle {
                 name = qsTr("Playlist %1").arg(Playlists.playlists.length + 1)
             songsView.addTargetSongsToPlaylist(name)
         }
+    }
+
+    // ---- confirmation before deleting the selected files from disk ----
+    Dialog {
+        id: deleteFromDiskDialog
+        title: qsTr("Delete from disk")
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        contentItem: ColumnLayout {
+            spacing: 10
+            implicitWidth: 340
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: qsTr("%n file(s) will be permanently deleted from disk. This cannot be undone.", "",
+                           songsView.selectedCount)
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: 13 * Theme.fontScale
+            }
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: qsTr("The selected songs are also removed from the library and from any playlist.")
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: 11 * Theme.fontScale
+            }
+        }
+
+        onAccepted: songsView.applyDelete(true)
     }
 }

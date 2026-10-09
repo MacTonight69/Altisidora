@@ -175,6 +175,67 @@ Rectangle {
             }
         }
 
+        // ---- deleting songs ----
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 640
+            implicitHeight: deleteColumn.implicitHeight + 32
+            radius: 6
+            color: Theme.bgAlt
+            border.width: 1
+            border.color: Theme.border
+
+            ColumnLayout {
+                id: deleteColumn
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                Text {
+                    text: qsTr("Deleting songs")
+                    color: Theme.textPrimary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 14 * Theme.fontScale
+                    font.bold: true
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("When you delete a song")
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13 * Theme.fontScale
+                        elide: Text.ElideRight
+                    }
+
+                    ComboBox {
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13 * Theme.fontScale
+                        id: deleteModeCombo
+                        Layout.preferredWidth: 250
+                        Layout.preferredHeight: settingsView.buttonHeight()
+                        model: [qsTr("Delete files from disk"),
+                                qsTr("Remove from library only")]
+                        currentIndex: AppSettings.deleteFilesFromDisk ? 0 : 1
+                        onActivated: AppSettings.deleteFilesFromDisk = (currentIndex === 0)
+                    }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: qsTr("“Delete files from disk” permanently removes the audio file (with a confirmation prompt). “Remove from library only” keeps the file on disk but hides it from future scans, like the Hidden items below.")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11 * Theme.fontScale
+                }
+            }
+        }
+
         // ---- hidden items ----
         Rectangle {
             Layout.fillWidth: true

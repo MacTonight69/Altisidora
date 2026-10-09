@@ -50,6 +50,20 @@ void SettingsController::setFontScale(double scale)
     }
 }
 
+bool SettingsController::deleteFilesFromDisk() const
+{
+    return m_deleteFilesFromDisk;
+}
+
+void SettingsController::setDeleteFilesFromDisk(bool value)
+{
+    if (m_deleteFilesFromDisk != value) {
+        m_deleteFilesFromDisk = value;
+        m_settings.setValue("deleteFilesFromDisk", value);
+        emit settingsChanged();
+    }
+}
+
 QVariant SettingsController::getSetting(const QString &key, const QVariant &defaultValue) const
 {
     return m_settings.value(key, defaultValue);
@@ -66,6 +80,7 @@ void SettingsController::save()
     m_settings.setValue("musicDirectory", m_musicDirectory);
     m_settings.setValue("theme", m_theme);
     m_settings.setValue("fontScale", m_fontScale);
+    m_settings.setValue("deleteFilesFromDisk", m_deleteFilesFromDisk);
     m_settings.sync();
 }
 
@@ -74,6 +89,7 @@ void SettingsController::load()
     m_musicDirectory = m_settings.value("musicDirectory").toString();
     m_theme = m_settings.value("theme", QStringLiteral("Mimy")).toString();
     m_fontScale = qBound(0.5, m_settings.value("fontScale", 1.0).toDouble(), 2.0);
+    m_deleteFilesFromDisk = m_settings.value("deleteFilesFromDisk", true).toBool();
 
     // Theme renames: keep users on their already-selected theme after an
     // upgrade instead of silently falling back to the default.

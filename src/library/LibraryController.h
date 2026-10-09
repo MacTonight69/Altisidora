@@ -96,12 +96,19 @@ public slots:
     /**
      * @brief Remove songs from the library.
      *
-     * The songs are deleted from the database (including their playlist
-     * references) and the library is refreshed. Passed IDs are taken from
-     * the QML selection and may arrive in any order; only songs that still
-     * exist are affected.
+     * The songs are always deleted from the database (including their
+     * playlist references) and the library is refreshed. Passed IDs are
+     * taken from the QML selection and may arrive in any order; only songs
+     * that still exist are affected.
+     *
+     * @param ids Song IDs to remove.
+     * @param deleteFiles When true (active mode), the audio file is also
+     *        deleted from disk; if the removal fails the path is registered
+     *        as ignored so it cannot reappear on the next scan. When false
+     *        (passive mode), the file is kept on disk but its path is
+     *        registered as ignored, so future scans skip it.
      */
-    void removeSongs(const QVariantList &ids);
+    void removeSongs(const QVariantList &ids, bool deleteFiles);
 
 public:
     /**

@@ -33,6 +33,8 @@ private slots:
     void testIgnoreFolderHidesChildren();
     void testUnignoreRestoresSongs();
     void testRescanSkipsIgnored();
+    void testRemoveSongsDeletesFile();
+    void testRemoveSongsIgnoresFile();
 
 private:
     void removeDatabaseFiles();
@@ -266,6 +268,57 @@ void tst_library::testRescanSkipsIgnored()
     QVERIFY(waitForScanFinished());
     QCOMPARE(m_controller->songCount(), 2);
     QVERIFY(!hidden.isEmpty());
+}
+
+void tst_library::testRemoveSongsDeletesFile()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 2);
+
+    const QVariantMap song = m_controller->songs().first().toMap();
+    const qint64 id = song.value("id").toLongLong();
+    const QString path = song.value("path").toString();
+    QVERIFY(QFile::exists(path));
+
+    // Active mode: the audio file is deleted from disk too.
+    QVariantList ids;
+    ids << id;
+    m_controller->removeSongs(ids, true);
+
+    QVERIFY(!QFile::exists(path));
+    QCOMPARE(m_controller->songCount(), 1);
+    for (const QVariant &s : m_controller->songs()) {
+        QVERIFY(s.toMap().value("id").toLongLong() != id);
+    }
+}
+
+void tst_library::testRemoveSongsIgnoresFile()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 2);
+
+    const QVariantMap song = m_controller->songs().first().toMap();
+    const qint64 id = song.value("id").toLongLong();
+    const QString path = song.value("path").toString();
+    QVERIFY(QFile::exists(path));
+
+    // Passive mode: the file stays on disk but is registered as ignored.
+    QVariantList ids;
+    ids << id;
+    m_controller->removeSongs(ids, false);
+
+    QVERIFY(QFile::exists(path));
+    QCOMPARE(m_controller->songCount(), 1);
+    QVERIFY(m_controller->ignoredPaths().contains(path));
+
+    // A rescan must not re-import the ignored path.
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 1);
 }
 
 QTEST_MAIN(tst_library)

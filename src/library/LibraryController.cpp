@@ -2,6 +2,7 @@
 
 #include <QStandardPaths>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QtConcurrent>
 
@@ -162,12 +163,27 @@ int LibraryController::songCount() const
     return m_songs.size();
 }
 
-void LibraryController::removeSongs(const QVariantList &ids)
+void LibraryController::removeSongs(const QVariantList &ids, bool deleteFiles)
 {
     if (ids.isEmpty()) {
         return;
     }
     for (const QVariant &id : ids) {
+        const Song song = m_db.getSong(id.toLongLong());
+        if (!song.path.isEmpty()) {
+            if (deleteFiles) {
+                // Active mode: delete the audio file from disk. If the OS
+                // refuses (permissions, busy file...), register the path as
+                // ignored so a later scan cannot silently re-import it.
+                if (!QFile::remove(song.path)) {
+                    m_db.addIgnoredPath(song.path, false);
+                }
+            } else {
+                // Passive mode: keep the file on disk but make future scans
+                // skip it through the existing hidden-items mechanism.
+                m_db.addIgnoredPath(song.path, false);
+            }
+        }
         m_db.removeSong(id.toLongLong());
     }
     refresh();

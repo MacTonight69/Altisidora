@@ -16,6 +16,7 @@ class SettingsController : public QObject
     Q_PROPERTY(QString musicDirectory READ musicDirectory WRITE setMusicDirectory NOTIFY settingsChanged)
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY settingsChanged)
     Q_PROPERTY(double fontScale READ fontScale WRITE setFontScale NOTIFY settingsChanged)
+    Q_PROPERTY(bool deleteFilesFromDisk READ deleteFilesFromDisk WRITE setDeleteFilesFromDisk NOTIFY settingsChanged)
 
 public:
     explicit SettingsController(QObject *parent = nullptr);
@@ -23,11 +24,13 @@ public:
     QString musicDirectory() const;
     QString theme() const;
     double fontScale() const;
+    bool deleteFilesFromDisk() const;
 
 public slots:
     void setMusicDirectory(const QString &path);
     void setTheme(const QString &name);
     void setFontScale(double scale);
+    void setDeleteFilesFromDisk(bool value);
     QVariant getSetting(const QString &key, const QVariant &defaultValue) const;
     void setSetting(const QString &key, const QVariant &value);
     void save();
@@ -41,4 +44,5 @@ private:
     QString m_musicDirectory;
     QString m_theme;
     double m_fontScale = 1.0;
+    bool m_deleteFilesFromDisk = true;
 };

@@ -24,6 +24,7 @@ private slots:
     void testSetMusicDirectory();
     void testSetTheme();
     void testFontScale();
+    void testDeleteFilesFromDisk();
     void testSettingsChangedSignal();
     void testNoSignalWhenValueUnchanged();
     void testGenericGetSet();
@@ -65,6 +66,9 @@ void tst_settings::testDefaults()
     QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
     QCOMPARE(settings.fontScale(), 1.0);
 
+    // Deleting songs removes the files from disk by default (active mode).
+    QVERIFY(settings.deleteFilesFromDisk());
+
     // Unknown keys fall back to the provided default
     QCOMPARE(settings.getSetting(QStringLiteral("does.not.exist"), 42).toInt(), 42);
 }
@@ -99,6 +103,30 @@ void tst_settings::testFontScale()
     QCOMPARE(settings.fontScale(), 1.4);
     settings.setFontScale(1.0);
     QCOMPARE(settings.fontScale(), 1.0);
+}
+
+void tst_settings::testDeleteFilesFromDisk()
+{
+    SettingsController settings;
+    QSignalSpy spy(&settings, &SettingsController::settingsChanged);
+    QVERIFY(spy.isValid());
+
+    QVERIFY(settings.deleteFilesFromDisk());
+
+    // Switching to passive mode updates the getter and notifies once.
+    settings.setDeleteFilesFromDisk(false);
+    QVERIFY(!settings.deleteFilesFromDisk());
+    QCOMPARE(spy.count(), 1);
+
+    // Writing the same value again must not notify.
+    settings.setDeleteFilesFromDisk(false);
+    QCOMPARE(spy.count(), 1);
+
+    settings.save();
+
+    // A fresh instance loads the persisted value.
+    SettingsController reloaded;
+    QVERIFY(!reloaded.deleteFilesFromDisk());
 }
 
 void tst_settings::testSettingsChangedSignal()
