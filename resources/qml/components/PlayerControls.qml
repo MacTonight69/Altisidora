@@ -302,7 +302,10 @@ Rectangle {
         popupType: Popup.Item
         parent: controls
         x: controls.width - width - 16
-        y: 12
+        // The popup lives inside the bottom bar; y is relative to it, so a
+        // positive offset pushed the panel below the window. Grow upward
+        // instead so the whole panel stays visible above the transport bar.
+        y: -(height + 14)
         width: 520
         padding: 14
         modal: false
@@ -343,6 +346,14 @@ Rectangle {
                 Switch {
                     checked: Player.eqEnabled
                     onToggled: Player.eqEnabled = checked
+                }
+
+                TransportButton {
+                    iconText: "\u2715"
+                    onClicked: eqPopup.close()
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Ocultar ecualizador")
+                    ToolTip.delay: 400
                 }
             }
 
