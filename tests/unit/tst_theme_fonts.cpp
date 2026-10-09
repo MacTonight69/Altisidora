@@ -85,7 +85,7 @@ void tst_theme_fonts::testThemeDataScaleRule()
     // Per-theme opt-in typography scale; every other theme stays at 1.0.
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
-        {QStringLiteral("Maya"), 1.8},
+        {QStringLiteral("Maya"), 1.9},
         {QStringLiteral("The Niggest"), 1.4},
     };
 
@@ -117,7 +117,7 @@ void tst_theme_fonts::testApplyAssignsFontScale()
     // Same per-theme contract: each opt-in theme applies its own scale.
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
-        {QStringLiteral("Maya"), 1.8},
+        {QStringLiteral("Maya"), 1.9},
         {QStringLiteral("The Niggest"), 1.4},
     };
     const QList<QString> names = scales.keys();
@@ -190,7 +190,7 @@ void tst_theme_fonts::testBindingRerendersOnApply()
 void tst_theme_fonts::testScaleDropsBackOnMimy()
 {
     applyTheme(QStringLiteral("Maya"));
-    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.8);
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.9);
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
 }
@@ -252,19 +252,19 @@ void tst_theme_fonts::testRuntimeThemeSwitchChain()
 
     // Drive the same path the Settings combo uses: switching to a scaled
     // theme must re-apply the palette AND the typography scale, and persist
-    // both to the config. Maya carries the largest rhythm check: 1.8 in
+    // both to the config. Maya carries the largest rhythm check: 1.9 in
     // both the applied palette and the config.
     settings.setTheme(QStringLiteral("Maya"));
     QCOMPARE(settings.theme(), QStringLiteral("Maya"));
     QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Maya"));
-    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.8);
-    QCOMPARE(settings.fontScale(), 1.8);
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.9);
+    QCOMPARE(settings.fontScale(), 1.9);
 
     // Both values must be persisted to the config file.
     QSettings check(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"));
     QCOMPARE(check.value(QStringLiteral("theme")).toString(),
              QStringLiteral("Maya"));
-    QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.8);
+    QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.9);
 
     // Switching back to a non-scaled theme drops the scale and persists it.
     settings.setTheme(QStringLiteral("Mimy"));

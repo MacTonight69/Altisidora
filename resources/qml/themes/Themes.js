@@ -73,7 +73,7 @@ var themes = {
     // Red and black, like the colours of anarchism.
     "Maya": {
         name: "Maya",
-        fontScale: 1.8,
+        fontScale: 1.9,
         fontFamily: "Anarchaos",
         bg: "#141414",
         bgAlt: "#0a0a0a",
