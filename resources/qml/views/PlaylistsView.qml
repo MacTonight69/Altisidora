@@ -24,6 +24,7 @@ Rectangle {
     function reloadSongs() {
         playlistSongs = selectedPlaylistId >= 0
                         ? Playlists.getPlaylistSongs(selectedPlaylistId) : []
+        playlistsView.clearSongSelection()
     }
 
     onSelectedPlaylistIdChanged: reloadSongs()
@@ -61,6 +62,137 @@ Rectangle {
         Player.setQueue(songs)
         Player.loadSong(songs[0])
         Player.play()
+    }
+
+    // ---- playlist song selection (mirrors the Songs section) ----
+    property var selectedSongIds: new Set()
+    property int selectedSongCount: 0
+    property int songSelectionAnchor: -1
+
+    function clearSongSelection() {
+        selectedSongIds.clear()
+        selectedSongCount = 0
+        songSelectionAnchor = -1
+    }
+
+    function findPlaylistSongById(id) {
+        var list = playlistSongs
+        for (var i = 0; i < list.length; ++i) {
+            if (list[i] && list[i].id !== undefined && list[i].id === id)
+                return list[i]
+        }
+        return null
+    }
+
+    function songFolderOf(path) {
+        var p = String(path)
+        var i = p.lastIndexOf("/")
+        return i > 0 ? p.substring(0, i) : p
+    }
+
+    function toggleSong(id) {
+        if (selectedSongIds.has(id))
+            selectedSongIds.delete(id)
+        else
+            selectedSongIds.add(id)
+        selectedSongCount = selectedSongIds.size
+    }
+
+    function selectSongRange(fromIndex, toIndex) {
+        var lo = Math.min(fromIndex, toIndex)
+        var hi = Math.min(Math.max(fromIndex, toIndex), playlistSongs.length - 1)
+        clearSongSelection()
+        for (var i = lo; i <= hi; ++i) {
+            var s = playlistSongs[i]
+            if (s && s.id !== undefined)
+                selectedSongIds.add(s.id)
+        }
+        selectedSongCount = selectedSongIds.size
+    }
+
+    function selectAllSongs() {
+        selectSongRange(0, playlistSongs.length - 1)
+    }
+
+    function onPlaylistRowClicked(index, id, modifiers) {
+        var ctrl = (modifiers & Qt.ControlModifier) !== 0
+        var shift = (modifiers & Qt.ShiftModifier) !== 0
+        if (ctrl) {
+            toggleSong(id)
+            return
+        }
+        if (shift && songSelectionAnchor >= 0) {
+            selectSongRange(songSelectionAnchor, index)
+            return
+        }
+        // Plain left click plays the song with this playlist as the
+        // navigation context; it re-anchors Shift+click ranges.
+        songSelectionAnchor = index
+        var song = playlistSongs[index]
+        if (song) {
+            Player.setQueue(playlistSongs)
+            Player.loadSong(song)
+            Player.play()
+        }
+    }
+
+    // Right click replaces the selection with this song (or drops it if it
+    // was already selected); it never starts playback.
+    function onPlaylistRowRightClicked(index, id) {
+        if (selectedSongIds.has(id)) {
+            selectedSongIds.delete(id)
+            selectedSongCount = selectedSongIds.size
+            if (selectedSongCount === 0)
+                songSelectionAnchor = -1
+            return
+        }
+        clearSongSelection()
+        selectedSongIds.add(id)
+        selectedSongCount = 1
+        songSelectionAnchor = index
+    }
+
+    // Targets for the global shortcuts (main.qml routes Ctrl+D / Ctrl+H /
+    // Ctrl+Shift+H here through currentSongsView()). Unlike the Songs
+    // section, "delete" means "remove from this playlist".
+    function deleteSelected() {
+        if (selectedSongCount === 0 || selectedPlaylistId < 0)
+            return
+        var ids = Array.from(selectedSongIds)
+        for (var i = 0; i < ids.length; ++i) {
+            Playlists.removeSong(selectedPlaylistId, ids[i])
+        }
+        clearSongSelection()
+    }
+
+    function hideSelected() {
+        if (selectedSongCount === 0)
+            return
+        var ids = Array.from(selectedSongIds)
+        for (var i = 0; i < ids.length; ++i) {
+            var s = findPlaylistSongById(ids[i])
+            if (s && s.path)
+                Library.ignorePath(s.path)
+        }
+        clearSongSelection()
+    }
+
+    function hideSelectedFolders() {
+        if (selectedSongCount === 0)
+            return
+        var seen = new Set()
+        var ids = Array.from(selectedSongIds)
+        for (var i = 0; i < ids.length; ++i) {
+            var s = findPlaylistSongById(ids[i])
+            if (s && s.path) {
+                var folder = songFolderOf(s.path)
+                if (folder && !seen.has(folder)) {
+                    seen.add(folder)
+                    Library.ignorePath(folder)
+                }
+            }
+        }
+        clearSongSelection()
     }
 
     Connections {
@@ -398,6 +530,91 @@ Rectangle {
                     color: Theme.border
                 }
 
+                // ---- selection toolbar (visible when songs are selected) ----
+                RowLayout {
+                    id: playlistSelectionBar
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 34
+                    spacing: 10
+                    visible: playlistsView.selectedSongCount > 0
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("%n song(s) selected", "", playlistsView.selectedSongCount)
+                        color: Theme.accent
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
+                    }
+
+                    Button {
+                        id: removeSelectedButton
+                        text: qsTr("Remove")
+                        focusPolicy: Qt.NoFocus
+                        flat: true
+                        font.pixelSize: 12
+                        contentItem: Text {
+                            text: removeSelectedButton.text
+                            font: removeSelectedButton.font
+                            color: removeSelectedButton.hovered ? Theme.danger : Theme.textSecondary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle { color: "transparent" }
+                        onClicked: playlistsView.deleteSelected()
+                    }
+
+                    Button {
+                        id: hidePlaylistSelectedButton
+                        text: qsTr("Hide")
+                        focusPolicy: Qt.NoFocus
+                        flat: true
+                        font.pixelSize: 12
+                        contentItem: Text {
+                            text: hidePlaylistSelectedButton.text
+                            font: hidePlaylistSelectedButton.font
+                            color: hidePlaylistSelectedButton.hovered ? Theme.danger : Theme.textSecondary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle { color: "transparent" }
+                        onClicked: playlistsView.hideSelected()
+                    }
+
+                    Button {
+                        id: hidePlaylistFolderButton
+                        text: qsTr("Hide folder")
+                        focusPolicy: Qt.NoFocus
+                        flat: true
+                        font.pixelSize: 12
+                        contentItem: Text {
+                            text: hidePlaylistFolderButton.text
+                            font: hidePlaylistFolderButton.font
+                            color: hidePlaylistFolderButton.hovered ? Theme.danger : Theme.textSecondary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle { color: "transparent" }
+                        onClicked: playlistsView.hideSelectedFolders()
+                    }
+
+                    Button {
+                        id: clearPlaylistSelectionButton
+                        text: qsTr("Clear selection")
+                        focusPolicy: Qt.NoFocus
+                        flat: true
+                        font.pixelSize: 12
+                        contentItem: Text {
+                            text: clearPlaylistSelectionButton.text
+                            font: clearPlaylistSelectionButton.font
+                            color: clearPlaylistSelectionButton.hovered ? Theme.danger : Theme.textSecondary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle { color: "transparent" }
+                        onClicked: playlistsView.clearSongSelection()
+                    }
+                }
+
                 ListView {
                     id: playlistSongsList
                     Layout.fillWidth: true
@@ -407,22 +624,40 @@ Rectangle {
                     clip: true
                     spacing: 2
                     boundsBehavior: Flickable.StopAtBounds
+                    focus: true
                     ScrollBar.vertical: ScrollBar { }
+
+                    Keys.onPressed: function (event) {
+                        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
+                            playlistsView.selectAllSongs()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Escape) {
+                            playlistsView.clearSongSelection()
+                            event.accepted = true
+                        }
+                    }
 
                     delegate: Rectangle {
                         id: plSongRow
+                        required property int index
                         required property var modelData
                         width: playlistSongsList.width
                         height: 44
                         radius: 6
 
+                        property var song: modelData
                         property bool isCurrent: Player.currentSong !== undefined
                                                  && Player.currentSong !== null
                                                  && Player.currentSong.id !== undefined
-                                                 && Player.currentSong.id === modelData.id
+                                                 && Player.currentSong.id === song.id
+                        property bool isSelected: playlistsView.selectedSongCount > 0
+                                                  && playlistsView.selectedSongIds.has(song.id)
 
-                        color: isCurrent ? Theme.rowActive
+                        color: isSelected ? Theme.selection
+                               : isCurrent ? Theme.rowActive
                                : plSongMouse.containsMouse ? Theme.rowHover : "transparent"
+                        border.color: isSelected ? Theme.selectionBorder : "transparent"
+                        border.width: isSelected ? 2 : 0
                         Behavior on color {
                             ColorAnimation { duration: 100 }
                         }
@@ -431,11 +666,14 @@ Rectangle {
                             id: plSongMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            onDoubleClicked: {
-                                // Make the playlist the navigation context for next/previous.
-                                Player.setQueue(playlistsView.playlistSongs)
-                                Player.loadSong(modelData)
-                                Player.play()
+                            // Left = play, right = select, Ctrl/Shift+left = multi.
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onClicked: function (mouse) {
+                                if (mouse.button === Qt.RightButton) {
+                                    playlistsView.onPlaylistRowRightClicked(plSongRow.index, plSongRow.song.id)
+                                    return
+                                }
+                                playlistsView.onPlaylistRowClicked(plSongRow.index, plSongRow.song.id, mouse.modifiers)
                             }
                         }
 
@@ -447,28 +685,28 @@ Rectangle {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: modelData.title ? modelData.title : qsTr("Unknown title")
-                                color: Theme.textPrimary
+                                text: plSongRow.song.title ? plSongRow.song.title : qsTr("Unknown title")
+                                color: plSongRow.isSelected ? Theme.selectionText : Theme.textPrimary
                                 font.pixelSize: 13
                                 elide: Text.ElideRight
                             }
                             Text {
                                 Layout.preferredWidth: 150
-                                text: modelData.artist ? modelData.artist : ""
-                                color: Theme.textSecondary
+                                text: plSongRow.song.artist ? plSongRow.song.artist : ""
+                                color: plSongRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                                 font.pixelSize: 12
                                 elide: Text.ElideRight
                             }
                             Text {
                                 Layout.preferredWidth: 44
                                 horizontalAlignment: Text.AlignRight
-                                text: playlistsView.formatDuration(modelData.duration)
-                                color: Theme.textMuted
+                                text: playlistsView.formatDuration(plSongRow.song.duration)
+                                color: plSongRow.isSelected ? Theme.selectionTextMuted : Theme.textMuted
                                 font.pixelSize: 12
                             }
                             ToolButton {
                                 id: removeFromPlaylist
-                                visible: plSongMouse.containsMouse
+                                visible: plSongMouse.containsMouse && !plSongRow.isSelected
                                 focusPolicy: Qt.NoFocus
                                 hoverEnabled: true
                                 padding: 4
@@ -484,8 +722,9 @@ Rectangle {
                                     radius: 4
                                     color: removeFromPlaylist.hovered ? Theme.dangerBg : "transparent"
                                 }
-                                onClicked: Playlists.removeSong(playlistsView.selectedPlaylistId,
-                                                                modelData.id)
+                                onClicked: {
+                                    Playlists.removeSong(playlistsView.selectedPlaylistId, plSongRow.song.id)
+                                }
                             }
                         }
                     }
