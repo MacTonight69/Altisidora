@@ -41,6 +41,10 @@ Rectangle {
             text: tButton.iconText
             color: tButton.primary ? Theme.accentText
                  : tButton.active ? Theme.accent : Theme.textPrimary
+            // A replaced contentItem does not inherit the control's font, so
+            // it must bind to it explicitly; otherwise the label falls back
+            // to the system default instead of the active theme typeface.
+            font.family: tButton.font.family
             font.pixelSize: (tButton.primary ? 17 : 14) * Theme.fontScale
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

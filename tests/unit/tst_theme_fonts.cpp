@@ -40,6 +40,7 @@ private slots:
     void testBindingRerendersOnApply();
     void testScaleDropsBackOnMimy();
     void testRuntimeThemeSwitchChain();
+    void testVacuiUsesSystemFontFamily();
 
 private:
     void applyTheme(const QString &name);
@@ -85,7 +86,6 @@ void tst_theme_fonts::testThemeDataScaleRule()
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
         {QStringLiteral("Maya"), 1.8},
-        {QStringLiteral("Vacui"), 2.2},
         {QStringLiteral("The Niggest"), 1.4},
     };
 
@@ -118,7 +118,6 @@ void tst_theme_fonts::testApplyAssignsFontScale()
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
         {QStringLiteral("Maya"), 1.8},
-        {QStringLiteral("Vacui"), 2.2},
         {QStringLiteral("The Niggest"), 1.4},
     };
     const QList<QString> names = scales.keys();
@@ -190,9 +189,19 @@ void tst_theme_fonts::testBindingRerendersOnApply()
 
 void tst_theme_fonts::testScaleDropsBackOnMimy()
 {
-    applyTheme(QStringLiteral("Vacui"));
-    QCOMPARE(m_theme->property("fontScale").toDouble(), 2.2);
+    applyTheme(QStringLiteral("Maya"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.8);
     applyTheme(QStringLiteral("Mimy"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
+}
+
+void tst_theme_fonts::testVacuiUsesSystemFontFamily()
+{
+    // Vacui ships no bundled typeface: it must resolve to the system default
+    // (Theme.qml documents the empty string as "system default").
+    applyTheme(QStringLiteral("Vacui"));
+    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Vacui"));
+    QCOMPARE(m_theme->property("fontFamily").toString(), QString());
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
 }
 

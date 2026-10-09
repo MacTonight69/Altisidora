@@ -151,11 +151,11 @@ var themes = {
         success: "#3fb950"
     },
 
-    // Pure white with fine gray borders.
+    // Pure white with fine gray borders. Uses the system default typeface
+    // (no bundled font) at the standard 1.0 scale.
     "Vacui": {
         name: "Vacui",
-        fontScale: 2.2,
-        fontFamily: "A Charming Font Leftleaning",
+        fontFamily: "",
         bg: "#fbfbfb",
         bgAlt: "#f4f4f4",
         viewBg: "#fdfdfd",
