@@ -1,20 +1,27 @@
 #pragma once
 
 #include <QObject>
+#include <QSettings>
 #include <QUrl>
+#include <QVariantList>
 #include <QVariantMap>
+
+#include <array>
+#include <optional>
 
 #include "PlaybackState.h"
 
-class QMediaPlayer;
-class QAudioOutput;
+struct mpv_handle;
+class QTimer;
 
 /**
  * @brief Application-level audio controller.
  *
- * Wraps QMediaPlayer and QAudioOutput to provide a clean, backend-agnostic
+ * Wraps a libmpv playback session (mpv_handle) behind a backend-agnostic
  * interface for playback control. This is the single interface the GUI
- * interacts with for all audio operations.
+ * interacts with for all audio operations. In addition to the transport,
+ * it owns the 10-band graphic equalizer implemented as a runtime-adjustable
+ * mpv audio filter chain.
  *
  * State management:
  * - Stopped: No media loaded or playback stopped
@@ -22,6 +29,14 @@ class QAudioOutput;
  * - Playing: Media is actively playing
  * - Paused: Playback is paused
  * - Error: An error occurred during playback
+ *
+ * Backend notes:
+ * - The mpv session is created lazily on the first load() so headless unit
+ *   tests that never load media never touch the backend.
+ * - A 150 ms timer polls mpv properties (time-pos, duration, pause,
+ *   idle-active) and drains its event queue (START_FILE/FILE_LOADED/END_FILE).
+ * - The equalizer applies the mpv `af` property as a chain of ten lavfi
+ *   `equalizer` peaking filters; it can be changed while playing.
  */
 class PlayerController : public QObject
 {
@@ -34,7 +49,17 @@ class PlayerController : public QObject
     Q_PROPERTY(float volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(bool isPlaying READ isPlaying NOTIFY stateChanged)
 
+    // Equalizer
+    Q_PROPERTY(bool eqEnabled READ eqEnabled WRITE setEqEnabled NOTIFY eqChanged)
+    Q_PROPERTY(QVariantList eqGains READ eqGains NOTIFY eqChanged)
+    Q_PROPERTY(QStringList eqPresets READ eqPresets CONSTANT)
+    Q_PROPERTY(QString eqPreset READ eqPreset WRITE setEqPreset NOTIFY eqChanged)
+
 public:
+    static constexpr int kEqBandCount = 10;
+    static constexpr double kEqMinDb = -12.0;
+    static constexpr double kEqMaxDb = 12.0;
+
     explicit PlayerController(QObject *parent = nullptr);
     ~PlayerController() override;
 
@@ -45,6 +70,20 @@ public:
     qint64 duration() const;
     float volume() const;
     bool isPlaying() const;
+
+    // Equalizer getters
+    bool eqEnabled() const;
+    QVariantList eqGains() const;
+    QStringList eqPresets() const;
+    QString eqPreset() const;
+
+    /**
+     * @brief Build the mpv `af` value implementing a 10-band equalizer.
+     *
+     * Pure function (no mpv required) so it can be unit-tested. Returns an
+     * empty string when every band is 0 dB (no filter needed).
+     */
+    static QString buildEqFilterString(const std::array<double, kEqBandCount> &gains);
 
 public slots:
     // Playback control
@@ -78,6 +117,13 @@ public slots:
     bool canGoNext() const;
     bool canGoPrevious() const;
 
+    // Equalizer
+    Q_INVOKABLE double eqGain(int index) const;
+    Q_INVOKABLE void setEqGain(int index, double valueDb);
+    Q_INVOKABLE void resetEq();
+    void setEqEnabled(bool enabled);
+    void setEqPreset(const QString &name);
+
 signals:
     void stateChanged(PlaybackState::State newState);
     void positionChanged(qint64 position);
@@ -85,21 +131,34 @@ signals:
     void currentSongChanged(const QVariantMap &song);
     void volumeChanged(float volume);
     void errorOccurred(const QString &errorMessage);
+    void eqChanged();
 
 private slots:
-    void handlePlaybackStateChanged();
-    void handlePositionChanged(qint64 position);
-    void handleDurationChanged(qint64 duration);
-    void handleError();
-    void handleMediaStatusChanged();
+    void pollTick();
 
 private:
-    void setPlaybackState(PlaybackState::State state);
-    void updateCurrentSong();
-    QString errorString() const;
+    // Backend helpers
+    bool ensureMpv();
+    void applyVolume();
+    void applyEq();
+    void drainMpvEvents();
+    void handleEndOfMedia();
+    void sendCommand(const QByteArray &a1, const QByteArray &a2 = QByteArray(),
+                     const QByteArray &a3 = QByteArray());
 
-    QMediaPlayer *m_player;
-    QAudioOutput *m_audioOutput;
+    // State helpers
+    void setPlaybackState(PlaybackState::State state);
+    void updateCurrentSong(const QString &path);
+
+    // Equalizer helpers
+    void loadEqSettings();
+    void saveEqSettings();
+    static std::optional<std::array<double, kEqBandCount>> presetGains(const QString &name);
+    static QString presetNameFor(const std::array<double, kEqBandCount> &gains);
+
+    mpv_handle *m_mpv = nullptr;
+    QTimer *m_pollTimer = nullptr;
+    bool m_pendingLoad = false;
 
     PlaybackState::State m_playbackState;
     QVariantMap m_currentSong;
@@ -110,4 +169,11 @@ private:
     // Context queue backing next()/previous().
     QVector<QVariantMap> m_queue;
     int m_queueIndex = -1;
+
+    // Equalizer state.
+    std::array<double, kEqBandCount> m_eqGains{};
+    bool m_eqEnabled = false;
+    QString m_eqPreset;
+
+    QSettings m_settings;
 };

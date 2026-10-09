@@ -1,6 +1,10 @@
 #include <QtTest>
-#include <QUrl>
+#include <QSettings>
 #include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QUrl>
+
+#include <array>
 
 #include "audio/PlayerController.h"
 #include "audio/PlaybackState.h"
@@ -10,13 +14,20 @@
  *
  * These tests exercise the controller's own logic only and deliberately avoid
  * asserting anything that depends on an actual media backend, so they run
- * deterministically on CI (including headless environments).
+ * deterministically on CI (including headless environments). The mpv session
+ * is created lazily and again is only touched when load()/loadSong() receive
+ * a valid file path.
+ *
+ * QSettings is redirected into a QTemporaryDir so the equalizer persistence
+ * under test never touches the real user configuration.
  */
 class TestPlayer : public QObject
 {
     Q_OBJECT
 
 private slots:
+    void initTestCase();
+    void cleanupTestCase();
     void init();
     void cleanup();
 
@@ -48,9 +59,34 @@ private slots:
     // Error handling
     void testErrorStateBlocksPlay();
 
+    // Equalizer tests
+    void testEqInitialDefaults();
+    void testEqGainClamps();
+    void testEqSignalOnChange();
+    void testEqPresetApplies();
+    void testEqEnableToggle();
+    void testEqFilterStringPure();
+
 private:
     PlayerController *m_player = nullptr;
+    QTemporaryDir *m_settingsDir = nullptr;
 };
+
+// Redirect QSettings so the equalizer persistence never touches the real
+// user configuration on the developer machine or CI.
+void TestPlayer::initTestCase()
+{
+    m_settingsDir = new QTemporaryDir();
+    QVERIFY(m_settingsDir->isValid());
+    QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, m_settingsDir->path());
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDir->path());
+}
+
+void TestPlayer::cleanupTestCase()
+{
+    delete m_settingsDir;
+    m_settingsDir = nullptr;
+}
 
 // A fresh controller per test keeps every case independent.
 void TestPlayer::init()
@@ -262,6 +298,102 @@ void TestPlayer::testErrorStateBlocksPlay()
 
     m_player->play();
     QCOMPARE(m_player->playbackState(), PlaybackState::Error);
+}
+
+void TestPlayer::testEqInitialDefaults()
+{
+    QCOMPARE(m_player->eqEnabled(), false);
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Plano"));
+    QCOMPARE(m_player->eqGains().size(), 10);
+    for (int i = 0; i < 10; ++i) {
+        QCOMPARE(m_player->eqGain(i), 0.0);
+    }
+    QVERIFY(m_player->eqPresets().size() >= 4);
+    QVERIFY(m_player->eqPresets().contains(QStringLiteral("Plano")));
+}
+
+void TestPlayer::testEqGainClamps()
+{
+    m_player->setEqGain(0, 99.0);
+    QCOMPARE(m_player->eqGain(0), 12.0);
+
+    m_player->setEqGain(0, -99.0);
+    QCOMPARE(m_player->eqGain(0), -12.0);
+
+    m_player->setEqGain(5, 3.5);
+    QCOMPARE(m_player->eqGain(5), 3.5);
+
+    // Out-of-range indexes are ignored and read as 0.
+    m_player->setEqGain(42, 5.0);
+    QCOMPARE(m_player->eqGain(42), 0.0);
+    QCOMPARE(m_player->eqGain(-1), 0.0);
+}
+
+void TestPlayer::testEqSignalOnChange()
+{
+    QSignalSpy spy(m_player, &PlayerController::eqChanged);
+    m_player->setEqGain(1, 2.0);
+    QCOMPARE(spy.count(), 1);
+
+    // Repeating the same gain must not emit again.
+    m_player->setEqGain(1, 2.0);
+    QCOMPARE(spy.count(), 1);
+}
+
+void TestPlayer::testEqPresetApplies()
+{
+    m_player->resetEq();
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Plano"));
+
+    m_player->setEqPreset(QStringLiteral("Rock"));
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Rock"));
+    QVERIFY(m_player->eqGain(0) > 0.0);  // Low shelf boosted.
+    QVERIFY(m_player->eqGain(5) < 0.0);  // Mids slightly cut.
+
+    // Unknown presets are ignored and leave the state untouched.
+    m_player->setEqPreset(QStringLiteral("NoExiste"));
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Rock"));
+
+    // Reset returns to a flat curve.
+    m_player->resetEq();
+    QCOMPARE(m_player->eqPreset(), QStringLiteral("Plano"));
+    for (int i = 0; i < 10; ++i) {
+        QCOMPARE(m_player->eqGain(i), 0.0);
+    }
+}
+
+void TestPlayer::testEqEnableToggle()
+{
+    QSignalSpy spy(m_player, &PlayerController::eqChanged);
+    m_player->setEqEnabled(true);
+    QCOMPARE(m_player->eqEnabled(), true);
+    QCOMPARE(spy.count(), 1);
+
+    // Repeating must not emit.
+    m_player->setEqEnabled(true);
+    QCOMPARE(spy.count(), 1);
+
+    m_player->setEqEnabled(false);
+    QCOMPARE(m_player->eqEnabled(), false);
+    QCOMPARE(spy.count(), 2);
+}
+
+void TestPlayer::testEqFilterStringPure()
+{
+    // A flat curve needs no filter at all.
+    std::array<double, 10> flat{};
+    QCOMPARE(PlayerController::buildEqFilterString(flat), QString());
+
+    std::array<double, 10> gains{};
+    gains[0] = 3.0;
+    gains[9] = -4.0;
+    const QString chain = PlayerController::buildEqFilterString(gains);
+
+    QCOMPARE(chain.count(QStringLiteral("equalizer=")), 10);
+    QCOMPARE(chain.count(QLatin1Char(',')), 9);
+    QVERIFY(chain.contains(QStringLiteral("equalizer=f=31.5:t=o:w=1:g=3.00")));
+    QVERIFY(chain.contains(QStringLiteral("equalizer=f=16000:t=o:w=1:g=-4.00")));
+    QVERIFY(chain.contains(QStringLiteral("equalizer=f=500:t=o:w=1:g=0.00")));
 }
 
 QTEST_MAIN(TestPlayer)

@@ -125,6 +125,7 @@ foreach(test_name ${UNIT_TESTS})
         Qt6::Concurrent
         TestHelpers
         TestMocks
+        PkgConfig::MPV
     )
 
     if(test_name STREQUAL "tst_mpris")
@@ -202,6 +203,7 @@ foreach(test_name ${INTEGRATION_TESTS})
         Qt6::Concurrent
         TestHelpers
         TestMocks
+        PkgConfig::MPV
     )
 
     add_test(

@@ -30,6 +30,7 @@ find_package(Qt6 REQUIRED COMPONENTS
 # Find TagLib
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(TAGLIB REQUIRED taglib)
+pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
 
 # Source files
 set(SOURCES
@@ -69,11 +70,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Gui
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::Multimedia
     Qt6::Sql
     Qt6::Concurrent
     Qt6::DBus
     ${TAGLIB_LIBRARIES}
+    PkgConfig::MPV
 )
 
 # Compiler warnings

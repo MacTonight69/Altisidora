@@ -261,6 +261,14 @@ Rectangle {
         RowLayout {
             spacing: 8
 
+            TransportButton {
+                iconText: "EQ"
+                onClicked: eqPopup.open()
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Ecualizador")
+                ToolTip.delay: 400
+            }
+
             Text {
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
@@ -283,6 +291,161 @@ Rectangle {
                         value = value
                     else
                         value = Qt.binding(function () { return Player.volume })
+                }
+            }
+        }
+    }
+
+    // ---- ecualizador (10 bandas vía Player eq API) ----
+    Popup {
+        id: eqPopup
+        popupType: Popup.Item
+        parent: controls
+        x: controls.width - width - 16
+        y: 12
+        width: 520
+        padding: 14
+        modal: false
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+
+        background: Rectangle {
+            color: Theme.bgAlt
+            border.color: Theme.border
+            radius: 10
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Text {
+                    text: qsTr("Ecualizador")
+                    color: Theme.textPrimary
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                Text {
+                    text: Player.eqEnabled ? qsTr("Activo") : qsTr("Desactivado")
+                    color: Player.eqEnabled ? Theme.success : Theme.textMuted
+                    font.pixelSize: 11
+                }
+
+                Switch {
+                    checked: Player.eqEnabled
+                    onToggled: Player.eqEnabled = checked
+                }
+            }
+
+            Row {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 6
+
+                Repeater {
+                    model: 10
+
+                    Column {
+                        width: 42
+                        spacing: 2
+
+                        Slider {
+                            id: bandSlider
+                            width: 26
+                            height: 120
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            orientation: Qt.Vertical
+                            focusPolicy: Qt.NoFocus
+                            from: -12
+                            to: 12
+                            stepSize: 0.5
+                            value: Player.eqGain(index)
+                            onMoved: Player.setEqGain(index, value)
+                            onPressedChanged: {
+                                if (pressed)
+                                    value = value
+                                else
+                                    value = Qt.binding(function () { return Player.eqGain(index) })
+                            }
+                        }
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: ["31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"][index]
+                            color: Theme.textSecondary
+                            font.pixelSize: 9
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+
+                Text {
+                    text: qsTr("Preset:")
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                }
+
+                Repeater {
+                    model: Player.eqPresets
+
+                    Button {
+                        text: modelData
+                        checkable: true
+                        checked: Player.eqPreset === modelData
+                        onClicked: Player.eqPreset = modelData
+                        font.pixelSize: 11
+                        padding: 6
+
+                        background: Rectangle {
+                            radius: 5
+                            color: parent.checked ? Theme.accent
+                                 : (parent.hovered ? Theme.rowHover : "transparent")
+                            border.color: Theme.border
+                        }
+
+                        contentItem: Text {
+                            text: parent.text
+                            color: parent.checked ? Theme.accentText : Theme.textPrimary
+                            font.pixelSize: 11
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                Button {
+                    text: qsTr("Reset")
+                    font.pixelSize: 11
+                    padding: 6
+
+                    background: Rectangle {
+                        radius: 5
+                        color: Theme.rowHover
+                        border.color: Theme.border
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        color: Theme.textPrimary
+                        font.pixelSize: 11
+                    }
+
+                    onClicked: Player.resetEq()
                 }
             }
         }
