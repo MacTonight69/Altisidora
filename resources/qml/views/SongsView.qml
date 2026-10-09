@@ -136,6 +136,49 @@ Rectangle {
         return m + ":" + (s < 10 ? "0" + s : "" + s)
     }
 
+    // Delete the selected songs from the library (they stay on disk). These
+    // actions are reusable from the toolbar buttons and from the global
+    // Ctrl+D / Ctrl+H / Ctrl+Shift+H shortcuts in main.qml.
+    function deleteSelected() {
+        if (songsView.selectedCount === 0)
+            return
+        Library.removeSongs(Array.from(songsView.selectedIds))
+        songsView.clearSelection()
+    }
+
+    // Hide the selected songs: they stay on disk and in the database, they
+    // just disappear from the lists (restore them in Settings).
+    function hideSelected() {
+        if (songsView.selectedCount === 0)
+            return
+        var ids = Array.from(songsView.selectedIds)
+        for (var i = 0; i < ids.length; ++i) {
+            var s = songsView.findSongById(ids[i])
+            if (s && s.path)
+                Library.ignorePath(s.path)
+        }
+        songsView.clearSelection()
+    }
+
+    // Hide the folder containing each selected song (deduplicated).
+    function hideSelectedFolders() {
+        if (songsView.selectedCount === 0)
+            return
+        var seen = new Set()
+        var ids = Array.from(songsView.selectedIds)
+        for (var i = 0; i < ids.length; ++i) {
+            var s = songsView.findSongById(ids[i])
+            if (s && s.path) {
+                var folder = songsView.folderOf(s.path)
+                if (folder && !seen.has(folder)) {
+                    seen.add(folder)
+                    Library.ignorePath(folder)
+                }
+            }
+        }
+        songsView.clearSelection()
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
@@ -235,17 +278,7 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle { color: "transparent" }
-                onClicked: {
-                    // Hide the selected songs: they stay on disk and in the
-                    // database, they just disappear from the lists.
-                    var ids = Array.from(songsView.selectedIds)
-                    for (var i = 0; i < ids.length; ++i) {
-                        var s = songsView.findSongById(ids[i])
-                        if (s && s.path)
-                            Library.ignorePath(s.path)
-                    }
-                    songsView.clearSelection()
-                }
+                onClicked: songsView.hideSelected()
             }
 
             Button {
@@ -262,22 +295,7 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle { color: "transparent" }
-                onClicked: {
-                    // Hide the folder containing each selected song.
-                    var seen = new Set()
-                    var ids = Array.from(songsView.selectedIds)
-                    for (var i = 0; i < ids.length; ++i) {
-                        var s = songsView.findSongById(ids[i])
-                        if (s && s.path) {
-                            var folder = songsView.folderOf(s.path)
-                            if (folder && !seen.has(folder)) {
-                                seen.add(folder)
-                                Library.ignorePath(folder)
-                            }
-                        }
-                    }
-                    songsView.clearSelection()
-                }
+                onClicked: songsView.hideSelectedFolders()
             }
 
             Button {
@@ -313,13 +331,6 @@ Rectangle {
             Keys.onPressed: function (event) {
                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_A) {
                     songsView.selectAll()
-                    event.accepted = true
-                } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_D) {
-                    // Delete the selected songs (single or group).
-                    if (songsView.selectedCount > 0) {
-                        Library.removeSongs(Array.from(songsView.selectedIds))
-                        songsView.clearSelection()
-                    }
                     event.accepted = true
                 } else if (event.key === Qt.Key_Escape) {
                     songsView.clearSelection()

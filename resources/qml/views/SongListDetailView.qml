@@ -25,6 +25,11 @@ Rectangle {
     // pushed component; main.qml owns the stack and handles the pop.
     signal backRequested()
 
+    // The embedded song list, exposed so main.qml's global shortcuts
+    // (Ctrl+D / Ctrl+H / Ctrl+Shift+H) can act on it while this drill-down
+    // view is on top of the stack.
+    property alias songsList: songsListView
+
     function reload() {
         if (detail.filterType === "artist")
             detail.modelSongs = Library.songsByArtist(detail.primaryKey)
@@ -122,6 +127,7 @@ Rectangle {
             Layout.fillHeight: true
 
             SongsView {
+                id: songsListView
                 anchors.fill: parent
                 songs: detail.modelSongs
                 emptyHint: qsTr("No songs for this %1")

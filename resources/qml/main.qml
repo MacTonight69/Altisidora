@@ -59,6 +59,41 @@ ApplicationWindow {
     Shortcut { sequence: "Alt+4"; enabled: root.visible; onActivated: root.selectNav(3) }
     Shortcut { sequence: "Alt+5"; enabled: root.visible; onActivated: root.selectNav(4) }
 
+    // Global song-list shortcuts, same philosophy as Alt+1..5: they live at
+    // window scope so they keep working no matter which widget has keyboard
+    // focus. (The old Ctrl+D lived in Keys.onPressed on the list, which only
+    // fires while the list itself owns focus.)
+    //   Ctrl+D       -> delete the selected song(s) from the library
+    //   Ctrl+H       -> hide the selected song(s)
+    //   Ctrl+Shift+H -> hide the folder(s) of the selected song(s)
+    Shortcut {
+        sequence: "Ctrl+D"
+        enabled: root.visible
+        onActivated: {
+            var v = root.currentSongsView()
+            if (v)
+                v.deleteSelected()
+        }
+    }
+    Shortcut {
+        sequence: "Ctrl+H"
+        enabled: root.visible
+        onActivated: {
+            var v = root.currentSongsView()
+            if (v)
+                v.hideSelected()
+        }
+    }
+    Shortcut {
+        sequence: "Ctrl+Shift+H"
+        enabled: root.visible
+        onActivated: {
+            var v = root.currentSongsView()
+            if (v)
+                v.hideSelectedFolders()
+        }
+    }
+
     function selectNav(index) {
         currentNav = index
         if (index === 0)
@@ -120,6 +155,21 @@ ApplicationWindow {
         root.filteredSongs = Library.search(query)
         root.filteredAlbums = root.filterAlbums(query)
         root.filteredArtists = root.filterArtists(query)
+    }
+
+    // The song list that the global shortcuts should act on: the Songs
+    // section shows a SongsView directly on the stack, while the
+    // album/artist drill-down nests one inside SongListDetailView.
+    function currentSongsView() {
+        var item = contentStack.currentItem
+        if (!item)
+            return null
+        // A SongsView root, or a view exposing the nested SongsView.
+        if (typeof item.deleteSelected === "function")
+            return item
+        if (item.songsList)
+            return item.songsList
+        return null
     }
 
     // Drill-down: push a view that resolves the clicked collection's songs
