@@ -49,6 +49,8 @@ class PlayerController : public QObject
     Q_PROPERTY(qint64 duration READ duration NOTIFY durationChanged)
     Q_PROPERTY(float volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(bool isPlaying READ isPlaying NOTIFY stateChanged)
+    // Repeat-one: loops the current song when it reaches the end.
+    Q_PROPERTY(bool repeatOne READ repeatOne WRITE setRepeatOne NOTIFY repeatOneChanged)
 
     // Equalizer
     Q_PROPERTY(bool eqEnabled READ eqEnabled WRITE setEqEnabled NOTIFY eqChanged)
@@ -71,6 +73,7 @@ public:
     qint64 duration() const;
     float volume() const;
     bool isPlaying() const;
+    bool repeatOne() const;
 
     // Equalizer getters
     bool eqEnabled() const;
@@ -95,6 +98,7 @@ public slots:
     void previous();
     void seek(qint64 position);
     void setVolume(float volume);
+    void setRepeatOne(bool enabled);
 
     // Media loading
     void load(const QUrl &url);
@@ -147,6 +151,7 @@ signals:
     void currentSongChanged(const QVariantMap &song);
     void volumeChanged(float volume);
     void errorOccurred(const QString &errorMessage);
+    void repeatOneChanged(bool repeatOne);
     void eqChanged();
 
 private slots:
@@ -189,6 +194,7 @@ private:
     qint64 m_position;
     qint64 m_duration;
     float m_volume;
+    bool m_repeatOne = false;
 
     // Context queue backing next()/previous().
     QVector<QVariantMap> m_queue;

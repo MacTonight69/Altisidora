@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 
 Rectangle {
     id: albumsView
@@ -12,6 +13,45 @@ Rectangle {
     // works standalone. main.qml passes the search-filtered list.
     property var albums: Library.albums
     signal openAlbum(var album)
+
+    // All songs of the visible albums, respecting each album's
+    // disc/track order (songsByAlbum already sorts that way).
+    function collectSongs() {
+        var out = []
+        var list = albumsView.albums
+        for (var i = 0; i < list.length; ++i) {
+            var album = list[i]
+            var songs = Library.songsByAlbum(album.title ? album.title : "",
+                                             album.artist ? album.artist : "")
+            for (var j = 0; j < songs.length; ++j)
+                out.push(songs[j])
+        }
+        return out
+    }
+
+    function playAllFromStart() {
+        var out = albumsView.collectSongs()
+        if (out.length === 0)
+            return
+        Player.setQueue(out)
+        Player.loadSong(out[0])
+        Player.play()
+    }
+
+    function playAllShuffled() {
+        var out = albumsView.collectSongs()
+        if (out.length === 0)
+            return
+        for (var i = out.length - 1; i > 0; --i) {
+            var j = Math.floor(Math.random() * (i + 1))
+            var tmp = out[i]
+            out[i] = out[j]
+            out[j] = tmp
+        }
+        Player.setQueue(out)
+        Player.loadSong(out[0])
+        Player.play()
+    }
 
     // Stable placeholder colour derived from a hash of the album title.
     function albumColor(title) {
@@ -38,90 +78,106 @@ Rectangle {
         return Qt.rgba(r + m, g + m, b + m, 1.0)
     }
 
-    GridView {
-        id: albumGrid
+    ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
-        model: albumsView.albums
-        cellWidth: 176
-        cellHeight: 240
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { }
+        spacing: 0
 
-        delegate: Rectangle {
-            required property var modelData
-            width: albumGrid.cellWidth
-            height: albumGrid.cellHeight
-            color: "transparent"
+        // ---- play all / shuffle toolbar ----
+        PlayToolbar {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 30
+            Layout.bottomMargin: 6
+            canPlay: albumsView.albums.length > 0
+            onPlayFromStart: albumsView.playAllFromStart()
+            onPlayShuffled: albumsView.playAllShuffled()
+        }
 
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: 8
-                radius: 6
-                color: albumMouse.containsMouse ? Theme.rowHover : Theme.bgAlt
-                border.width: 1
-                border.color: albumMouse.containsMouse ? Theme.accent : Theme.border
+        GridView {
+            id: albumGrid
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            model: albumsView.albums
+            cellWidth: 176
+            cellHeight: 240
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { }
 
-                Behavior on color {
-                    ColorAnimation { duration: 120 }
-                }
-                Behavior on border.color {
-                    ColorAnimation { duration: 120 }
-                }
+            delegate: Rectangle {
+                required property var modelData
+                width: albumGrid.cellWidth
+                height: albumGrid.cellHeight
+                color: "transparent"
 
-                MouseArea {
-                    id: albumMouse
+                Rectangle {
                     anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    // Drill down: show this album's songs as a playlist.
-                    onClicked: albumsView.openAlbum(modelData)
-                }
+                    anchors.margins: 8
+                    radius: 6
+                    color: albumMouse.containsMouse ? Theme.rowHover : Theme.bgAlt
+                    border.width: 1
+                    border.color: albumMouse.containsMouse ? Theme.accent : Theme.border
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 6
+                    Behavior on color {
+                        ColorAnimation { duration: 120 }
+                    }
+                    Behavior on border.color {
+                        ColorAnimation { duration: 120 }
+                    }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: width
-                        radius: 6
-                        color: albumsView.albumColor(modelData.title)
+                    MouseArea {
+                        id: albumMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        // Drill down: show this album's songs as a playlist.
+                        onClicked: albumsView.openAlbum(modelData)
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: width
+                            radius: 6
+                            color: albumsView.albumColor(modelData.title)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u266A"
+                                color: "#ffffff"
+                                opacity: 0.85
+                                font.pixelSize: 36
+                            }
+                        }
 
                         Text {
-                            anchors.centerIn: parent
-                            text: "\u266A"
-                            color: "#ffffff"
-                            opacity: 0.85
-                            font.pixelSize: 36
+                            Layout.fillWidth: true
+                            text: modelData.title ? modelData.title : qsTr("Unknown album")
+                            color: Theme.textPrimary
+                            font.pixelSize: 13
+                            font.bold: true
+                            elide: Text.ElideRight
                         }
-                    }
 
-                    Text {
-                        Layout.fillWidth: true
-                        text: modelData.title ? modelData.title : qsTr("Unknown album")
-                        color: Theme.textPrimary
-                        font.pixelSize: 13
-                        font.bold: true
-                        elide: Text.ElideRight
-                    }
+                        Text {
+                            Layout.fillWidth: true
+                            text: modelData.artist ? modelData.artist : ""
+                            color: Theme.textSecondary
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
 
-                    Text {
-                        Layout.fillWidth: true
-                        text: modelData.artist ? modelData.artist : ""
-                        color: Theme.textSecondary
-                        font.pixelSize: 11
-                        elide: Text.ElideRight
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: modelData.year ? String(modelData.year) : qsTr("Unknown year")
-                        color: Theme.textMuted
-                        font.pixelSize: 11
-                        elide: Text.ElideRight
+                        Text {
+                            Layout.fillWidth: true
+                            text: modelData.year ? String(modelData.year) : qsTr("Unknown year")
+                            color: Theme.textMuted
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
                     }
                 }
             }

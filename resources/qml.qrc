@@ -7,6 +7,7 @@
         <file alias="images/LogoAppYellow.png">../images/LogoAppYellow.png</file>
         <file>qml/components/PlayerControls.qml</file>
         <file>qml/components/SearchBar.qml</file>
+        <file>qml/components/PlayToolbar.qml</file>
         <file>qml/views/SongsView.qml</file>
         <file>qml/views/SongListDetailView.qml</file>
         <file>qml/views/AlbumsView.qml</file>

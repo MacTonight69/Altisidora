@@ -269,47 +269,6 @@ Rectangle {
             }
         }
 
-        // ---- playback ----
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.maximumWidth: 640
-            implicitHeight: playbackColumn.implicitHeight + 32
-            radius: 6
-            color: Theme.bgAlt
-            border.width: 1
-            border.color: Theme.border
-
-            ColumnLayout {
-                id: playbackColumn
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 10
-
-                Text {
-                    text: qsTr("Playback")
-                    color: Theme.textPrimary
-                    font.pixelSize: 14
-                    font.bold: true
-                }
-
-                CheckBox {
-                    id: shuffleBox
-                    text: qsTr("Shuffle")
-                    font.pixelSize: 13
-                    checked: AppSettings.shuffle
-                    onToggled: AppSettings.shuffle = checked
-                }
-
-                CheckBox {
-                    id: repeatBox
-                    text: qsTr("Repeat")
-                    font.pixelSize: 13
-                    checked: AppSettings.repeat
-                    onToggled: AppSettings.repeat = checked
-                }
-            }
-        }
-
         // ---- save ----
         RowLayout {
             spacing: 12

@@ -29,13 +29,17 @@ Rectangle {
         property string iconText: ""
         property bool primary: false
         property bool circular: false
+        // Toggle-style "on" state (e.g. repeat-one): tints the icon and
+        // fills a soft highlight so the active mode is obvious at a glance.
+        property bool active: false
         focusPolicy: Qt.NoFocus
         hoverEnabled: true
         padding: 8
 
         contentItem: Text {
             text: tButton.iconText
-            color: tButton.primary ? Theme.accentText : Theme.textPrimary
+            color: tButton.primary ? Theme.accentText
+                 : tButton.active ? Theme.accent : Theme.textPrimary
             font.pixelSize: tButton.primary ? 17 : 14
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -47,7 +51,9 @@ Rectangle {
                    : tButton.primary ? 17 : 6
             color: tButton.primary
                    ? (tButton.down ? Theme.accentPressed : tButton.hovered ? Theme.accentHover : Theme.accent)
-                   : (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : "transparent")
+                   : tButton.active
+                     ? (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : Theme.selection)
+                     : (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : "transparent")
             Behavior on color {
                 ColorAnimation { duration: 100 }
             }
@@ -198,6 +204,15 @@ Rectangle {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: 10
 
+                // Repeat-one: loops the current song instead of advancing.
+                TransportButton {
+                    iconText: "\u21BB" // ↻
+                    active: Player.repeatOne
+                    onClicked: Player.repeatOne = !Player.repeatOne
+                    ToolTip.visible: hovered
+                    ToolTip.text: Player.repeatOne ? qsTr("Repeat one — on") : qsTr("Repeat one")
+                    ToolTip.delay: 400
+                }
                 TransportButton {
                     iconText: "\u23EE" // ⏮
                     onClicked: Player.previous()

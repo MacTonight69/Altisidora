@@ -42,6 +42,7 @@ PlayerController::PlayerController(QObject *parent)
     , m_eqPreset(QStringLiteral("Plano"))
     , m_settings(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"))
 {
+    m_repeatOne = m_settings.value(QStringLiteral("repeatOne"), false).toBool();
     loadEqSettings();
 
     m_pollTimer = new QTimer(this);
@@ -85,6 +86,11 @@ float PlayerController::volume() const
 bool PlayerController::isPlaying() const
 {
     return m_playbackState == PlaybackState::Playing;
+}
+
+bool PlayerController::repeatOne() const
+{
+    return m_repeatOne;
 }
 
 bool PlayerController::eqEnabled() const
@@ -152,6 +158,17 @@ void PlayerController::stop()
     m_position = 0;
     emit positionChanged(m_position);
     setPlaybackState(PlaybackState::Stopped);
+}
+
+void PlayerController::setRepeatOne(bool enabled)
+{
+    if (m_repeatOne == enabled) {
+        return;
+    }
+    m_repeatOne = enabled;
+    m_settings.setValue(QStringLiteral("repeatOne"), enabled);
+    m_settings.sync();
+    emit repeatOneChanged(m_repeatOne);
 }
 
 void PlayerController::next()
@@ -611,6 +628,12 @@ void PlayerController::drainMpvEvents()
 
 void PlayerController::handleEndOfMedia()
 {
+    // Repeat-one: loop the current song instead of advancing the queue.
+    if (m_repeatOne && !m_currentSong.isEmpty()) {
+        loadSong(m_currentSong);
+        play();
+        return;
+    }
     if (canGoNext()) {
         loadSong(m_queue.at(m_queueIndex + 1));
         play();

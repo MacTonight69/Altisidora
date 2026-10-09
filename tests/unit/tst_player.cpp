@@ -47,6 +47,11 @@ private slots:
     void testSetVolumeEmitsSignal();
     void testSetVolumeSameValueNoSignal();
 
+    // Repeat-one tests
+    void testRepeatOneDefaults();
+    void testRepeatOneEmitsSignal();
+    void testRepeatOnePersists();
+
     // Load tests
     void testLoadEmptyUrlEmitsError();
     void testLoadSongEmptyPathEmitsError();
@@ -179,6 +184,50 @@ void TestPlayer::testSetVolumeSameValueNoSignal()
     // Repeating the change must not emit again.
     m_player->setVolume(0.5f);
     QCOMPARE(spy.count(), 0);
+}
+
+void TestPlayer::testRepeatOneDefaults()
+{
+    // Force a clean baseline in case a previous test left it enabled.
+    m_player->setRepeatOne(false);
+    QVERIFY(!m_player->repeatOne());
+}
+
+void TestPlayer::testRepeatOneEmitsSignal()
+{
+    QSignalSpy spy(m_player, &PlayerController::repeatOneChanged);
+    QVERIFY(spy.isValid());
+
+    // Same value: no change expected.
+    m_player->setRepeatOne(false);
+    QCOMPARE(spy.count(), 0);
+
+    m_player->setRepeatOne(true);
+    QCOMPARE(spy.count(), 1);
+    QVERIFY(m_player->repeatOne());
+
+    // Toggling back and forth keeps emitting only on real changes.
+    m_player->setRepeatOne(true);
+    QCOMPARE(spy.count(), 1);
+
+    m_player->setRepeatOne(false);
+    QCOMPARE(spy.count(), 2);
+    QVERIFY(!m_player->repeatOne());
+}
+
+void TestPlayer::testRepeatOnePersists()
+{
+    {
+        PlayerController first;
+        first.setRepeatOne(true);
+    }
+
+    // A fresh instance must restore the persisted state (QSettings sync
+    // happens inside setRepeatOne()).
+    PlayerController second;
+    QVERIFY(second.repeatOne());
+    second.setRepeatOne(false);
+    QVERIFY(!second.repeatOne());
 }
 
 void TestPlayer::testLoadEmptyUrlEmitsError()

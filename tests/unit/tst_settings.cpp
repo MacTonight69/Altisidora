@@ -22,7 +22,6 @@ private slots:
 
     void testDefaults();
     void testSetMusicDirectory();
-    void testSetShuffleAndRepeat();
     void testSetTheme();
     void testSettingsChangedSignal();
     void testNoSignalWhenValueUnchanged();
@@ -62,8 +61,6 @@ void tst_settings::testDefaults()
     SettingsController settings;
 
     QVERIFY(settings.musicDirectory().isEmpty());
-    QVERIFY(!settings.shuffle());
-    QVERIFY(!settings.repeat());
     QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
 
     // Unknown keys fall back to the provided default
@@ -76,21 +73,6 @@ void tst_settings::testSetMusicDirectory()
     settings.setMusicDirectory(QStringLiteral("/home/user/Music"));
 
     QCOMPARE(settings.musicDirectory(), QStringLiteral("/home/user/Music"));
-}
-
-void tst_settings::testSetShuffleAndRepeat()
-{
-    SettingsController settings;
-
-    settings.setShuffle(true);
-    settings.setRepeat(true);
-    QVERIFY(settings.shuffle());
-    QVERIFY(settings.repeat());
-
-    settings.setShuffle(false);
-    settings.setRepeat(false);
-    QVERIFY(!settings.shuffle());
-    QVERIFY(!settings.repeat());
 }
 
 void tst_settings::testSetTheme()
@@ -112,17 +94,14 @@ void tst_settings::testSettingsChangedSignal()
     QSignalSpy spy(&settings, &SettingsController::settingsChanged);
     QVERIFY(spy.isValid());
 
-    settings.setShuffle(true);
+    settings.setMusicDirectory(QStringLiteral("/music"));
     QCOMPARE(spy.count(), 1);
 
-    settings.setMusicDirectory(QStringLiteral("/music"));
+    settings.setTheme(QStringLiteral("Vacui"));
     QCOMPARE(spy.count(), 2);
 
-    settings.setTheme(QStringLiteral("Vacui"));
-    QCOMPARE(spy.count(), 3);
-
     settings.setSetting(QStringLiteral("volume"), 0.5);
-    QCOMPARE(spy.count(), 4);
+    QCOMPARE(spy.count(), 3);
 }
 
 void tst_settings::testNoSignalWhenValueUnchanged()
@@ -131,15 +110,15 @@ void tst_settings::testNoSignalWhenValueUnchanged()
     QSignalSpy spy(&settings, &SettingsController::settingsChanged);
     QVERIFY(spy.isValid());
 
-    // Default value, no change expected
-    settings.setShuffle(false);
+    // Default value (empty folder), no change expected
+    settings.setMusicDirectory(QString());
     QCOMPARE(spy.count(), 0);
 
-    settings.setShuffle(true);
+    settings.setMusicDirectory(QStringLiteral("/music"));
     QCOMPARE(spy.count(), 1);
 
     // Same value again, no change expected
-    settings.setShuffle(true);
+    settings.setMusicDirectory(QStringLiteral("/music"));
     QCOMPARE(spy.count(), 1);
 }
 
@@ -160,8 +139,6 @@ void tst_settings::testPersistenceAcrossInstances()
     {
         SettingsController first;
         first.setMusicDirectory(QStringLiteral("/home/user/Music"));
-        first.setShuffle(true);
-        first.setRepeat(true);
         first.setTheme(QStringLiteral("Good Technic"));
         first.save();
     }
@@ -169,8 +146,6 @@ void tst_settings::testPersistenceAcrossInstances()
     // A new instance must load the values saved by the previous one
     SettingsController second;
     QCOMPARE(second.musicDirectory(), QStringLiteral("/home/user/Music"));
-    QVERIFY(second.shuffle());
-    QVERIFY(second.repeat());
     QCOMPARE(second.theme(), QStringLiteral("Good Technic"));
 }
 

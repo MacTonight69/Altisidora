@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 
 Rectangle {
     id: songsView
@@ -111,6 +112,33 @@ Rectangle {
         Player.play()
     }
 
+    // Play the whole visible list from the first song (in list order).
+    function playAllFromStart() {
+        if (songsView.songs.length === 0)
+            return
+        Player.setQueue(songsView.songs)
+        Player.loadSong(songsView.songs[0])
+        Player.play()
+    }
+
+    // Play the whole visible list in a random order. The shuffle happens on
+    // a copy: the list itself (and its selection) is never reordered, and
+    // next()/previous() afterwards navigate the shuffled order.
+    function playAllShuffled() {
+        if (songsView.songs.length === 0)
+            return
+        var copy = songsView.songs.slice()
+        for (var i = copy.length - 1; i > 0; --i) {
+            var j = Math.floor(Math.random() * (i + 1))
+            var tmp = copy[i]
+            copy[i] = copy[j]
+            copy[j] = tmp
+        }
+        Player.setQueue(copy)
+        Player.loadSong(copy[0])
+        Player.play()
+    }
+
     // Create the playlist, add the pending targets and (when the add came
     // from the selection bar) clear the selection.
     function addTargetSongsToPlaylist(name) {
@@ -183,6 +211,16 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 16
         spacing: 0
+
+        // ---- play all / shuffle toolbar ----
+        PlayToolbar {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 30
+            Layout.topMargin: 2
+            canPlay: songsView.songs.length > 0
+            onPlayFromStart: songsView.playAllFromStart()
+            onPlayShuffled: songsView.playAllShuffled()
+        }
 
         // ---- column headers ----
         RowLayout {
