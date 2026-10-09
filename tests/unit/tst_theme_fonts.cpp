@@ -6,8 +6,12 @@
 #include <QQuickItem>
 #include <QUrl>
 #include <QFont>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QStringList>
 #include <QVariantMap>
+
+#include "../../src/app/SettingsController.h"
 
 // Directory holding Theme.qml, injected by tests/CMakeLists.txt.
 #ifndef THEME_QML_DIR
@@ -35,6 +39,7 @@ private slots:
     void testApplyAssignsFontScale();
     void testBindingRerendersOnApply();
     void testScaleDropsBackOnMimy();
+    void testRuntimeThemeSwitchChain();
 
 private:
     void applyTheme(const QString &name);
@@ -178,6 +183,80 @@ void tst_theme_fonts::testScaleDropsBackOnMimy()
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
+}
+
+void tst_theme_fonts::testRuntimeThemeSwitchChain()
+{
+    // Isolate QSettings so the production SettingsController writes to a
+    // temporary config instead of the real user config. XDG_CONFIG_HOME is
+    // the authoritative UserScope root on Linux and cannot be bypassed by
+    // QSettings format/path resolution.
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QByteArray oldXdg = qgetenv("XDG_CONFIG_HOME");
+    qputenv("XDG_CONFIG_HOME", tempDir.path().toUtf8());
+
+    // The real production settings object (same class src/main.cpp exposes).
+    SettingsController settings;
+    QCOMPARE(settings.theme(), QStringLiteral("Mimy")); // fresh default
+
+    // Expose it exactly like src/main.cpp does.
+    m_engine->rootContext()->setContextProperty(QStringLiteral("AppSettings"), &settings);
+
+    // The exact wiring from resources/qml/main.qml: the Connections handler
+    // and applyTheme(), copied verbatim. This is the runtime chain the user
+    // exercises with the Settings combo: setTheme -> settingsChanged ->
+    // Connections -> applyTheme -> Theme.apply + persist.
+    QQmlComponent wiring(m_engine);
+    wiring.setData(
+        QStringLiteral("import QtQuick\n"
+                       "Item {\n"
+                       "    id: root\n"
+                       "    function applyTheme(name) {\n"
+                       "        Theme.apply(name)\n"
+                       "        if (name !== AppSettings.theme)\n"
+                       "            AppSettings.theme = name\n"
+                       "        AppSettings.fontScale = Theme.fontScale\n"
+                       "    }\n"
+                       "    Connections {\n"
+                       "        target: AppSettings\n"
+                       "        function onSettingsChanged() {\n"
+                       "            root.applyTheme(AppSettings.theme)\n"
+                       "        }\n"
+                       "    }\n"
+                       "}\n").toUtf8(),
+        QUrl());
+    QVERIFY2(wiring.status() == QQmlComponent::Ready,
+             qPrintable(wiring.errorString()));
+    QScopedPointer<QObject> root(wiring.create());
+    QVERIFY(root != nullptr);
+
+    // Drive the same path the Settings combo uses: switching to a scaled
+    // theme must re-apply the palette AND the typography scale, and persist
+    // both to the config.
+    settings.setTheme(QStringLiteral("Maya"));
+    QCOMPARE(settings.theme(), QStringLiteral("Maya"));
+    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Maya"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
+    QCOMPARE(settings.fontScale(), 1.4);
+
+    // Both values must be persisted to the config file.
+    QSettings check(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"));
+    QCOMPARE(check.value(QStringLiteral("theme")).toString(),
+             QStringLiteral("Maya"));
+    QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.4);
+
+    // Switching back to a non-scaled theme drops the scale and persists it.
+    settings.setTheme(QStringLiteral("Mimy"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
+    QCOMPARE(settings.fontScale(), 1.0);
+    QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.0);
+
+    // Restore the environment for any code that runs after this test.
+    if (oldXdg.isEmpty())
+        qunsetenv("XDG_CONFIG_HOME");
+    else
+        qputenv("XDG_CONFIG_HOME", oldXdg);
 }
 
 QTEST_MAIN(tst_theme_fonts)

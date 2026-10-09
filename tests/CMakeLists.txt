@@ -75,6 +75,9 @@ set(tst_scanner_PROD_SOURCES
 set(tst_settings_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/app/SettingsController.cpp
 )
+set(tst_theme_fonts_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/app/SettingsController.cpp
+)
 set(tst_metadata_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
     ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
