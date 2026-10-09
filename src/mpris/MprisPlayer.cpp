@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QDBusError>
+#include <QDBusMessage>
 #include <QUrl>
 
 #include "../audio/PlayerController.h"
@@ -32,18 +33,48 @@ PlayerAdaptor::PlayerAdaptor(MprisPlayer *parent)
         // The queue may have been replaced around the state change.
         emit canGoNextChanged();
         emit canGoPreviousChanged();
+        QVariantMap changed;
+        changed[QStringLiteral("PlaybackStatus")] = playbackStatus();
+        changed[QStringLiteral("CanGoNext")] = canGoNext();
+        changed[QStringLiteral("CanGoPrevious")] = canGoPrevious();
+        emitPropertiesChanged(changed);
     });
     connect(player, &PlayerController::currentSongChanged, this, [this]() {
         emit metadataChanged();
         emit canGoNextChanged();
         emit canGoPreviousChanged();
+        QVariantMap changed;
+        changed[QStringLiteral("Metadata")] = metadata();
+        changed[QStringLiteral("CanGoNext")] = canGoNext();
+        changed[QStringLiteral("CanGoPrevious")] = canGoPrevious();
+        emitPropertiesChanged(changed);
     });
     connect(player, &PlayerController::positionChanged, this, [this]() {
         emit positionChanged();
     });
     connect(player, &PlayerController::volumeChanged, this, [this]() {
         emit volumeChanged();
+        QVariantMap changed;
+        changed[QStringLiteral("Volume")] = volume();
+        emitPropertiesChanged(changed);
     });
+}
+
+void PlayerAdaptor::emitPropertiesChanged(const QVariantMap &changed)
+{
+    // Qt's QDBusAbstractAdaptor relays the Q_PROPERTY NOTIFY signals as plain
+    // (non-standard) D-Bus signals and never emits the standard
+    // org.freedesktop.DBus.Properties.PropertiesChanged. Desktop shells
+    // (Noctalia, KDE, GNOME) only listen to PropertiesChanged, so send it
+    // explicitly whenever an MPRIS property changes.
+    QDBusMessage signal = QDBusMessage::createSignal(
+        QStringLiteral("/org/mpris/MediaPlayer2"),
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("PropertiesChanged"));
+    signal << QStringLiteral("org.mpris.MediaPlayer2.Player");
+    signal << changed;
+    signal << QStringList();
+    QDBusConnection::sessionBus().send(signal);
 }
 
 QString PlayerAdaptor::playbackStatus() const

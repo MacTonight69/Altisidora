@@ -1,4 +1,5 @@
 #include <QtTest>
+#include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusMessage>
@@ -25,12 +26,17 @@ private slots:
     void testMediaPlayer2Interface();
     void testPlayerInterfaceAndMetadata();
     void testTransportSlotsRespond();
+    void testEmitsPropertiesChanged();
+    void onPropertiesChanged(const QString &interface, const QVariantMap &changed,
+                             const QStringList &invalidated);
 
 private:
     void loadFakeSong();
 
     PlayerController *m_player = nullptr;
     MprisPlayer *m_mpris = nullptr;
+    int m_changeCount = 0;
+    QVariantMap m_playerChanged;
 };
 
 void tst_mpris::initTestCase()
@@ -40,6 +46,15 @@ void tst_mpris::initTestCase()
     m_player = new PlayerController(this);
     m_mpris = new MprisPlayer(m_player, this);
     QVERIFY(m_mpris->registerService());
+
+    // Listen exactly like a desktop shell does: only the standard
+    // org.freedesktop.DBus.Properties.PropertiesChanged signal counts.
+    QVERIFY(QDBusConnection::sessionBus().connect(
+        QString(),
+        QStringLiteral("/org/mpris/MediaPlayer2"),
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("PropertiesChanged"),
+        this, SLOT(onPropertiesChanged(QString,QVariantMap,QStringList))));
 }
 
 void tst_mpris::loadFakeSong()
@@ -131,6 +146,52 @@ void tst_mpris::testTransportSlotsRespond()
     QDBusMessage setPosition = iface.call(QStringLiteral("SetPosition"), pos,
                                           QVariant::fromValue<qint64>(0));
     QCOMPARE(setPosition.type(), QDBusMessage::ReplyMessage);
+}
+
+// Qt demarshals a dict (a{sv}) nested inside a D-Bus variant as QDBusArgument
+// instead of QVariantMap. Convert it back so the test can inspect Metadata.
+static QVariant demarshalVariant(const QVariant &v)
+{
+    if (v.userType() != qMetaTypeId<QDBusArgument>())
+        return v;
+    QDBusArgument arg = v.value<QDBusArgument>();
+    if (arg.currentType() != QDBusArgument::MapType)
+        return v;
+    return qdbus_cast<QVariantMap>(arg);
+}
+
+void tst_mpris::onPropertiesChanged(const QString &interface, const QVariantMap &changed,
+                                    const QStringList &invalidated)
+{
+    Q_UNUSED(invalidated)
+    ++m_changeCount;
+    if (interface == QStringLiteral("org.mpris.MediaPlayer2.Player")) {
+        for (auto it = changed.constBegin(); it != changed.constEnd(); ++it) {
+            m_playerChanged.insert(it.key(), demarshalVariant(it.value()));
+        }
+    }
+}
+
+void tst_mpris::testEmitsPropertiesChanged()
+{
+    m_changeCount = 0;
+    m_playerChanged.clear();
+    loadFakeSong();
+    QTRY_VERIFY_WITH_TIMEOUT(m_changeCount > 0, 2000);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        m_playerChanged.value(QStringLiteral("Metadata")).toMap()
+                .value(QStringLiteral("xesam:title")).toString() == QStringLiteral("Test Song"),
+        2000);
+    QCOMPARE(m_playerChanged.value(QStringLiteral("Metadata")).toMap()
+                 .value(QStringLiteral("xesam:artist")).toStringList(),
+             QStringList{QStringLiteral("Test Artist")});
+
+    m_changeCount = 0;
+    m_playerChanged.clear();
+    m_player->setVolume(0.25f);
+    QTRY_VERIFY_WITH_TIMEOUT(m_changeCount > 0, 2000);
+    QVERIFY(m_playerChanged.contains(QStringLiteral("Volume")));
+    QVERIFY(qFuzzyCompare(m_playerChanged.value(QStringLiteral("Volume")).toDouble(), 0.25));
 }
 
 QTEST_MAIN(tst_mpris)

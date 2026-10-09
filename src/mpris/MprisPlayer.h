@@ -134,5 +134,7 @@ signals:
     void canGoPreviousChanged();
 
 private:
+    void emitPropertiesChanged(const QVariantMap &changed);
+
     MprisPlayer *m_player;
 };
