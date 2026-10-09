@@ -81,9 +81,8 @@ void tst_theme_fonts::settle()
 
 void tst_theme_fonts::testThemeDataScaleRule()
 {
-    // Exactly the four opt-in themes scale to 1.4; every other theme is 1.0.
-    const QStringList scaled = {QStringLiteral("Coco"), QStringLiteral("Maya"),
-                                QStringLiteral("Vacui"), QStringLiteral("The Niggest")};
+    // Exactly the two opt-in themes scale to 1.4; every other theme is 1.0.
+    const QStringList scaled = {QStringLiteral("Coco"), QStringLiteral("The Niggest")};
 
     const auto names = m_theme->property("themeNames").toStringList();
     QVERIFY2(names.size() >= scaled.size(), "theme catalog must contain the scaled themes");
@@ -110,8 +109,7 @@ void tst_theme_fonts::testApplyAssignsFontScale()
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
 
-    for (const QString &name : {QStringLiteral("Coco"), QStringLiteral("Maya"),
-                                QStringLiteral("Vacui"), QStringLiteral("The Niggest")}) {
+    for (const QString &name : {QStringLiteral("Coco"), QStringLiteral("The Niggest")}) {
         applyTheme(name);
         QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
     }
@@ -179,7 +177,7 @@ void tst_theme_fonts::testBindingRerendersOnApply()
 
 void tst_theme_fonts::testScaleDropsBackOnMimy()
 {
-    applyTheme(QStringLiteral("Vacui"));
+    applyTheme(QStringLiteral("Coco"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
@@ -233,17 +231,18 @@ void tst_theme_fonts::testRuntimeThemeSwitchChain()
 
     // Drive the same path the Settings combo uses: switching to a scaled
     // theme must re-apply the palette AND the typography scale, and persist
-    // both to the config.
-    settings.setTheme(QStringLiteral("Maya"));
-    QCOMPARE(settings.theme(), QStringLiteral("Maya"));
-    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Maya"));
+    // both to the config. "The Niggest" keeps the spaced-key theme covered
+    // end-to-end.
+    settings.setTheme(QStringLiteral("The Niggest"));
+    QCOMPARE(settings.theme(), QStringLiteral("The Niggest"));
+    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("The Niggest"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
     QCOMPARE(settings.fontScale(), 1.4);
 
     // Both values must be persisted to the config file.
     QSettings check(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"));
     QCOMPARE(check.value(QStringLiteral("theme")).toString(),
-             QStringLiteral("Maya"));
+             QStringLiteral("The Niggest"));
     QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.4);
 
     // Switching back to a non-scaled theme drops the scale and persists it.
