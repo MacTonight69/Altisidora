@@ -6,6 +6,9 @@
 #include <QFileInfo>
 #include <QtConcurrent>
 
+#include "Scanner.h"
+#include "MetadataReader.h"
+
 namespace {
 
 // Short clips (notification sounds, ringtones, podcast intros...) are not
@@ -29,7 +32,7 @@ QVector<QVariant> LibraryController::songs() const
 {
     QVector<QVariant> result;
     for (const Song &song : m_songs) {
-        result.append(songToVariant(song));
+        result.append(song.toVariantMap());
     }
     return result;
 }
@@ -48,15 +51,6 @@ QVector<QVariant> LibraryController::artists() const
     QVector<QVariant> result;
     for (const Artist &artist : m_db.getAllArtists()) {
         result.append(artistToVariant(artist));
-    }
-    return result;
-}
-
-QVector<QVariant> LibraryController::genres() const
-{
-    QVector<QVariant> result;
-    for (const Genre &genre : m_db.getAllGenres()) {
-        result.append(genreToVariant(genre));
     }
     return result;
 }
@@ -134,7 +128,7 @@ QVector<QVariant> LibraryController::search(const QString &query) const
 {
     QVector<QVariant> result;
     for (const Song &song : m_db.searchSongs(query)) {
-        result.append(songToVariant(song));
+        result.append(song.toVariantMap());
     }
     return result;
 }
@@ -144,7 +138,7 @@ QVector<QVariant> LibraryController::songsByAlbum(const QString &title,
 {
     QVector<QVariant> result;
     for (const Song &song : m_db.getSongsByAlbum(title, artist)) {
-        result.append(songToVariant(song));
+        result.append(song.toVariantMap());
     }
     return result;
 }
@@ -153,7 +147,7 @@ QVector<QVariant> LibraryController::songsByArtist(const QString &artist) const
 {
     QVector<QVariant> result;
     for (const Song &song : m_db.getSongsByArtist(artist)) {
-        result.append(songToVariant(song));
+        result.append(song.toVariantMap());
     }
     return result;
 }
@@ -215,27 +209,6 @@ void LibraryController::unignorePath(const QString &path)
     }
 }
 
-QVariantMap LibraryController::songToVariant(const Song &song) const
-{
-    QVariantMap map;
-    map["id"] = song.id;
-    map["path"] = song.path;
-    map["title"] = song.title;
-    map["artist"] = song.artist;
-    map["album"] = song.album;
-    map["genre"] = song.genre;
-    map["year"] = song.year;
-    map["trackNumber"] = song.trackNumber;
-    map["discNumber"] = song.discNumber;
-    map["duration"] = song.duration;
-    map["artwork"] = song.artworkPath;
-    map["dateAdded"] = song.dateAdded;
-    map["lastPlayed"] = song.lastPlayed;
-    map["playCount"] = song.playCount;
-    map["favorite"] = song.favorite;
-    return map;
-}
-
 QVariantMap LibraryController::albumToVariant(const Album &album) const
 {
     QVariantMap map;
@@ -255,14 +228,5 @@ QVariantMap LibraryController::artistToVariant(const Artist &artist) const
     map["name"] = artist.name;
     map["albumCount"] = artist.albumCount;
     map["songCount"] = artist.songCount;
-    return map;
-}
-
-QVariantMap LibraryController::genreToVariant(const Genre &genre) const
-{
-    QVariantMap map;
-    map["id"] = genre.id;
-    map["name"] = genre.name;
-    map["songCount"] = genre.songCount;
     return map;
 }

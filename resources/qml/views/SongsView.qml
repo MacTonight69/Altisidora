@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../js/Utils.js" as Utils
 
 Rectangle {
     id: songsView
@@ -127,13 +128,7 @@ Rectangle {
     function playAllShuffled() {
         if (songsView.songs.length === 0)
             return
-        var copy = songsView.songs.slice()
-        for (var i = copy.length - 1; i > 0; --i) {
-            var j = Math.floor(Math.random() * (i + 1))
-            var tmp = copy[i]
-            copy[i] = copy[j]
-            copy[j] = tmp
-        }
+        var copy = Utils.shuffle(songsView.songs)
         Player.setQueue(copy)
         Player.loadSong(copy[0])
         Player.play()
@@ -156,12 +151,7 @@ Rectangle {
     }
 
     function formatDuration(ms) {
-        var total = Math.floor(Number(ms || 0) / 1000)
-        if (!isFinite(total) || total < 0)
-            total = 0
-        var m = Math.floor(total / 60)
-        var s = total % 60
-        return m + ":" + (s < 10 ? "0" + s : "" + s)
+        return Utils.formatDuration(ms)
     }
 
     // Delete the selected songs. In active mode (the default) the audio
@@ -319,57 +309,18 @@ Rectangle {
                 }
             }
 
-            Button {
-                font.family: Theme.fontFamily
-                id: hideSelectedButton
+            ThemedButton {
                 text: qsTr("Hide")
-                focusPolicy: Qt.NoFocus
-                flat: true
-                font.pixelSize: 12 * Theme.fontScale
-                contentItem: Text {
-                    text: hideSelectedButton.text
-                    font: hideSelectedButton.font
-                    color: hideSelectedButton.hovered ? Theme.danger : Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: "transparent" }
                 onClicked: songsView.hideSelected()
             }
 
-            Button {
-                font.family: Theme.fontFamily
-                id: hideFolderButton
+            ThemedButton {
                 text: qsTr("Hide folder")
-                focusPolicy: Qt.NoFocus
-                flat: true
-                font.pixelSize: 12 * Theme.fontScale
-                contentItem: Text {
-                    text: hideFolderButton.text
-                    font: hideFolderButton.font
-                    color: hideFolderButton.hovered ? Theme.danger : Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: "transparent" }
                 onClicked: songsView.hideSelectedFolders()
             }
 
-            Button {
-                font.family: Theme.fontFamily
-                id: clearSelectionButton
+            ThemedButton {
                 text: qsTr("Clear selection")
-                focusPolicy: Qt.NoFocus
-                flat: true
-                font.pixelSize: 12 * Theme.fontScale
-                contentItem: Text {
-                    text: clearSelectionButton.text
-                    font: clearSelectionButton.font
-                    color: clearSelectionButton.hovered ? Theme.danger : Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: "transparent" }
                 onClicked: songsView.clearSelection()
             }
         }

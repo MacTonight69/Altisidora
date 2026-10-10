@@ -34,7 +34,6 @@ private slots:
     void testReadFallbackTitleFromFileName();
     void testReadFallbackTitleForUnparseableSupportedFile();
     void testReadUtf8JapaneseTags();
-    void testCanRead();
 
     // Error handling tests
     void testReadNonExistentFile();
@@ -210,20 +209,6 @@ void TestMetadata::testReadUtf8JapaneseTags()
     QCOMPARE(song.album, QStringLiteral("TOHO BOSSA NOVA 12"));
     QVERIFY(!song.title.contains(QChar(0xFFFD))); // no replacement chars
     QVERIFY(!song.title.contains(QChar(0x03)));   // no raw encoding byte
-}
-
-void TestMetadata::testCanRead()
-{
-    const QString validFile = m_tempDir.filePath(QStringLiteral("valid.mp3"));
-    QVERIFY(writeMpegFile(validFile));
-    QVERIFY(MetadataReader::canRead(validFile));
-
-    const QString textFile = m_tempDir.filePath(QStringLiteral("notaudio.txt"));
-    QFile text(textFile);
-    QVERIFY(text.open(QIODevice::WriteOnly));
-    text.write("plain text");
-    text.close();
-    QVERIFY(!MetadataReader::canRead(textFile));
 }
 
 void TestMetadata::testReadNonExistentFile()

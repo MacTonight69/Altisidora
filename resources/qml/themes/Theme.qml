@@ -80,26 +80,16 @@ QtObject {
         themeName = t.name
         fontFamily = t.fontFamily !== undefined ? t.fontFamily : ""
         fontScale = t.fontScale !== undefined ? t.fontScale : 1.0
-        bg = t.bg
-        bgAlt = t.bgAlt
-        viewBg = t.viewBg
-        field = t.field
-        border = t.border
-        textPrimary = t.textPrimary
-        textSecondary = t.textSecondary
-        textMuted = t.textMuted
-        accent = t.accent
-        accentAlt = t.accentAlt
-        accentText = t.accentText
-        selection = t.selection
-        selectionBorder = t.selectionBorder
-        selectionText = t.selectionText
-        selectionTextMuted = t.selectionTextMuted
-        danger = t.danger
-        dangerBg = t.dangerBg
-        fieldSelection = t.fieldSelection
-        fieldSelectedText = t.fieldSelectedText
-        success = t.success
+
+        // Base colour roles: copied straight from the palette in one place.
+        // The palette also carries name/fontFamily/fontScale (handled just
+        // above), so those keys are skipped. Every theme defines every base
+        // role, so this leaves none undefined.
+        for (var key in t) {
+            if (key === "name" || key === "fontFamily" || key === "fontScale")
+                continue
+            theme[key] = t[key]
+        }
 
         // Interactive variants derived from the base tones.
         accentHover = Qt.lighter(t.accent, 1.3)

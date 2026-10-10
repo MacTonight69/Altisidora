@@ -35,28 +35,9 @@ You must ensure these files reflect the actual implementation.
 
 ## Project modules
 
-The current conceptual architecture is:
-
-UI
-↓
-Application Layer
-↓
-Domain / Services
-↓
-Infrastructure
-
-Main modules:
-
-* GUI
-* Audio
-* Library
-* Database
-* Metadata
-* Playlists
-* Settings
-* System Integration
-* Testing
-* Packaging
+The module list and responsibilities are authoritative in
+`docs/ARCHITECTURE.md`; keep that document up to date rather than restating the
+list here.
 
 ## Responsibilities
 
@@ -84,19 +65,8 @@ The GUI should not directly control low-level multimedia backends.
 
 Before parallel development begins, define stable interfaces between modules.
 
-For example:
-
-PlayerController should expose functionality such as:
-
-* play()
-* pause()
-* stop()
-* next()
-* previous()
-* seek()
-* setVolume()
-
-The exact API must be documented in `docs/API_CONTRACTS.md`.
+The interface lists and their constraints are authoritative in
+`docs/API_CONTRACTS.md`; update that document when an interface changes.
 
 ## Integration
 

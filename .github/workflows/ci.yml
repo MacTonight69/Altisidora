@@ -21,7 +21,8 @@ jobs:
           g++ \
           qt6-base-dev \
           qt6-declarative-dev \
-          qt6-multimedia-dev \
+          libmpv-dev \
+          dbus \
           libtag1-dev \
           pkg-config
 

@@ -16,47 +16,17 @@ RowLayout {
 
     spacing: 6
 
-    Button {
-        font.family: Theme.fontFamily
-        id: playAllButton
-        focusPolicy: Qt.NoFocus
-        flat: true
-        font.pixelSize: 12 * Theme.fontScale
+    ThemedButton {
         enabled: playToolbar.canPlay
         text: qsTr("Play all")
-
-        contentItem: Text {
-            text: playAllButton.text
-            font: playAllButton.font
-            color: playAllButton.enabled
-                   ? (playAllButton.hovered ? Theme.accent : Theme.textSecondary)
-                   : Theme.textMuted
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-        background: Rectangle { color: "transparent" }
+        hoverColor: Theme.accent
         onClicked: playToolbar.playFromStart()
     }
 
-    Button {
-        font.family: Theme.fontFamily
-        id: shuffleButton
-        focusPolicy: Qt.NoFocus
-        flat: true
-        font.pixelSize: 12 * Theme.fontScale
+    ThemedButton {
         enabled: playToolbar.canPlay
         text: qsTr("Shuffle")
-
-        contentItem: Text {
-            text: shuffleButton.text
-            font: shuffleButton.font
-            color: shuffleButton.enabled
-                   ? (shuffleButton.hovered ? Theme.accent : Theme.textSecondary)
-                   : Theme.textMuted
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-        background: Rectangle { color: "transparent" }
+        hoverColor: Theme.accent
         onClicked: playToolbar.playShuffled()
     }
 

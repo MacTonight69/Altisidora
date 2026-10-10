@@ -9,7 +9,6 @@
 #include "../models/Song.h"
 #include "../models/Artist.h"
 #include "../models/Album.h"
-#include "../models/Genre.h"
 #include "../models/Playlist.h"
 
 /**
@@ -30,12 +29,9 @@ public:
 
     // Schema
     bool createTables();
-    bool migrate(int version);
-    int schemaVersion() const;
 
     // Songs
     bool addSong(Song &song);
-    bool updateSong(const Song &song);
     bool removeSong(qint64 id);
     Song getSong(qint64 id) const;
     QList<Song> getAllSongs() const;
@@ -44,16 +40,10 @@ public:
     QList<Song> getSongsByArtist(const QString &artist) const;
 
     // Artists
-    bool addArtist(Artist &artist);
     QList<Artist> getAllArtists() const;
 
     // Albums
-    bool addAlbum(Album &album);
     QList<Album> getAllAlbums() const;
-
-    // Genres
-    bool addGenre(Genre &genre);
-    QList<Genre> getAllGenres() const;
 
     // Playlists
     bool addPlaylist(Playlist &playlist);
@@ -64,10 +54,6 @@ public:
     bool removeSongFromPlaylist(qint64 playlistId, qint64 songId);
     QList<Song> getPlaylistSongs(qint64 playlistId) const;
 
-    // Statistics
-    bool updatePlayCount(qint64 songId);
-    bool setFavorite(qint64 songId, bool favorite);
-
     // Hidden items. A path added here (a file or a whole directory) is
     // kept in the database but excluded from every song query, so it
     // disappears from the lists without being deleted from disk.
@@ -77,7 +63,6 @@ public:
 
 private:
     bool execute(const QString &sql);
-    bool versionTableExists();
 
     QSqlDatabase m_db;
 };

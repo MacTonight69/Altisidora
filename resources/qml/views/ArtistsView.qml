@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../js/Utils.js" as Utils
 
 Rectangle {
     id: artistsView
@@ -39,12 +40,7 @@ Rectangle {
         var out = artistsView.collectSongs()
         if (out.length === 0)
             return
-        for (var i = out.length - 1; i > 0; --i) {
-            var j = Math.floor(Math.random() * (i + 1))
-            var tmp = out[i]
-            out[i] = out[j]
-            out[j] = tmp
-        }
+        out = Utils.shuffle(out)
         Player.setQueue(out)
         Player.loadSong(out[0])
         Player.play()

@@ -2,7 +2,6 @@
 #include <QSettings>
 #include <QSignalSpy>
 #include <QTemporaryDir>
-#include <QUrl>
 
 #include <array>
 
@@ -15,8 +14,8 @@
  * These tests exercise the controller's own logic only and deliberately avoid
  * asserting anything that depends on an actual media backend, so they run
  * deterministically on CI (including headless environments). The mpv session
- * is created lazily and again is only touched when load()/loadSong() receive
- * a valid file path.
+ * is created lazily and again is only touched when loadSong() receives a
+ * valid file path.
  *
  * QSettings is redirected into a QTemporaryDir so the equalizer persistence
  * under test never touches the real user configuration.
@@ -53,7 +52,6 @@ private slots:
     void testRepeatOnePersists();
 
     // Load tests
-    void testLoadEmptyUrlEmitsError();
     void testLoadSongEmptyPathEmitsError();
     void testLoadSongKeepsMetadata();
 
@@ -123,7 +121,7 @@ void TestPlayer::testPlayInErrorStateIsNoOp()
 {
     // Force the controller into the Error state.
     QSignalSpy errorSpy(m_player, &PlayerController::errorOccurred);
-    m_player->load(QUrl());
+    m_player->loadSong(QVariantMap());
     QCOMPARE(errorSpy.count(), 1);
     QCOMPARE(m_player->playbackState(), PlaybackState::Error);
 
@@ -230,19 +228,6 @@ void TestPlayer::testRepeatOnePersists()
     QVERIFY(!second.repeatOne());
 }
 
-void TestPlayer::testLoadEmptyUrlEmitsError()
-{
-    QSignalSpy errorSpy(m_player, &PlayerController::errorOccurred);
-    QSignalSpy stateSpy(m_player, &PlayerController::stateChanged);
-
-    // An empty URL is a hard failure by design (no media backend involved).
-    m_player->load(QUrl());
-
-    QCOMPARE(errorSpy.count(), 1);
-    QCOMPARE(m_player->playbackState(), PlaybackState::Error);
-    QCOMPARE(stateSpy.count(), 1);
-}
-
 void TestPlayer::testLoadSongEmptyPathEmitsError()
 {
     QSignalSpy errorSpy(m_player, &PlayerController::errorOccurred);
@@ -346,7 +331,7 @@ void TestPlayer::testQueueBoundaries()
 void TestPlayer::testErrorStateBlocksPlay()
 {
     // After an error, the controller refuses play() until a new load.
-    m_player->load(QUrl());
+    m_player->loadSong(QVariantMap());
     QCOMPARE(m_player->playbackState(), PlaybackState::Error);
 
     m_player->play();

@@ -154,28 +154,6 @@ bool DatabaseManager::execute(const QString &sql)
     return true;
 }
 
-bool DatabaseManager::versionTableExists()
-{
-    QSqlQuery query(m_db);
-    return query.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'") && query.next();
-}
-
-int DatabaseManager::schemaVersion() const
-{
-    QSqlQuery query(m_db);
-    if (query.exec("SELECT version FROM schema_version") && query.next()) {
-        return query.value(0).toInt();
-    }
-    return 0;
-}
-
-bool DatabaseManager::migrate(int version)
-{
-    Q_UNUSED(version)
-    // TODO: Implement migration logic
-    return true;
-}
-
 bool DatabaseManager::createTables()
 {
     // Artists
@@ -299,23 +277,6 @@ bool DatabaseManager::addSong(Song &song)
     return true;
 }
 
-bool DatabaseManager::updateSong(const Song &song)
-{
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE songs SET title=:title, year=:year, track_number=:track_number, disc_number=:disc_number, duration=:duration, artwork_path=:artwork_path, last_played=:last_played, play_count=:play_count, favorite=:favorite WHERE id=:id");
-    query.bindValue(":title", song.title);
-    query.bindValue(":year", song.year);
-    query.bindValue(":track_number", song.trackNumber);
-    query.bindValue(":disc_number", song.discNumber);
-    query.bindValue(":duration", song.duration);
-    query.bindValue(":artwork_path", song.artworkPath);
-    query.bindValue(":last_played", song.lastPlayed.toString(Qt::ISODate));
-    query.bindValue(":play_count", song.playCount);
-    query.bindValue(":favorite", song.favorite ? 1 : 0);
-    query.bindValue(":id", song.id);
-    return query.exec();
-}
-
 bool DatabaseManager::removeSong(qint64 id)
 {
     // playlist_songs has no ON DELETE CASCADE and SQLite does not enforce
@@ -428,18 +389,6 @@ QList<Song> DatabaseManager::getSongsByArtist(const QString &artist) const
     return songs;
 }
 
-bool DatabaseManager::addArtist(Artist &artist)
-{
-    QSqlQuery query(m_db);
-    query.prepare("INSERT OR IGNORE INTO artists (name) VALUES (:name)");
-    query.bindValue(":name", artist.name);
-    if (query.exec()) {
-        artist.id = query.lastInsertId().toLongLong();
-        return true;
-    }
-    return false;
-}
-
 QList<Artist> DatabaseManager::getAllArtists() const
 {
     QList<Artist> artists;
@@ -470,20 +419,6 @@ QList<Artist> DatabaseManager::getAllArtists() const
     return artists;
 }
 
-bool DatabaseManager::addAlbum(Album &album)
-{
-    QSqlQuery query(m_db);
-    query.prepare("INSERT INTO albums (title, year, artwork_path) VALUES (:title, :year, :artwork_path)");
-    query.bindValue(":title", album.title);
-    query.bindValue(":year", album.year);
-    query.bindValue(":artwork_path", album.artworkPath);
-    if (query.exec()) {
-        album.id = query.lastInsertId().toLongLong();
-        return true;
-    }
-    return false;
-}
-
 QList<Album> DatabaseManager::getAllAlbums() const
 {
     QList<Album> albums;
@@ -511,42 +446,6 @@ QList<Album> DatabaseManager::getAllAlbums() const
         }
     }
     return albums;
-}
-
-bool DatabaseManager::addGenre(Genre &genre)
-{
-    QSqlQuery query(m_db);
-    query.prepare("INSERT OR IGNORE INTO genres (name) VALUES (:name)");
-    query.bindValue(":name", genre.name);
-    if (query.exec()) {
-        genre.id = query.lastInsertId().toLongLong();
-        return true;
-    }
-    return false;
-}
-
-QList<Genre> DatabaseManager::getAllGenres() const
-{
-    QList<Genre> genres;
-    QSqlQuery query(m_db);
-    if (query.exec(QStringLiteral(
-            "SELECT g.id, g.name, COUNT(s.id) AS song_count "
-            "FROM genres g "
-            "LEFT JOIN songs s ON s.genre_id = g.id AND ") +
-            QString::fromLatin1(kNotIgnoredClause) +
-            QStringLiteral(
-            "GROUP BY g.id, g.name "
-            "HAVING song_count > 0 "
-            "ORDER BY g.name"))) {
-        while (query.next()) {
-            Genre genre;
-            genre.id = query.value("id").toLongLong();
-            genre.name = query.value("name").toString();
-            genre.songCount = query.value("song_count").toInt();
-            genres.append(genre);
-        }
-    }
-    return genres;
 }
 
 bool DatabaseManager::addPlaylist(Playlist &playlist)
@@ -644,24 +543,6 @@ QList<Song> DatabaseManager::getPlaylistSongs(qint64 playlistId) const
         }
     }
     return songs;
-}
-
-bool DatabaseManager::updatePlayCount(qint64 songId)
-{
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE songs SET play_count = play_count + 1, last_played = :last_played WHERE id = :id");
-    query.bindValue(":last_played", QDateTime::currentDateTime().toString(Qt::ISODate));
-    query.bindValue(":id", songId);
-    return query.exec();
-}
-
-bool DatabaseManager::setFavorite(qint64 songId, bool favorite)
-{
-    QSqlQuery query(m_db);
-    query.prepare("UPDATE songs SET favorite = :favorite WHERE id = :id");
-    query.bindValue(":favorite", favorite ? 1 : 0);
-    query.bindValue(":id", songId);
-    return query.exec();
 }
 
 bool DatabaseManager::addIgnoredPath(const QString &path, bool isDir)

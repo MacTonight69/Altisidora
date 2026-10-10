@@ -20,7 +20,6 @@ find_package(Qt6 REQUIRED COMPONENTS
     Gui
     Quick
     QuickControls2
-    Multimedia
     Sql
     Concurrent
     DBus
@@ -46,9 +45,6 @@ set(SOURCES
     src/mpris/MprisPlayer.cpp
     src/mpris/MprisPlayer.h
     src/models/Song.cpp
-    src/models/Artist.cpp
-    src/models/Album.cpp
-    src/models/Genre.cpp
 )
 
 # Resources

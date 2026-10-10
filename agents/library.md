@@ -23,7 +23,6 @@ You own:
 * Song models.
 * Artist models.
 * Album models.
-* Genre models.
 * Playlist persistence.
 * Favorites.
 * Playback statistics.
@@ -77,7 +76,6 @@ Core domain objects may include:
 Song
 Artist
 Album
-Genre
 Playlist
 
 Keep models independent from UI implementation whenever possible.

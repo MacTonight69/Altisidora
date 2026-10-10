@@ -52,7 +52,7 @@ void TestScanner::init()
 void TestScanner::testScanEmptyDirectory()
 {
     Scanner scanner;
-    const auto found = scanner.scan(m_tempDir.path());
+    const auto found = scanner.scan(m_tempDir.path(), {});
     QCOMPARE(found.size(), 0);
 }
 
@@ -62,7 +62,7 @@ void TestScanner::testScanWithAudioFiles()
     QCOMPARE(files.size(), 5);
 
     Scanner scanner;
-    const auto found = scanner.scan(m_tempDir.path());
+    const auto found = scanner.scan(m_tempDir.path(), {});
     QCOMPARE(found.size(), 5);
 
     // Every found path must exist and be one of the created files.
@@ -92,7 +92,7 @@ void TestScanner::testScanWithMixedFiles()
 
     // Only the supported audio extensions must be reported.
     Scanner scanner;
-    const auto found = scanner.scan(m_tempDir.path());
+    const auto found = scanner.scan(m_tempDir.path(), {});
     QCOMPARE(found.size(), 3);
     for (const QString &path : found) {
         QVERIFY(Scanner::isSupportedAudioFile(path));
@@ -102,7 +102,7 @@ void TestScanner::testScanWithMixedFiles()
 void TestScanner::testScanNonExistentDirectory()
 {
     Scanner scanner;
-    const auto found = scanner.scan(QStringLiteral("/nonexistent/altisidora/path"));
+    const auto found = scanner.scan(QStringLiteral("/nonexistent/altisidora/path"), {});
     QCOMPARE(found.size(), 0);
 }
 
@@ -113,7 +113,7 @@ void TestScanner::testScanSingleAudioFile()
         QDir(m_tempDir.path()).filePath(QStringLiteral("song.mp3"))));
 
     Scanner scanner;
-    const auto found = scanner.scan(m_tempDir.path());
+    const auto found = scanner.scan(m_tempDir.path(), {});
     QCOMPARE(found.size(), 1);
     QCOMPARE(found.first(), m_tempDir.filePath(QStringLiteral("song.mp3")));
 }
@@ -129,7 +129,7 @@ void TestScanner::testScanRecursive()
     TestHelpers::createTestMusicDirectory(nested.path(), 3);
 
     Scanner scanner;
-    const auto found = scanner.scan(m_tempDir.path());
+    const auto found = scanner.scan(m_tempDir.path(), {});
     QCOMPARE(found.size(), 5);
 }
 
@@ -190,7 +190,7 @@ void TestScanner::testSupportedExtensionsCaseInsensitive()
 void TestScanner::testScanFindsWebmAndMatroska()
 {
     // WebM / Matroska audio must be picked up on scans (the metadata is
-    // resolved by TagLib and playback by Qt Multimedia).
+    // resolved by TagLib and playback by libmpv).
     QVERIFY(TestHelpers::createDummyAudioFile(
         m_tempDir.filePath(QStringLiteral("clip.webm"))));
     QVERIFY(TestHelpers::createDummyAudioFile(
@@ -199,7 +199,7 @@ void TestScanner::testScanFindsWebmAndMatroska()
         m_tempDir.filePath(QStringLiteral("video.mkv"))));
 
     Scanner scanner;
-    const auto found = scanner.scan(m_tempDir.path());
+    const auto found = scanner.scan(m_tempDir.path(), {});
     QCOMPARE(found.size(), 3);
     for (const QString &path : found) {
         QVERIFY(Scanner::isSupportedAudioFile(path));

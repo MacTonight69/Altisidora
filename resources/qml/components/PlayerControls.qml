@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import "../js/Utils.js" as Utils
+
 Rectangle {
     id: controls
 
@@ -16,12 +18,7 @@ Rectangle {
                                          ? Player.currentSong.artist : ""
 
     function formatTime(ms) {
-        var total = Math.floor(Number(ms || 0) / 1000)
-        if (!isFinite(total) || total < 0)
-            total = 0
-        var minutes = Math.floor(total / 60)
-        var seconds = total % 60
-        return minutes + ":" + (seconds < 10 ? "0" + seconds : "" + seconds)
+        return Utils.formatDuration(ms)
     }
 
     component TransportButton: ToolButton {

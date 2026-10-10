@@ -2,17 +2,12 @@
 
 #include <QDir>
 #include <QFile>
-#include <QSet>
-#include <QGlobalStatic>
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QDateTime>
 #include <QUuid>
 #include <QDebug>
-#include <QElapsedTimer>
-#include <QThread>
-#include <QCoreApplication>
 
 TestHelpers::TestHelpers(QObject *parent)
     : QObject(parent)
@@ -20,48 +15,6 @@ TestHelpers::TestHelpers(QObject *parent)
 }
 
 TestHelpers::~TestHelpers() = default;
-
-namespace {
-
-// Tracks directories created by createTempDirectory() so they are removed
-// when the test process exits (QTemporaryDir alone cannot be returned by
-// value: its destructor would delete the directory on return).
-class TempDirectoryRegistry
-{
-public:
-    ~TempDirectoryRegistry()
-    {
-        for (const QString &path : std::as_const(paths)) {
-            QDir(path).removeRecursively();
-        }
-    }
-
-    void add(const QString &path) { paths.insert(path); }
-
-private:
-    QSet<QString> paths;
-};
-
-Q_GLOBAL_STATIC(TempDirectoryRegistry, g_tempDirectoryRegistry)
-
-} // namespace
-
-QString TestHelpers::createTempDirectory()
-{
-    // Create the directory under QDir::tempPath() instead of relying on a
-    // QTemporaryDir local (which is destroyed when this function returns).
-    const QString path = QDir::temp().filePath(uniqueString(QStringLiteral("altisidora")));
-    if (QDir().mkpath(path)) {
-        g_tempDirectoryRegistry->add(path);
-        return path;
-    }
-    return QString();
-}
-
-QTemporaryDir TestHelpers::createTempDirGuard()
-{
-    return QTemporaryDir();
-}
 
 bool TestHelpers::createDummyAudioFile(const QString &filePath)
 {
@@ -135,52 +88,6 @@ bool TestHelpers::createMpegAudioFile(const QString &filePath, int frameCount)
     file.close();
 
     return QFile::exists(filePath);
-}
-
-QSqlDatabase TestHelpers::createTestDatabase()
-{
-    QString connectionName = QStringLiteral("test_db_%1").arg(uniqueString());
-    QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-    db.setDatabaseName(QStringLiteral(":memory:"));
-
-    if (!db.open()) {
-        qWarning() << "Failed to open test database:" << db.lastError().text();
-        return QSqlDatabase();
-    }
-
-    return db;
-}
-
-QSqlDatabase TestHelpers::createTestDatabase(const QString &dbPath)
-{
-    QString connectionName = QStringLiteral("test_db_%1").arg(uniqueString());
-    QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-    db.setDatabaseName(dbPath);
-
-    if (!db.open()) {
-        qWarning() << "Failed to open test database:" << db.lastError().text();
-        return QSqlDatabase();
-    }
-
-    return db;
-}
-
-bool TestHelpers::waitFor(std::function<bool()> condition,
-                           int timeoutMs,
-                           int pollIntervalMs)
-{
-    QElapsedTimer timer;
-    timer.start();
-
-    while (timer.elapsed() < timeoutMs) {
-        if (condition()) {
-            return true;
-        }
-        QThread::msleep(pollIntervalMs);
-        QCoreApplication::processEvents();
-    }
-
-    return condition();
 }
 
 QString TestHelpers::uniqueString(const QString &prefix)

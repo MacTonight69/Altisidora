@@ -35,7 +35,7 @@ Scanner::Scanner()
 QStringList Scanner::supportedExtensions()
 {
     return {"mp3", "flac", "ogg", "m4a", "wav", "opus", "aac", "wma", "aiff",
-            // WebM / Matroska carry audio (Opus/Vorbis) that Qt Multimedia
+            // WebM / Matroska carry audio (Opus/Vorbis) that libmpv
             // plays back; the video track, if any, is simply not displayed.
             "webm", "mka", "mkv"};
 }

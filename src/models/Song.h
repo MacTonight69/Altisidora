@@ -9,7 +9,8 @@
  *
  * This is a plain data structure with no Qt meta-object system dependency,
  * making it lightweight and easy to use in both C++ and QML contexts.
- * Conversion methods are provided for QML interoperability.
+ * toVariantMap() is the single canonical mapping consumed by QML (via
+ * Library and Playlists) and by the player.
  */
 struct Song {
     int id = 0;
@@ -28,6 +29,12 @@ struct Song {
     int playCount = 0;
     bool favorite = false;
 
+    /**
+     * @brief Canonical model-to-QML map.
+     *
+     * The keys and value types are the contract QML binds to. Note the
+     * QML-facing key for artwork is "artwork", while the struct field is
+     * named artworkPath after the database column.
+     */
     QVariantMap toVariantMap() const;
-    static Song fromVariantMap(const QVariantMap &map);
 };

@@ -13,7 +13,7 @@ var order = [
     "Good Technic",
     "Vacui",
     "Kawai",
-    "The Niggest"
+    "Onyx"
 ]
 
 var themes = {
@@ -205,8 +205,8 @@ var themes = {
     },
 
     // Completely black.
-    "The Niggest": {
-        name: "The Niggest",
+    "Onyx": {
+        name: "Onyx",
         fontScale: 1.4,
         fontFamily: "Elaesy",
         bg: "#000000",

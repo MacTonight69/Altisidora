@@ -53,12 +53,6 @@ void PlaylistController::renamePlaylist(qint64 id, const QString &newName)
     }
 }
 
-void PlaylistController::addSong(qint64 playlistId, qint64 songId)
-{
-    m_db.addSongToPlaylist(playlistId, songId, 0);
-    emit playlistsChanged();
-}
-
 void PlaylistController::addSongs(qint64 playlistId, const QVariantList &songIds)
 {
     bool changed = false;
@@ -80,14 +74,7 @@ QVector<QVariant> PlaylistController::getPlaylistSongs(qint64 playlistId) const
 {
     QVector<QVariant> result;
     for (const Song &song : m_db.getPlaylistSongs(playlistId)) {
-        QVariantMap map;
-        map["id"] = song.id;
-        map["path"] = song.path;
-        map["title"] = song.title;
-        map["artist"] = song.artist;
-        map["album"] = song.album;
-        map["duration"] = song.duration;
-        result.append(map);
+        result.append(song.toVariantMap());
     }
     return result;
 }

@@ -64,17 +64,6 @@ void SettingsController::setDeleteFilesFromDisk(bool value)
     }
 }
 
-QVariant SettingsController::getSetting(const QString &key, const QVariant &defaultValue) const
-{
-    return m_settings.value(key, defaultValue);
-}
-
-void SettingsController::setSetting(const QString &key, const QVariant &value)
-{
-    m_settings.setValue(key, value);
-    emit settingsChanged();
-}
-
 void SettingsController::save()
 {
     m_settings.setValue("musicDirectory", m_musicDirectory);

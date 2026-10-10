@@ -23,7 +23,6 @@ private slots:
     void testOpenCreatesSchema();
     void testAddAndGetSongWithNormalization();
     void testDuplicateSongPathRejected();
-    void testUpdateSong();
     void testRemoveSong();
     void testRemoveSongCleansPlaylistReferences();
     void testRemoveSongCleansOrphanEntities();
@@ -32,11 +31,8 @@ private slots:
     void testSongsByArtist();
     void testGetAllArtistsAggregates();
     void testGetAllAlbumsAggregates();
-    void testGetAllGenresAggregates();
     void testPlaylistLifecycle();
     void testPlaylistSongs();
-    void testUpdatePlayCount();
-    void testSetFavorite();
     void testIgnoredPathsLifecycle();
     void testIgnoredFileHiddenFromQueries();
     void testIgnoredDirectoryHidesChildren();
@@ -67,8 +63,6 @@ void TestDatabase::testOpenCreatesSchema()
     QVERIFY(query.exec(QStringLiteral(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='songs'")));
     QVERIFY(query.next());
-
-    QVERIFY(m_db.schemaVersion() >= 1);
 }
 
 void TestDatabase::testAddAndGetSongWithNormalization()
@@ -111,22 +105,6 @@ void TestDatabase::testDuplicateSongPathRejected()
     QVERIFY(!m_db.addSong(second));
 
     QCOMPARE(m_db.getAllSongs().size(), 1);
-}
-
-void TestDatabase::testUpdateSong()
-{
-    Song song;
-    song.path = QStringLiteral("/music/upd.mp3");
-    song.title = QStringLiteral("Before");
-    QVERIFY(m_db.addSong(song));
-
-    song.title = QStringLiteral("After");
-    song.favorite = true;
-    QVERIFY(m_db.updateSong(song));
-
-    const Song stored = m_db.getSong(song.id);
-    QCOMPARE(stored.title, QStringLiteral("After"));
-    QVERIFY(stored.favorite);
 }
 
 void TestDatabase::testRemoveSong()
@@ -178,14 +156,12 @@ void TestDatabase::testRemoveSongCleansOrphanEntities()
     QVERIFY(m_db.addSong(song));
     QCOMPARE(m_db.getAllArtists().size(), 1);
     QCOMPARE(m_db.getAllAlbums().size(), 1);
-    QCOMPARE(m_db.getAllGenres().size(), 1);
 
     QVERIFY(m_db.removeSong(song.id));
 
-    // Artists/albums/genres without songs are cleaned up.
+    // Artists/albums without songs are cleaned up.
     QCOMPARE(m_db.getAllArtists().size(), 0);
     QCOMPARE(m_db.getAllAlbums().size(), 0);
-    QCOMPARE(m_db.getAllGenres().size(), 0);
 }
 
 void TestDatabase::testSearchSongs()
@@ -380,34 +356,6 @@ void TestDatabase::testGetAllAlbumsAggregates()
     }
 }
 
-void TestDatabase::testGetAllGenresAggregates()
-{
-    Song rock1;
-    rock1.path = QStringLiteral("/music/rock1.mp3");
-    rock1.genre = QStringLiteral("Rock");
-    Song rock2;
-    rock2.path = QStringLiteral("/music/rock2.mp3");
-    rock2.genre = QStringLiteral("Rock");
-    Song pop1;
-    pop1.path = QStringLiteral("/music/pop1.mp3");
-    pop1.genre = QStringLiteral("Pop");
-
-    QVERIFY(m_db.addSong(rock1));
-    QVERIFY(m_db.addSong(rock2));
-    QVERIFY(m_db.addSong(pop1));
-
-    const QList<Genre> genres = m_db.getAllGenres();
-    QCOMPARE(genres.size(), 2);
-    for (const Genre &genre : genres) {
-        if (genre.name == QStringLiteral("Rock")) {
-            QCOMPARE(genre.songCount, 2);
-        } else {
-            QCOMPARE(genre.name, QStringLiteral("Pop"));
-            QCOMPARE(genre.songCount, 1);
-        }
-    }
-}
-
 void TestDatabase::testPlaylistLifecycle()
 {
     Playlist playlist;
@@ -461,33 +409,6 @@ void TestDatabase::testPlaylistSongs()
 
     QVERIFY(m_db.removeSongFromPlaylist(playlist.id, first.id));
     QCOMPARE(m_db.getPlaylistSongs(playlist.id).size(), 1);
-}
-
-void TestDatabase::testUpdatePlayCount()
-{
-    Song song;
-    song.path = QStringLiteral("/music/count.mp3");
-    QVERIFY(m_db.addSong(song));
-
-    QVERIFY(m_db.updatePlayCount(song.id));
-    QVERIFY(m_db.updatePlayCount(song.id));
-
-    const Song stored = m_db.getSong(song.id);
-    QCOMPARE(stored.playCount, 2);
-    QVERIFY(stored.lastPlayed.isValid());
-}
-
-void TestDatabase::testSetFavorite()
-{
-    Song song;
-    song.path = QStringLiteral("/music/fav.mp3");
-    QVERIFY(m_db.addSong(song));
-
-    QVERIFY(m_db.setFavorite(song.id, true));
-    QVERIFY(m_db.getSong(song.id).favorite);
-
-    QVERIFY(m_db.setFavorite(song.id, false));
-    QVERIFY(!m_db.getSong(song.id).favorite);
 }
 
 void TestDatabase::testIgnoredPathsLifecycle()
@@ -547,7 +468,6 @@ void TestDatabase::testIgnoredFileHiddenFromQueries()
     // Aggregate counts discount the hidden song.
     QCOMPARE(m_db.getAllArtists().first().songCount, 1);
     QCOMPARE(m_db.getAllAlbums().first().songCount, 1);
-    QCOMPARE(m_db.getAllGenres().first().songCount, 1);
 
     // Playlist membership keeps the song, but the listing filters it.
     Playlist playlist;

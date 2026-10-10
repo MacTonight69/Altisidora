@@ -176,7 +176,7 @@ void tst_playlist::testAddRemoveSongDoesNotCrash()
 
     // Song 1 does not exist in the songs table; the JOIN in
     // getPlaylistSongs must simply not return it.
-    m_controller->addSong(ids.first(), 1);
+    m_controller->addSongs(ids.first(), QVariantList{1});
     QVERIFY(m_controller->getPlaylistSongs(ids.first()).isEmpty());
 
     // Removing it again must also be safe

@@ -1,4 +1,4 @@
-# Music Player Architecture
+# Altisidora Architecture
 
 ## Overview
 
@@ -22,8 +22,8 @@ Domain Models / Services
 Audio           Library / Data
        │               │
        ▼               ▼
-Qt Multimedia      SQLite
-GStreamer          TagLib
+libmpv             SQLite
+                   TagLib
 ```
 
 ## Modules
@@ -55,6 +55,8 @@ Responsible for:
 * Playback state.
 * Audio processing.
 
+Implemented by `PlayerController`, which wraps a libmpv session (`src/audio/`).
+
 ### Library
 
 Responsible for:
@@ -83,11 +85,13 @@ Responsible for:
 * Desktop integration.
 * Multimedia keys.
 
+Implemented by `MprisPlayer` (`src/mpris/`), which exposes the app as an MPRIS v2 media player over Qt DBus.
+
 ## Dependency rules
 
 GUI must not directly access SQLite.
 
-GUI must not depend on low-level GStreamer implementation.
+GUI must not depend on low-level libmpv implementation.
 
 Application controllers may coordinate domain services.
 
@@ -97,31 +101,8 @@ Circular dependencies must be avoided.
 
 ## Threading
 
-UI operations must remain responsive.
-
-Potential background operations:
-
-* Library scanning.
-* Metadata extraction.
-* Database-heavy operations.
-* Artwork processing.
-
-Threading must be introduced only when required.
+UI operations must remain responsive. Library scanning and metadata extraction run on a worker thread (`LibraryController` + `QFutureWatcher`); other operations stay on the main thread until there is evidence they must move.
 
 ## Error handling
 
-Errors should propagate through established interfaces.
-
-Low-level implementation details should not leak into the GUI.
-
-## Extensibility
-
-The architecture should permit:
-
-* Alternative audio backends.
-* Additional metadata providers.
-* Additional playlist types.
-* Additional visualizers.
-* Additional audio effects.
-
-without requiring major changes to unrelated modules.
+Public APIs report failures to their callers; low-level backend details must not leak into QML.

@@ -70,8 +70,3 @@ Song MetadataReader::read(const QString &filePath) const
     return song;
 }
 
-bool MetadataReader::canRead(const QString &filePath)
-{
-    TagLib::FileRef file(filePath.toStdString().c_str());
-    return !file.isNull();
-}

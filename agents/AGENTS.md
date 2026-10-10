@@ -10,11 +10,11 @@ The application is being developed primarily with:
 * Qt 6
 * Qt Quick
 * QML
-* Qt Multimedia
+* libmpv (audio backend)
 * CMake
 * SQLite
 * TagLib
-* GStreamer where advanced multimedia functionality is required
+* Qt DBus (MPRIS desktop integration)
 * CTest / Qt Test
 * Git
 

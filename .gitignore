@@ -28,7 +28,9 @@ CMakeLists.txt.user
 
 # Test outputs
 test-results/
+Testing/
 *.log
+.atl/
 
 # OS
 .DS_Store

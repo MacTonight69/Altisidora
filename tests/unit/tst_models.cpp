@@ -4,14 +4,12 @@
 #include "models/Song.h"
 #include "models/Album.h"
 #include "models/Artist.h"
-#include "models/Genre.h"
 #include "models/Playlist.h"
 
 /**
  * @brief Tests for the real domain models (src/models).
  *
- * Validates default values, round-trip conversion (toVariantMap /
- * fromVariantMap) and Playlist invariants.
+ * Validates default values and the canonical Song::toVariantMap() mapping.
  */
 class TestModels : public QObject
 {
@@ -19,21 +17,13 @@ class TestModels : public QObject
 
 private slots:
     void testSongDefaultValues();
-    void testSongVariantRoundTrip();
-    void testSongFromVariantMapPartial();
+    void testSongToVariantMap();
 
     void testAlbumDefaultValues();
-    void testAlbumVariantRoundTrip();
 
     void testArtistDefaultValues();
-    void testArtistVariantRoundTrip();
-
-    void testGenreDefaultValues();
-    void testGenreVariantRoundTrip();
 
     void testPlaylistDefaults();
-    void testPlaylistConstructor();
-    void testPlaylistIsValid();
 };
 
 void TestModels::testSongDefaultValues()
@@ -56,61 +46,45 @@ void TestModels::testSongDefaultValues()
     QVERIFY(!song.favorite);
 }
 
-void TestModels::testSongVariantRoundTrip()
+void TestModels::testSongToVariantMap()
 {
-    Song original;
-    original.id = 42;
-    original.path = QStringLiteral("/music/song.flac");
-    original.title = QStringLiteral("My Song");
-    original.artist = QStringLiteral("My Artist");
-    original.album = QStringLiteral("My Album");
-    original.genre = QStringLiteral("Rock");
-    original.year = 2024;
-    original.trackNumber = 3;
-    original.discNumber = 1;
-    original.duration = 240000;
-    original.artworkPath = QStringLiteral("/artwork/cover.jpg");
-    original.dateAdded = QDateTime(QDate(2024, 1, 15), QTime(10, 30));
-    original.lastPlayed = QDateTime(QDate(2024, 1, 20), QTime(21, 0));
-    original.playCount = 15;
-    original.favorite = true;
+    Song song;
+    song.id = 42;
+    song.path = QStringLiteral("/music/song.flac");
+    song.title = QStringLiteral("My Song");
+    song.artist = QStringLiteral("My Artist");
+    song.album = QStringLiteral("My Album");
+    song.genre = QStringLiteral("Rock");
+    song.year = 2024;
+    song.trackNumber = 3;
+    song.discNumber = 1;
+    song.duration = 240000;
+    song.artworkPath = QStringLiteral("/artwork/cover.jpg");
+    song.dateAdded = QDateTime(QDate(2024, 1, 15), QTime(10, 30));
+    song.lastPlayed = QDateTime(QDate(2024, 1, 20), QTime(21, 0));
+    song.playCount = 15;
+    song.favorite = true;
 
-    const QVariantMap map = original.toVariantMap();
+    // The canonical mapping exposes exactly the keys QML binds to.
+    const QVariantMap map = song.toVariantMap();
     QCOMPARE(map.size(), 15);
-
-    const Song restored = Song::fromVariantMap(map);
-    QCOMPARE(restored.id, original.id);
-    QCOMPARE(restored.path, original.path);
-    QCOMPARE(restored.title, original.title);
-    QCOMPARE(restored.artist, original.artist);
-    QCOMPARE(restored.album, original.album);
-    QCOMPARE(restored.genre, original.genre);
-    QCOMPARE(restored.year, original.year);
-    QCOMPARE(restored.trackNumber, original.trackNumber);
-    QCOMPARE(restored.discNumber, original.discNumber);
-    QCOMPARE(restored.duration, original.duration);
-    QCOMPARE(restored.artworkPath, original.artworkPath);
-    QCOMPARE(restored.dateAdded, original.dateAdded);
-    QCOMPARE(restored.lastPlayed, original.lastPlayed);
-    QCOMPARE(restored.playCount, original.playCount);
-    QCOMPARE(restored.favorite, original.favorite);
-}
-
-void TestModels::testSongFromVariantMapPartial()
-{
-    QVariantMap map;
-    map[QStringLiteral("id")] = 7;
-    map[QStringLiteral("path")] = QStringLiteral("/music/partial.mp3");
-
-    // Missing keys fall back to safe defaults instead of crashing.
-    const Song song = Song::fromVariantMap(map);
-    QCOMPARE(song.id, 7);
-    QCOMPARE(song.path, QStringLiteral("/music/partial.mp3"));
-    QVERIFY(song.title.isEmpty());
-    QCOMPARE(song.year, 0);
-    QCOMPARE(song.duration, qint64(0));
-    QCOMPARE(song.playCount, 0);
-    QVERIFY(!song.favorite);
+    QCOMPARE(map.value(QStringLiteral("id")).toInt(), 42);
+    QCOMPARE(map.value(QStringLiteral("path")).toString(), song.path);
+    QCOMPARE(map.value(QStringLiteral("title")).toString(), song.title);
+    QCOMPARE(map.value(QStringLiteral("artist")).toString(), song.artist);
+    QCOMPARE(map.value(QStringLiteral("album")).toString(), song.album);
+    QCOMPARE(map.value(QStringLiteral("genre")).toString(), song.genre);
+    QCOMPARE(map.value(QStringLiteral("year")).toInt(), song.year);
+    QCOMPARE(map.value(QStringLiteral("trackNumber")).toInt(), song.trackNumber);
+    QCOMPARE(map.value(QStringLiteral("discNumber")).toInt(), song.discNumber);
+    QCOMPARE(map.value(QStringLiteral("duration")).toLongLong(), song.duration);
+    // The QML-facing key is "artwork", not the struct/DB name artworkPath.
+    QCOMPARE(map.value(QStringLiteral("artwork")).toString(), song.artworkPath);
+    QCOMPARE(map.value(QStringLiteral("dateAdded")).toDateTime(), song.dateAdded);
+    QCOMPARE(map.value(QStringLiteral("lastPlayed")).toDateTime(), song.lastPlayed);
+    QCOMPARE(map.value(QStringLiteral("playCount")).toInt(), song.playCount);
+    QCOMPARE(map.value(QStringLiteral("favorite")).toBool(), song.favorite);
+    QVERIFY(!map.contains(QStringLiteral("artworkPath")));
 }
 
 void TestModels::testAlbumDefaultValues()
@@ -124,25 +98,6 @@ void TestModels::testAlbumDefaultValues()
     QVERIFY(album.artworkPath.isEmpty());
 }
 
-void TestModels::testAlbumVariantRoundTrip()
-{
-    Album original;
-    original.id = 11;
-    original.title = QStringLiteral("Dark Side of the Moon");
-    original.artist = QStringLiteral("Pink Floyd");
-    original.year = 1973;
-    original.songCount = 10;
-    original.artworkPath = QStringLiteral("/artwork/dsotm.jpg");
-
-    const Album restored = Album::fromVariantMap(original.toVariantMap());
-    QCOMPARE(restored.id, original.id);
-    QCOMPARE(restored.title, original.title);
-    QCOMPARE(restored.artist, original.artist);
-    QCOMPARE(restored.year, original.year);
-    QCOMPARE(restored.songCount, original.songCount);
-    QCOMPARE(restored.artworkPath, original.artworkPath);
-}
-
 void TestModels::testArtistDefaultValues()
 {
     Artist artist;
@@ -150,42 +105,6 @@ void TestModels::testArtistDefaultValues()
     QVERIFY(artist.name.isEmpty());
     QCOMPARE(artist.songCount, 0);
     QCOMPARE(artist.albumCount, 0);
-}
-
-void TestModels::testArtistVariantRoundTrip()
-{
-    Artist original;
-    original.id = 3;
-    original.name = QStringLiteral("Queen");
-    original.songCount = 15;
-    original.albumCount = 4;
-
-    const Artist restored = Artist::fromVariantMap(original.toVariantMap());
-    QCOMPARE(restored.id, original.id);
-    QCOMPARE(restored.name, original.name);
-    QCOMPARE(restored.songCount, original.songCount);
-    QCOMPARE(restored.albumCount, original.albumCount);
-}
-
-void TestModels::testGenreDefaultValues()
-{
-    Genre genre;
-    QCOMPARE(genre.id, 0);
-    QVERIFY(genre.name.isEmpty());
-    QCOMPARE(genre.songCount, 0);
-}
-
-void TestModels::testGenreVariantRoundTrip()
-{
-    Genre original;
-    original.id = 9;
-    original.name = QStringLiteral("Jazz");
-    original.songCount = 23;
-
-    const Genre restored = Genre::fromVariantMap(original.toVariantMap());
-    QCOMPARE(restored.id, original.id);
-    QCOMPARE(restored.name, original.name);
-    QCOMPARE(restored.songCount, original.songCount);
 }
 
 void TestModels::testPlaylistDefaults()
@@ -196,37 +115,6 @@ void TestModels::testPlaylistDefaults()
     QVERIFY(playlist.description.isEmpty());
     QVERIFY(!playlist.dateCreated.isValid());
     QCOMPARE(playlist.songCount, 0);
-    QVERIFY(!playlist.isValid());
-}
-
-void TestModels::testPlaylistConstructor()
-{
-    const QDateTime created(QDate(2024, 5, 1), QTime(12, 0));
-    Playlist playlist(5, QStringLiteral("Workout"), QStringLiteral("Gym"),
-                      created, 12);
-
-    QCOMPARE(playlist.id, qint64(5));
-    QCOMPARE(playlist.name, QStringLiteral("Workout"));
-    QCOMPARE(playlist.description, QStringLiteral("Gym"));
-    QCOMPARE(playlist.dateCreated, created);
-    QCOMPARE(playlist.songCount, 12);
-    QVERIFY(playlist.isValid());
-}
-
-void TestModels::testPlaylistIsValid()
-{
-    Playlist emptyName;
-    emptyName.id = 1;
-    QVERIFY(!emptyName.isValid());
-
-    Playlist zeroId;
-    zeroId.name = QStringLiteral("No id");
-    QVERIFY(!zeroId.isValid());
-
-    Playlist valid;
-    valid.id = 1;
-    valid.name = QStringLiteral("Valid");
-    QVERIFY(valid.isValid());
 }
 
 QTEST_MAIN(TestModels)

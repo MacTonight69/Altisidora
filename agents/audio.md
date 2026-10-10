@@ -10,15 +10,11 @@ Your primary responsibility is reliable, efficient and extensible audio playback
 
 Primary:
 
-* Qt Multimedia
-* QMediaPlayer
-* QAudioOutput
+* libmpv (`mpv/client.h`)
+* mpv audio filters (`af` property)
 
-Advanced:
-
-* GStreamer
-
-Use GStreamer only when the required functionality cannot be implemented cleanly using the existing Qt multimedia infrastructure.
+The audio backend is created lazily on first `load()`, so headless tests that
+never load media do not touch it.
 
 ## Responsibilities
 
@@ -40,31 +36,15 @@ You own:
 
 ## Public API
 
-The audio subsystem should expose a stable high-level interface.
-
-Example:
-
-play()
-pause()
-stop()
-next()
-previous()
-seek()
-setVolume()
+The audio subsystem exposes a stable high-level interface. The authoritative
+operation list is in `docs/API_CONTRACTS.md`.
 
 Do not expose backend-specific implementation details to the GUI.
 
 ## State management
 
-Playback states should be explicitly represented.
-
-Possible states:
-
-* Stopped
-* Loading
-* Playing
-* Paused
-* Error
+Playback states are explicitly represented; the authoritative list is in
+`docs/API_CONTRACTS.md`.
 
 State transitions must be predictable.
 
@@ -89,14 +69,16 @@ Handle:
 
 Errors should be propagated to higher layers using the project's established error-reporting mechanism.
 
-## GStreamer
+## libmpv
 
-When GStreamer is introduced:
+Keep the libmpv integration isolated:
 
-* Keep the GStreamer implementation isolated.
-* Do not expose GStreamer objects to QML.
-* Avoid coupling the rest of the application to GStreamer.
-* Prefer an abstraction around the audio backend.
+* Do not expose mpv objects or properties to QML.
+* Avoid coupling the rest of the application to libmpv.
+* Keep the backend behind `PlayerController`; the rest of the app interacts
+  only with that interface.
+* `PlayerController` sets the C numeric locale before `mpv_create()`; libmpv
+  parsers require it.
 
 ## Testing
 

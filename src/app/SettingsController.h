@@ -31,8 +31,6 @@ public slots:
     void setTheme(const QString &name);
     void setFontScale(double scale);
     void setDeleteFilesFromDisk(bool value);
-    QVariant getSetting(const QString &key, const QVariant &defaultValue) const;
-    void setSetting(const QString &key, const QVariant &value);
     void save();
     void load();
 

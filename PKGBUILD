@@ -9,16 +9,18 @@ license=('GPL3')
 depends=(
     'qt6-base'
     'qt6-declarative'
-    'qt6-multimedia'
+    'mpv'
     'taglib'
 )
 makedepends=(
     'cmake'
     'gcc'
+    'pkgconf'
 )
-optdepends=(
-    'gstreamer: advanced audio features'
-)
+
+# TODO: Finalize the upstream URL and checksums before publishing.
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
 
 build() {
     cd "$srcdir/$pkgname"

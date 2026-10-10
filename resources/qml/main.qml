@@ -7,6 +7,7 @@ import QtQuick.Dialogs
 
 import "views"
 import "components"
+import "js/Utils.js" as Utils
 
 ApplicationWindow {
     id: root
@@ -121,10 +122,7 @@ ApplicationWindow {
 
     // QUrl -> plain local path ("/home/user/Music")
     function folderToPath(url) {
-        var s = url.toString()
-        if (s.indexOf("file://") === 0)
-            s = s.substring(7)
-        return decodeURIComponent(s)
+        return Utils.urlToPath(url)
     }
 
     // Per-section search: match album titles (Albums) and artist names

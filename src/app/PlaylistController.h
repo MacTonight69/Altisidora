@@ -25,7 +25,6 @@ public slots:
     void createPlaylist(const QString &name);
     void deletePlaylist(qint64 id);
     void renamePlaylist(qint64 id, const QString &newName);
-    void addSong(qint64 playlistId, qint64 songId);
     /**
      * @brief Add several songs to a playlist in one call.
      *

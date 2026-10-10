@@ -101,7 +101,6 @@ public slots:
     void setRepeatOne(bool enabled);
 
     // Media loading
-    void load(const QUrl &url);
     /**
      * @brief Load a song keeping its library metadata.
      *
@@ -159,6 +158,7 @@ private slots:
 
 private:
     // Backend helpers
+    void load(const QUrl &url);
     bool ensureMpv();
     void applyVolume();
     void applyEq();

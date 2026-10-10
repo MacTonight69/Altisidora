@@ -27,7 +27,6 @@ private slots:
     void testDeleteFilesFromDisk();
     void testSettingsChangedSignal();
     void testNoSignalWhenValueUnchanged();
-    void testGenericGetSet();
     void testPersistenceAcrossInstances();
 
 private:
@@ -68,9 +67,6 @@ void tst_settings::testDefaults()
 
     // Deleting songs removes the files from disk by default (active mode).
     QVERIFY(settings.deleteFilesFromDisk());
-
-    // Unknown keys fall back to the provided default
-    QCOMPARE(settings.getSetting(QStringLiteral("does.not.exist"), 42).toInt(), 42);
 }
 
 void tst_settings::testSetMusicDirectory()
@@ -88,8 +84,8 @@ void tst_settings::testSetTheme()
     QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
     settings.setTheme(QStringLiteral("Kawai"));
     QCOMPARE(settings.theme(), QStringLiteral("Kawai"));
-    settings.setTheme(QStringLiteral("The Niggest"));
-    QCOMPARE(settings.theme(), QStringLiteral("The Niggest"));
+    settings.setTheme(QStringLiteral("Onyx"));
+    QCOMPARE(settings.theme(), QStringLiteral("Onyx"));
     settings.setTheme(QStringLiteral("Mimy"));
     QCOMPARE(settings.theme(), QStringLiteral("Mimy"));
 }
@@ -143,9 +139,6 @@ void tst_settings::testSettingsChangedSignal()
 
     settings.setFontScale(1.4);
     QCOMPARE(spy.count(), 3);
-
-    settings.setSetting(QStringLiteral("volume"), 0.5);
-    QCOMPARE(spy.count(), 4);
 }
 
 void tst_settings::testNoSignalWhenValueUnchanged()
@@ -172,18 +165,6 @@ void tst_settings::testNoSignalWhenValueUnchanged()
     QCOMPARE(spy.count(), 2);
     settings.setFontScale(1.4);
     QCOMPARE(spy.count(), 2);
-}
-
-void tst_settings::testGenericGetSet()
-{
-    SettingsController settings;
-
-    settings.setSetting(QStringLiteral("volume"), 0.75);
-    QCOMPARE(settings.getSetting(QStringLiteral("volume"), 1.0).toDouble(), 0.75);
-
-    settings.setSetting(QStringLiteral("lastFolder"), QStringLiteral("/tmp"));
-    QCOMPARE(settings.getSetting(QStringLiteral("lastFolder"), QString()).toString(),
-             QStringLiteral("/tmp"));
 }
 
 void tst_settings::testPersistenceAcrossInstances()

@@ -86,7 +86,7 @@ void tst_theme_fonts::testThemeDataScaleRule()
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
         {QStringLiteral("Maya"), 1.9},
-        {QStringLiteral("The Niggest"), 1.4},
+        {QStringLiteral("Onyx"), 1.4},
     };
 
     const auto names = m_theme->property("themeNames").toStringList();
@@ -118,7 +118,7 @@ void tst_theme_fonts::testApplyAssignsFontScale()
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
         {QStringLiteral("Maya"), 1.9},
-        {QStringLiteral("The Niggest"), 1.4},
+        {QStringLiteral("Onyx"), 1.4},
     };
     const QList<QString> names = scales.keys();
     for (const QString &name : names) {

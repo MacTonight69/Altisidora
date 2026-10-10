@@ -59,11 +59,10 @@ search(query)
 songs        (Q_PROPERTY)
 albums       (Q_PROPERTY)
 artists      (Q_PROPERTY)
-genres       (Q_PROPERTY)
 ```
 
 The controller exposes models suitable for consumption by QML: properties are
-arrays of QVariantMap keyed with the `Song`/`Album`/`Artist`/`Genre` field
+arrays of QVariantMap keyed with the `Song`/`Album`/`Artist` field
 names (`id`, `path`, `title`, `artist`, `album`, `duration`, `songCount`, …)
 and are notified through `libraryChanged()`.
 
@@ -87,14 +86,18 @@ renamePlaylist()
 addSong()
 addSongs(playlistId, songIds)
 removeSong()
-moveSong()
-getPlaylists()
+getPlaylistSongs(playlistId)
+playlists            (Q_PROPERTY)
 ```
 
 `addSongs()` inserts a batch of song ids into a playlist in order and notifies
 `playlistsChanged()` once for the whole batch. The GUI uses it to add the
 multi-selected songs in the Songs view (the selection bar passes the array of
 ids; the per-row "+ Playlist" button passes a single-element array).
+
+`playlists` is exposed as a `Q_PROPERTY` (list of playlist maps) rather than a
+`getPlaylists()` method. Reordering a song inside a playlist (`moveSong`) is not
+implemented.
 
 ---
 
@@ -103,8 +106,10 @@ ids; the per-row "+ Playlist" button passes a single-element array).
 Responsibilities:
 
 ```text
-getSetting()
-setSetting()
+musicDirectory       (Q_PROPERTY)
+theme                (Q_PROPERTY)
+fontScale            (Q_PROPERTY)
+deleteFilesFromDisk  (Q_PROPERTY)
 save()
 load()
 ```
@@ -128,12 +133,15 @@ year
 trackNumber
 discNumber
 duration
-artwork
+artworkPath
 dateAdded
 lastPlayed
 playCount
 favorite
 ```
+
+The C++ struct field is `artworkPath`; `LibraryController` exposes it to QML
+under the key `artwork`.
 
 ---
 

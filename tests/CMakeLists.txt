@@ -1,10 +1,5 @@
 # Test infrastructure for Altisidora
 
-# Test-specific compile definitions
-set(TEST_COMPILE_DEFINITIONS
-    QT_TESTCASE_SOURCEDIR="${CMAKE_CURRENT_SOURCE_DIR}"
-)
-
 # Helper library for shared test utilities
 add_library(TestHelpers STATIC
     TestHelpers.cpp
@@ -18,25 +13,6 @@ target_link_libraries(TestHelpers PUBLIC
 )
 
 target_include_directories(TestHelpers PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# Mock objects library
-add_library(TestMocks STATIC
-    mocks/MockDatabase.cpp
-    mocks/MockDatabase.h
-    mocks/MockPlayer.cpp
-    mocks/MockPlayer.h
-)
-
-target_link_libraries(TestMocks PUBLIC
-    Qt6::Core
-    Qt6::Test
-    Qt6::Multimedia
-    Qt6::Sql
-)
-
-target_include_directories(TestMocks PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -54,12 +30,16 @@ set(UNIT_TESTS
     tst_mpris
 )
 
-# Production sources exercised by specific tests
+# Integration tests
+set(INTEGRATION_TESTS
+    tst_library_scan
+    tst_playback
+)
+
+# Production sources exercised by specific tests.
+# Keyed by test name: <test>_PROD_SOURCES.
 set(tst_models_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/models/Song.cpp
-    ${CMAKE_SOURCE_DIR}/src/models/Album.cpp
-    ${CMAKE_SOURCE_DIR}/src/models/Artist.cpp
-    ${CMAKE_SOURCE_DIR}/src/models/Genre.cpp
 )
 set(tst_database_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
@@ -85,12 +65,14 @@ set(tst_metadata_PROD_SOURCES
 set(tst_playlist_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/app/PlaylistController.cpp
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/models/Song.cpp
 )
 set(tst_library_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
     ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/models/Song.cpp
 )
 set(tst_mpris_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/mpris/MprisPlayer.cpp
@@ -99,10 +81,37 @@ set(tst_mpris_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.h
     ${CMAKE_SOURCE_DIR}/src/audio/PlaybackState.h
 )
+set(tst_library_scan_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/models/Song.cpp
+)
+set(tst_playback_PROD_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.cpp
+    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.h
+    ${CMAKE_SOURCE_DIR}/src/audio/PlaybackState.h
+    ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
+    ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/models/Song.cpp
+)
 
-foreach(test_name ${UNIT_TESTS})
+# All tests share the same sources/linking rules; unit tests live under unit/
+# with a 60s timeout, integration tests under integration/ with 120s.
+foreach(test_name ${UNIT_TESTS} ${INTEGRATION_TESTS})
+    if(test_name IN_LIST INTEGRATION_TESTS)
+        set(test_subdir integration)
+        set(test_timeout 120)
+    else()
+        set(test_subdir unit)
+        set(test_timeout 60)
+    endif()
+
     add_executable(${test_name}
-        unit/${test_name}.cpp
+        ${test_subdir}/${test_name}.cpp
     )
 
     # Link real production sources when the test exercises them
@@ -117,21 +126,16 @@ foreach(test_name ${UNIT_TESTS})
         )
     endif()
 
-    target_compile_definitions(${test_name} PRIVATE
-        ${TEST_COMPILE_DEFINITIONS}
-    )
-
     target_link_libraries(${test_name} PRIVATE
         Qt6::Core
         Qt6::Test
-        Qt6::Multimedia
         Qt6::Sql
         Qt6::Concurrent
         TestHelpers
-        TestMocks
         PkgConfig::MPV
     )
 
+    # tst_theme_fonts renders the QML theme files directly.
     if(test_name STREQUAL "tst_theme_fonts")
         target_link_libraries(${test_name} PRIVATE Qt6::Qml Qt6::Quick)
         target_compile_definitions(${test_name} PRIVATE
@@ -139,12 +143,10 @@ foreach(test_name ${UNIT_TESTS})
         )
     endif()
 
+    # tst_mpris registers a D-Bus service: link DBus and run it inside a
+    # private bus.
     if(test_name STREQUAL "tst_mpris")
         target_link_libraries(${test_name} PRIVATE Qt6::DBus)
-    endif()
-
-    # tst_mpris registers a D-Bus service: run it inside a private bus.
-    if(test_name STREQUAL "tst_mpris")
         add_test(
             NAME ${test_name}
             COMMAND dbus-run-session -- $<TARGET_FILE:${test_name}>
@@ -156,74 +158,15 @@ foreach(test_name ${UNIT_TESTS})
         )
     endif()
 
-    set_tests_properties(${test_name} PROPERTIES
-        TIMEOUT 60
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    )
-endforeach()
-
-# Integration tests
-set(INTEGRATION_TESTS
-    tst_library_scan
-    tst_playback
-)
-
-# Production sources exercised by specific integration tests
-set(tst_library_scan_PROD_SOURCES
-    ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
-    ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
-    ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
-)
-set(tst_playback_PROD_SOURCES
-    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.cpp
-    ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.h
-    ${CMAKE_SOURCE_DIR}/src/audio/PlaybackState.h
-    ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
-    ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
-    ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
-)
-
-foreach(test_name ${INTEGRATION_TESTS})
-    add_executable(${test_name}
-        integration/${test_name}.cpp
-    )
-
-    # Link real production sources when the test exercises them
-    if(DEFINED ${test_name}_PROD_SOURCES)
-        target_sources(${test_name} PRIVATE ${${test_name}_PROD_SOURCES})
-        target_include_directories(${test_name} PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${TAGLIB_INCLUDE_DIRS}
-        )
-        target_link_libraries(${test_name} PRIVATE
-            ${TAGLIB_LIBRARIES}
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${test_name} PRIVATE
+            -Wall
+            -Wextra
         )
     endif()
 
-    target_compile_definitions(${test_name} PRIVATE
-        ${TEST_COMPILE_DEFINITIONS}
-    )
-
-    target_link_libraries(${test_name} PRIVATE
-        Qt6::Core
-        Qt6::Test
-        Qt6::Multimedia
-        Qt6::Sql
-        Qt6::Concurrent
-        TestHelpers
-        TestMocks
-        PkgConfig::MPV
-    )
-
-    add_test(
-        NAME ${test_name}
-        COMMAND ${test_name}
-    )
-
     set_tests_properties(${test_name} PROPERTIES
-        TIMEOUT 120
+        TIMEOUT ${test_timeout}
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 endforeach()
