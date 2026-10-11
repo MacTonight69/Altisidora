@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-10-09
+Last updated: 2026-10-11
 
 ## Summary
 
@@ -25,7 +25,7 @@ the controllers are in place. All tests pass.
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
 | GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (click / Ctrl / Shift / Ctrl+A) with batch add to playlist |
 | Tests | `tests/` | Implemented | 10 unit + 2 integration suites, all passing; see below |
-| Packaging | root | Initial | `PKGBUILD`, `.desktop`, GitHub Actions CI (Ubuntu) |
+| Packaging | root | Initial | `PKGBUILD`, `.desktop` |
 
 ## Public API
 
@@ -56,7 +56,7 @@ Run with `ctest --output-on-failure` from the build directory.
 | tst_theme_fonts | unit (real SettingsController + bundled theme QML) | Real tests |
 | tst_mpris | unit (real MprisPlayer over a private D-Bus session) | Real tests |
 | tst_library_scan | integration (real scan + persistence across restart) | Real tests |
-| tst_playback | integration (scan → library → `loadSong` data flow) | Actual audio playback needs a media backend, out of CI scope |
+| tst_playback | integration (scan → library → `loadSong` data flow) | Actual audio playback needs a media backend, not exercised by the suite |
 
 All test binaries run headless (`QT_QPA_PLATFORM=offscreen` set via CTest).
 
@@ -80,13 +80,15 @@ Test isolation:
   the navigation context for `next()`/`previous()`).
 - `tst_playback` covers the data flow up to `PlayerController::loadSong()`;
   actual audio playback (needs a media backend with decoders) is not exercised
-  in CI.
+  by the suite.
 - `LibraryController` does not load existing songs in its constructor; callers
   must invoke `refresh()` (done once in `src/main.cpp`; QML does not call it).
 - Migrations: only schema version 1 exists; there is no migration runner yet
   (`DatabaseManager` creates the tables and records the version in the
   `schema_version` table).
-- CI builds on Ubuntu, not CachyOS/Arch; the PKGBUILD is untested.
+- Continuous integration (GitHub Actions) was removed and is not present in the
+  repo; validate changes by running `ctest` headless locally. The PKGBUILD is
+  untested on CachyOS/Arch.
 
 ## Next steps
 
