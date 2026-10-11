@@ -38,6 +38,8 @@ public:
         DurationRole,
         ArtworkRole,
         FavoriteRole,
+        PlayCountRole,
+        LastPlayedRole,
     };
 
     explicit SongListModel(QObject *parent = nullptr);
@@ -49,6 +51,29 @@ public:
     int count() const;
 
     void setSongs(const QVector<Song> &songs);
+
+    /**
+     * @brief Rebuild the rows incrementally from a new snapshot.
+     *
+     * Diffs the current rows against @p songs by id and emits row-level
+     * add/remove/dataChanged signals instead of a full beginResetModel(), so
+     * a scan that touches a handful of songs only re-renders those rows.
+     *
+     * Shared ids are expected to keep their relative order (the snapshot is
+     * always ordered by title, path). When they do not — e.g. a song's title
+     * changed and it must move — the update falls back to a full reset,
+     * because signalling a reorder row-by-row would need persistent indexes.
+     */
+    void applySnapshot(const QVector<Song> &songs);
+
+    /**
+     * @brief Sort the rows by a role, in place.
+     *
+     * Reordering is signalled as a full reset: a sort moves arbitrary rows,
+     * and emitting one move at a time would require persistent model indexes
+     * for no practical gain on a user-initiated, infrequent action.
+     */
+    void sort(Role role, Qt::SortOrder order = Qt::AscendingOrder);
 
     // For QML scripts that still need a map (e.g. pushing into the Player
     // queue) or a row lookup by song id.
@@ -63,5 +88,12 @@ signals:
     void countChanged();
 
 private:
+    // Role -> field value as a QVariant. Single source for data() and sort().
+    static QVariant fieldFor(const Song &song, Role role);
+
+    // True when every QML-visible field matches. The file fingerprints
+    // (mtimeMs/size) are internal and never rendered, so they are excluded.
+    static bool sameDisplayData(const Song &a, const Song &b);
+
     QVector<Song> m_songs;
 };

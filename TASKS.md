@@ -34,11 +34,11 @@ Baseline verified at the time of writing: `e2b7692`, clean tree, fresh
 |--------|------|---------------|------|--------|
 | A | Scan transaction (A1/A1b), DB indexes + pragmas (A2), search debounce (A3), scanner ext set (A4) | `DatabaseManager.*`, `LibraryController.*`, `Scanner.cpp`, `main.qml` | Low | [x] (A1, A2, A3, A4; A1b not needed) |
 | B | Cache `songs/albums/artists` reads (B1); one-pass `collectSongs()` (B2) | `LibraryController.*`, `AlbumsView.qml`, `ArtistsView.qml` | Medium | [x] |
-| C | `SongListModel` + role-based delegates (C1–C4) | `SongListModel.*` (new), `CMakeLists.txt`, `tests/CMakeLists.txt`, `SongsView.qml`, `SongListDetailView.qml`, `PlaylistsView.qml`, `main.qml` | High | [x] C1–C4 (search half); incremental half deferred |
+| C | `SongListModel` + role-based delegates (C1–C4) | `SongListModel.*` (new), `CMakeLists.txt`, `tests/CMakeLists.txt`, `SongsView.qml`, `SongListDetailView.qml`, `PlaylistsView.qml`, `main.qml` | High | [x] C1–C4 |
 
 A, B and C are independent; the plan only assumes you do them in order.
 
-**Status: A–C (incl. the C4 search half) and the backlog are implemented.**
+**Status: A–C (C4 included) and the backlog are implemented.**
 Branch chain (base `e2b7692`): `perf/quick-wins` (A) → `perf/controller-cache`
 (B, TASKS.md, C, theme fonts) → `perf/backlog-microopts` (backlog) →
 `build/static-core-lib` (static core + DB note, scan transaction commit, C4
@@ -46,9 +46,11 @@ search model `fd2ed0d`, hide-by-id fix `b1885be`). After the C4 search work a
 pre-existing QML bug surfaced and was fixed: the song/playlist delegates were
 missing `required property var model` under `pragma ComponentBehavior: Bound`,
 so rows never rendered (`fix(qml): declare required model binding…`, `099b359`).
-Verified after every commit: build exit 0 (0 warnings), `ctest` 12/12, smoke
-OK. What remains deferred from C4: row-level incremental model updates and
-model-side sort/columns (see below).
+C4 was then finished: `applySnapshot()` gives the songs model row-level
+incremental updates (no more `beginResetModel()` on a library change), and the
+model grew `PlayCountRole` / `LastPlayedRole` plus `sort(role, order)` so
+ordering lives in C++. Verified after every commit: build exit 0 (0 warnings),
+`ctest` 12/12, smoke OK. Nothing is deferred from this plan.
 
 ---
 
@@ -823,21 +825,20 @@ playlist — rows render and play identically.
 
 **Commit.** `refactor(ui): role-based delegates in detail and playlist views`
 
-### C4 — Search through the model (done) + incremental updates (deferred)
-
-Deferred follow-ups that the model work unlocks (recorded here so later
-sessions know where the model can go):
+### C4 — Search through the model + incremental updates `[done]`
 
 - [x] Search results render through `SongListModel` (`Library.searchModel`,
   `setSearch`, `searchActive`; `main.qml` routes
-  `searchActive ? searchModel : songsModel`) — implemented in `fd2ed0d`
-  (`perf: render search results through the song role model`).
-- [ ] Replace `beginResetModel` on every library change with row-level diff
-  updates (add/remove) fed from `handleScanFinished`.
-- [ ] Sort / favorite / play-count columns directly in the model.
-
-The two `[ ]` items can now be scheduled: A + B + C1–C4 (search) are merged
-and reviewed on `build/static-core-lib`.
+  `searchActive ? searchModel : songsModel`) — `fd2ed0d`.
+- [x] Row-level incremental updates. `SongListModel::applySnapshot()` diffs a
+  new snapshot by id and emits `rowsInserted` / `rowsRemoved` / `dataChanged`
+  instead of `beginResetModel()`; `handleScanFinished()` and `refresh()` feed
+  it. A kept id whose sort key changed falls back to a full reset. Tests:
+  `tst_models` `testSongListModelIncremental`.
+- [x] Sort / favorite / play-count in the model. Added `PlayCountRole` /
+  `LastPlayedRole` (the model now mirrors every `Song` field) and
+  `SongListModel::sort(role, order)` so ordering lives in C++, not in QML.
+  Tests: `tst_models` `testSongListModelSort`.
 
 ---
 
@@ -879,8 +880,7 @@ Not part of the three options; small, isolated, safe later. **All done**
 
 ## Next step
 
-A–C (including the C4 search half) and the backlog are **done and verified**
-(see Status above). Remaining from this plan, now schedulable:
-**row-level incremental model updates** (`beginResetModel` → add/remove
-deltas from `handleScanFinished`) and **model-side sort/favorite/play-count
-columns**. Nothing else is outstanding from this plan.
+A–C (C4 included) and the backlog are **done and verified** (see Status above).
+Nothing is outstanding from this plan. The next work is outside it, tracked in
+`docs/PROJECT_STATUS.md`: artwork extraction/display, and testing the
+`PKGBUILD` on CachyOS/Arch.

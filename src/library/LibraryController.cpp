@@ -204,7 +204,7 @@ void LibraryController::handleScanFinished()
 
     m_songs = m_db.getAllSongs().toVector();
     m_cachesStale = true;
-    m_songsModel.setSongs(m_songs);
+    m_songsModel.applySnapshot(m_songs);
     m_scanRunning = false;
     emit libraryChanged();
     emit scanFinished();
@@ -214,7 +214,7 @@ void LibraryController::refresh()
 {
     m_songs = m_db.getAllSongs().toVector();
     m_cachesStale = true;
-    m_songsModel.setSongs(m_songs);
+    m_songsModel.applySnapshot(m_songs);
     emit libraryChanged();
 }
 

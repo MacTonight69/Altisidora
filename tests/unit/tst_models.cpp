@@ -20,6 +20,8 @@ private slots:
     void testSongDefaultValues();
     void testSongToVariantMap();
     void testSongListModel();
+    void testSongListModelIncremental();
+    void testSongListModelSort();
 
     void testAlbumDefaultValues();
 
@@ -112,6 +114,8 @@ void TestModels::testSongListModel()
     s1.duration = 190000;
     s1.artworkPath = QStringLiteral("/art/one.jpg");
     s1.favorite = true;
+    s1.playCount = 9;
+    s1.lastPlayed = QDateTime(QDate(2024, 3, 1), QTime(8, 0));
     Song s2;
     s2.id = 7;
     s2.title = QStringLiteral("Two");
@@ -141,6 +145,8 @@ void TestModels::testSongListModel()
     QCOMPARE(model.data(top, SongListModel::DurationRole).toLongLong(), qint64(190000));
     QCOMPARE(model.data(top, SongListModel::ArtworkRole).toString(), s1.artworkPath);
     QCOMPARE(model.data(top, SongListModel::FavoriteRole).toBool(), true);
+    QCOMPARE(model.data(top, SongListModel::PlayCountRole).toInt(), 9);
+    QCOMPARE(model.data(top, SongListModel::LastPlayedRole).toDateTime(), s1.lastPlayed);
     QCOMPARE(model.data(model.index(1), SongListModel::TitleRole).toString(), s2.title);
 
     // Invalid rows return a null QVariant, never a crash.
@@ -159,6 +165,137 @@ void TestModels::testSongListModel()
     QCOMPARE(roles.value(SongListModel::TitleRole), QByteArray("title"));
     QCOMPARE(roles.value(SongListModel::IdRole), QByteArray("id"));
     QCOMPARE(roles.value(SongListModel::FavoriteRole), QByteArray("favorite"));
+    QCOMPARE(roles.value(SongListModel::PlayCountRole), QByteArray("playCount"));
+    QCOMPARE(roles.value(SongListModel::LastPlayedRole), QByteArray("lastPlayed"));
+}
+
+void TestModels::testSongListModelIncremental()
+{
+    SongListModel model;
+
+    // Helper: a song whose only identity is id + title (path derived from it).
+    auto make = [](int id, const QString &title) {
+        Song s;
+        s.id = id;
+        s.title = title;
+        s.path = QStringLiteral("/music/") + title + QStringLiteral(".flac");
+        return s;
+    };
+
+    QVector<Song> seed;
+    seed << make(1, QStringLiteral("Alpha"))
+         << make(2, QStringLiteral("Bravo"))
+         << make(3, QStringLiteral("Charlie"));
+    model.setSongs(seed);
+    QCOMPARE(model.rowCount(), 3);
+
+    // A rescan that changes one existing song's non-sort data (duration) and
+    // adds one new song, with every other row keeping its relative order.
+    // Expect row-level signals, never a full reset.
+    QVector<Song> scan;
+    scan << make(1, QStringLiteral("Alpha"))
+         << make(2, QStringLiteral("Bravo"))
+         << make(9, QStringLiteral("Delta"))
+         << make(3, QStringLiteral("Charlie"));
+    scan[1].duration = 12345; // id 2 keeps its place, only its data changes
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy countSpy(&model, &SongListModel::countChanged);
+
+    model.applySnapshot(scan);
+
+    QCOMPARE(model.rowCount(), 4);
+    QCOMPARE(model.count(), 4);
+    QCOMPARE(insertedSpy.count(), 1); // only the new song
+    QCOMPARE(removedSpy.count(), 0);
+    QCOMPARE(changedSpy.count(), 1);  // only id 2 changed
+    QCOMPARE(resetSpy.count(), 0);
+    QCOMPARE(countSpy.count(), 1);
+
+    QCOMPARE(model.data(model.index(0), SongListModel::IdRole).toInt(), 1);
+    QCOMPARE(model.data(model.index(1), SongListModel::IdRole).toInt(), 2);
+    QCOMPARE(model.data(model.index(2), SongListModel::IdRole).toInt(), 9);
+    QCOMPARE(model.data(model.index(3), SongListModel::IdRole).toInt(), 3);
+    QCOMPARE(model.data(model.index(1), SongListModel::DurationRole).toInt(), 12345);
+
+    // Removal + insertion: drop ids 1 and 9, add id 5 at the front.
+    QVector<Song> prune;
+    prune << make(5, QStringLiteral("Aardvark"))
+          << make(2, QStringLiteral("Bravo"))
+          << make(3, QStringLiteral("Charlie"));
+    insertedSpy.clear();
+    removedSpy.clear();
+    resetSpy.clear();
+    model.applySnapshot(prune);
+    QCOMPARE(model.rowCount(), 3);
+    QCOMPARE(insertedSpy.count(), 1);
+    QCOMPARE(removedSpy.count(), 2);
+    QCOMPARE(resetSpy.count(), 0);
+    QCOMPARE(model.data(model.index(0), SongListModel::IdRole).toInt(), 5);
+    QCOMPARE(model.data(model.index(1), SongListModel::IdRole).toInt(), 2);
+    QCOMPARE(model.data(model.index(2), SongListModel::IdRole).toInt(), 3);
+
+    // A kept id whose sort key changed (title) must move: fall back to a full
+    // reset rather than a wrong in-place update.
+    QVector<Song> retitled;
+    retitled << make(2, QStringLiteral("Bravo"))
+             << make(3, QStringLiteral("Charlie"))
+             << make(5, QStringLiteral("Zulu"));
+    resetSpy.clear();
+    model.applySnapshot(retitled);
+    QCOMPARE(resetSpy.count(), 1);
+    QCOMPARE(model.rowCount(), 3);
+    QCOMPARE(model.data(model.index(2), SongListModel::IdRole).toInt(), 5);
+}
+
+void TestModels::testSongListModelSort()
+{
+    SongListModel model;
+
+    auto make = [](int id, const QString &title, int playCount) {
+        Song s;
+        s.id = id;
+        s.title = title;
+        s.playCount = playCount;
+        return s;
+    };
+
+    QVector<Song> songs;
+    songs << make(1, QStringLiteral("Charlie"), 3)
+          << make(2, QStringLiteral("Alpha"), 1)
+          << make(3, QStringLiteral("Bravo"), 2);
+    model.setSongs(songs);
+
+    // Ascending by title.
+    model.sort(SongListModel::TitleRole);
+    QCOMPARE(model.data(model.index(0), SongListModel::TitleRole).toString(),
+             QStringLiteral("Alpha"));
+    QCOMPARE(model.data(model.index(1), SongListModel::TitleRole).toString(),
+             QStringLiteral("Bravo"));
+    QCOMPARE(model.data(model.index(2), SongListModel::TitleRole).toString(),
+             QStringLiteral("Charlie"));
+
+    // Descending by playCount.
+    model.sort(SongListModel::PlayCountRole, Qt::DescendingOrder);
+    QCOMPARE(model.data(model.index(0), SongListModel::PlayCountRole).toInt(), 3);
+    QCOMPARE(model.data(model.index(1), SongListModel::PlayCountRole).toInt(), 2);
+    QCOMPARE(model.data(model.index(2), SongListModel::PlayCountRole).toInt(), 1);
+
+    // Empty and single-row models are a no-op.
+    SongListModel tiny;
+    tiny.sort(SongListModel::TitleRole);
+    QCOMPARE(tiny.rowCount(), 0);
+    Song solo;
+    solo.id = 1;
+    solo.title = QStringLiteral("Solo");
+    QVector<Song> soloList;
+    soloList << solo;
+    tiny.setSongs(soloList);
+    tiny.sort(SongListModel::TitleRole);
+    QCOMPARE(tiny.rowCount(), 1);
 }
 
 void TestModels::testAlbumDefaultValues()
