@@ -1,9 +1,9 @@
 # Altisidora — Optimization Plan (implementation tasks)
 
 Goal: make the app faster (scan, search), lighter (RAM, build) and cleaner
-(queries) without changing user-visible behaviour. Nothing in this document
-has been implemented yet; it is the working plan for three independent,
-cumulative options:
+(queries) without changing user-visible behaviour. The status table below
+reflects what is implemented; the plan documents the three independent,
+cumulative options that got us there:
 
 - **Option A — Quick wins** (scan transaction, DB indexes, search debounce,
   scanner extension lookup). Low risk, surgical.
@@ -13,6 +13,10 @@ cumulative options:
 - **Option C — `QAbstractListModel` foundation** (role-based delegates +
   a real list model for the main songs view). Architectural, higher risk,
   best done on top of A + B.
+- **C4 (partially done) — search through the model + incremental updates**.
+  The search half is implemented (`perf: render search results through the
+  song role model`); the row-level incremental-update half remains deferred
+  (see C4 section).
 
 Baseline verified at the time of writing: `e2b7692`, clean tree, fresh
 `cmake --build` exit 0 with 0 warnings, `ctest` 12/12.
@@ -30,15 +34,21 @@ Baseline verified at the time of writing: `e2b7692`, clean tree, fresh
 |--------|------|---------------|------|--------|
 | A | Scan transaction (A1/A1b), DB indexes + pragmas (A2), search debounce (A3), scanner ext set (A4) | `DatabaseManager.*`, `LibraryController.*`, `Scanner.cpp`, `main.qml` | Low | [x] (A1, A2, A3, A4; A1b not needed) |
 | B | Cache `songs/albums/artists` reads (B1); one-pass `collectSongs()` (B2) | `LibraryController.*`, `AlbumsView.qml`, `ArtistsView.qml` | Medium | [x] |
-| C | `SongListModel` + role-based delegates (C1–C4) | `SongListModel.*` (new), `CMakeLists.txt`, `tests/CMakeLists.txt`, `SongsView.qml`, `SongListDetailView.qml`, `PlaylistsView.qml`, `main.qml` | High | [x] C1–C3 (C4 deferred) |
+| C | `SongListModel` + role-based delegates (C1–C4) | `SongListModel.*` (new), `CMakeLists.txt`, `tests/CMakeLists.txt`, `SongsView.qml`, `SongListDetailView.qml`, `PlaylistsView.qml`, `main.qml` | High | [x] C1–C4 (search half); incremental half deferred |
 
 A, B and C are independent; the plan only assumes you do them in order.
 
-**Status: A–C and the backlog below are implemented.** Branch chain (base
-`e2b7692`): `perf/quick-wins` (A) → `perf/controller-cache` (B, TASKS.md, C,
-theme fonts) → `perf/backlog-microopts` (backlog) → `build/static-core-lib`
-(static core + DB note). Verified after every commit: build exit 0 (0
-warnings), `ctest` 12/12, smoke OK. C4 stays deferred by design (see below).
+**Status: A–C (incl. the C4 search half) and the backlog are implemented.**
+Branch chain (base `e2b7692`): `perf/quick-wins` (A) → `perf/controller-cache`
+(B, TASKS.md, C, theme fonts) → `perf/backlog-microopts` (backlog) →
+`build/static-core-lib` (static core + DB note, scan transaction commit, C4
+search model `fd2ed0d`, hide-by-id fix `b1885be`). After the C4 search work a
+pre-existing QML bug surfaced and was fixed: the song/playlist delegates were
+missing `required property var model` under `pragma ComponentBehavior: Bound`,
+so rows never rendered (`fix(qml): declare required model binding…`, `099b359`).
+Verified after every commit: build exit 0 (0 warnings), `ctest` 12/12, smoke
+OK. What remains deferred from C4: row-level incremental model updates and
+model-side sort/columns (see below).
 
 ---
 
@@ -813,18 +823,21 @@ playlist — rows render and play identically.
 
 **Commit.** `refactor(ui): role-based delegates in detail and playlist views`
 
-### C4 — Future: search + incremental updates (deferred) `[not now]`
+### C4 — Search through the model (done) + incremental updates (deferred)
 
-Deferred follow-ups that C1–C3 unlock (recorded here so later sessions know
-where the model can go):
+Deferred follow-ups that the model work unlocks (recorded here so later
+sessions know where the model can go):
 
-- Build `filteredSongsModel` in C++ (`Library.search()` → `setSongs(...)`)
-  instead of the JS path + `null` fallback in C2 step 3.
-- Replace `beginResetModel` on every library change with row-level diff
+- [x] Search results render through `SongListModel` (`Library.searchModel`,
+  `setSearch`, `searchActive`; `main.qml` routes
+  `searchActive ? searchModel : songsModel`) — implemented in `fd2ed0d`
+  (`perf: render search results through the song role model`).
+- [ ] Replace `beginResetModel` on every library change with row-level diff
   updates (add/remove) fed from `handleScanFinished`.
-- Sort / favorite / play-count columns directly in the model.
+- [ ] Sort / favorite / play-count columns directly in the model.
 
-Do **not** schedule these until A + B + C1–C3 are merged and reviewed.
+The two `[ ]` items can now be scheduled: A + B + C1–C4 (search) are merged
+and reviewed on `build/static-core-lib`.
 
 ---
 
@@ -866,7 +879,8 @@ Not part of the three options; small, isolated, safe later. **All done**
 
 ## Next step
 
-A–C and the backlog are **done and verified** (see Status above). The only
-deferred work is **C4** (search model + row-level incremental updates), which
-the plan holds back until A + B + C1–C3 are merged and reviewed. Nothing else
-is outstanding from this plan.
+A–C (including the C4 search half) and the backlog are **done and verified**
+(see Status above). Remaining from this plan, now schedulable:
+**row-level incremental model updates** (`beginResetModel` → add/remove
+deltas from `handleScanFinished`) and **model-side sort/favorite/play-count
+columns**. Nothing else is outstanding from this plan.
