@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QThread>
+#include <QThreadPool>
 #include <QtConcurrent>
 
 #include "Scanner.h"
@@ -101,17 +103,35 @@ void LibraryController::startScan(const QString &directory, qint64 minDurationMs
 
     // File walking and metadata extraction are CPU/IO-bound and thread-safe:
     // run them off the UI thread with local copies of Scanner/MetadataReader.
-    // Ignored paths are captured at scan start; new hide/unhide choices
-    // apply from the next scan on.
+    // Metadata extraction is parallelised further below. Ignored paths are
+    // captured at scan start; new hide/unhide choices apply from the next
+    // scan on.
     const QStringList ignoredPaths = m_db.ignoredPaths();
     m_scanWatcher.setFuture(QtConcurrent::run([directory, minDurationMs, ignoredPaths]() {
         Scanner scanner;
-        MetadataReader reader;
-        QList<Song> songs;
         const QVector<QString> files = scanner.scan(directory, ignoredPaths);
-        songs.reserve(files.size());
-        for (const QString &filePath : files) {
-            const Song song = reader.read(filePath);
+
+        // Extract tags in parallel: TagLib parsing is CPU-bound and each
+        // read() builds its own TagLib::FileRef (MetadataReader holds no
+        // state), so the work shards cleanly across cores. Use a dedicated
+        // pool rather than the global one: this lambda already runs on a
+        // global-pool thread, and blockingMapped() on that same pool would
+        // deadlock on a single-core machine (its only thread is the one
+        // blocked here, waiting for the map tasks it just queued).
+        QThreadPool pool;
+        pool.setMaxThreadCount(qMax(1, QThread::idealThreadCount()));
+
+        const QList<QString> fileList = files.toList();
+        const QList<Song> read = QtConcurrent::blockingMapped<QList<Song>>(
+            &pool, fileList.cbegin(), fileList.cend(),
+            [](const QString &filePath) {
+                MetadataReader reader; // one per call: no shared state
+                return reader.read(filePath);
+            });
+
+        QList<Song> songs;
+        songs.reserve(read.size());
+        for (const Song &song : read) {
             if (song.path.isEmpty()) {
                 continue;
             }
