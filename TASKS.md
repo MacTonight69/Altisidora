@@ -28,11 +28,17 @@ Baseline verified at the time of writing: `e2b7692`, clean tree, fresh
 
 | Option | What | Files touched | Risk | Status |
 |--------|------|---------------|------|--------|
-| A | Scan transaction (A1/A1b), DB indexes + pragmas (A2), search debounce (A3), scanner ext set (A4) | `DatabaseManager.*`, `LibraryController.*`, `Scanner.cpp`, `main.qml` | Low | [ ] |
-| B | Cache `songs/albums/artists` reads (B1); one-pass `collectSongs()` (B2) | `LibraryController.*`, `AlbumsView.qml`, `ArtistsView.qml` | Medium | [ ] |
-| C | `SongListModel` + role-based delegates (C1–C4) | `SongListModel.*` (new), `CMakeLists.txt`, `tests/CMakeLists.txt`, `SongsView.qml`, `SongListDetailView.qml`, `PlaylistsView.qml`, `main.qml` | High | [ ] |
+| A | Scan transaction (A1/A1b), DB indexes + pragmas (A2), search debounce (A3), scanner ext set (A4) | `DatabaseManager.*`, `LibraryController.*`, `Scanner.cpp`, `main.qml` | Low | [x] (A1, A2, A3, A4; A1b not needed) |
+| B | Cache `songs/albums/artists` reads (B1); one-pass `collectSongs()` (B2) | `LibraryController.*`, `AlbumsView.qml`, `ArtistsView.qml` | Medium | [x] |
+| C | `SongListModel` + role-based delegates (C1–C4) | `SongListModel.*` (new), `CMakeLists.txt`, `tests/CMakeLists.txt`, `SongsView.qml`, `SongListDetailView.qml`, `PlaylistsView.qml`, `main.qml` | High | [x] C1–C3 (C4 deferred) |
 
 A, B and C are independent; the plan only assumes you do them in order.
+
+**Status: A–C and the backlog below are implemented.** Branch chain (base
+`e2b7692`): `perf/quick-wins` (A) → `perf/controller-cache` (B, TASKS.md, C,
+theme fonts) → `perf/backlog-microopts` (backlog) → `build/static-core-lib`
+(static core + DB note). Verified after every commit: build exit 0 (0
+warnings), `ctest` 12/12, smoke OK. C4 stays deferred by design (see below).
 
 ---
 
@@ -824,29 +830,24 @@ Do **not** schedule these until A + B + C1–C3 are merged and reviewed.
 
 ## Backlog (unprioritised micro-optimisations)
 
-Not part of the three options; small, isolated, safe later:
+Not part of the three options; small, isolated, safe later. **All done**
+(branch `perf/backlog-microopts` + `build/static-core-lib`):
 
-- **Double `currentSongChanged` on load.** `PlayerController::load()` emits
-  (via `updateCurrentSong()`) and `loadSong()` emits again after restoring
-  metadata → two MPRIS `PropertiesChanged` per track. Make `updateCurrentSong`
-  set state without signalling; `loadSong()` keeps the single emission.
-- **`pollTick` always runs.** The 150 ms mpv poll fires even when Stopped
-  (4 property reads doing nothing). Early-return after `drainMpvEvents()`
-  when `m_playbackState == Stopped && !m_pendingLoad`.
-- **MPRIS position spam.** `positionChanged` (a D-Bus signal) fires ~6.7/s
-  while playing; coalesce to ~1/s for the shell-facing signal
-  (`MprisPlayer.cpp`).
-- **Scanner double stat.** `QDir::NoSymLinks` already filters links, so
-  `info.isSymLink()` in `Scanner.cpp:70` is redundant; use `it.fileInfo()`.
-- **Tests recompile production sources.** Each test target recompiles the
-  core `.cpp` files (`tests/CMakeLists.txt` `*_PROD_SOURCES`); a static
-  `altisidora_core` library linked by the app and all tests would cut build
-  time and duplicate binaries. Do this as a build-infra PR, not mixed with
-  behaviour changes.
-- **Shared DB connection.** `LibraryController` and `PlaylistController`
-  each own a `DatabaseManager` over the same default connection; the
-  destructor `close()` of one tears down the other's handle. Harmless today
-  (both die at exit); worth documenting or centralising ownership later.
+- [x] **Double `currentSongChanged` on load.** `updateCurrentSong()` now only
+  sets state; `loadSong()` keeps the single emission. `tst_player` asserts
+  exactly one.
+- [x] **`pollTick` always runs.** Early-returns after `drainMpvEvents()` when
+  `Stopped && !m_pendingLoad`.
+- [x] **MPRIS position spam.** `positionChanged` is coalesced to one relay per
+  whole second in `MprisPlayer.cpp`.
+- [x] **Scanner double stat.** Uses `it.fileInfo()`; the redundant
+  `isSymLink()` check is gone (`NoSymLinks` filters). `testScanSkipsSymlinks`
+  pins that links are neither reported nor descended into.
+- [x] **Tests recompile production sources.** `altisidora_core` (STATIC) holds
+  all production sources except `main.cpp`; the app and every test link it.
+  Clean build 106 s → 55 s (~1.9×); production sources compiled 43× → 10×.
+- [x] **Shared DB connection.** Already documented in the constructor; the
+  destructor now notes the teardown-order caveat and the centralisation path.
 
 ---
 
@@ -865,5 +866,7 @@ Not part of the three options; small, isolated, safe later:
 
 ## Next step
 
-Start with **Option A** on `perf/quick-wins` (A1 → A2 → A3 → A4), verifying
-after each commit, then decide whether to proceed to B and C.
+A–C and the backlog are **done and verified** (see Status above). The only
+deferred work is **C4** (search model + row-level incremental updates), which
+the plan holds back until A + B + C1–C3 are merged and reviewed. Nothing else
+is outstanding from this plan.
