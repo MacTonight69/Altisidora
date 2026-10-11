@@ -31,9 +31,11 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(TAGLIB REQUIRED taglib)
 pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
 
-# Source files
-set(SOURCES
-    src/main.cpp
+# Shared production core: compiled once as a static library and linked by both
+# the application and every test target. Previously each test recompiled the
+# production .cpp files it needed (e.g. DatabaseManager.cpp up to five times),
+# which dominated clean and incremental build time.
+set(CORE_SOURCES
     src/audio/PlayerController.cpp
     src/audio/PlaybackState.h
     src/app/PlaylistController.cpp
@@ -48,25 +50,17 @@ set(SOURCES
     src/models/Song.cpp
 )
 
-# Resources
-qt_add_resources(RESOURCES resources/qml.qrc)
+add_library(altisidora_core STATIC ${CORE_SOURCES})
 
-# Create executable
-add_executable(${PROJECT_NAME} ${SOURCES} ${RESOURCES})
-
-# The installed name (and desktop Exec=) is `altisidora`.
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME altisidora)
-
-target_include_directories(${PROJECT_NAME} PRIVATE
+# The public headers pull in these dependencies, so consumers (the app and the
+# tests) inherit the include directories and link libraries transitively.
+target_include_directories(altisidora_core PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${TAGLIB_INCLUDE_DIRS}
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
+target_link_libraries(altisidora_core PUBLIC
     Qt6::Core
-    Qt6::Gui
-    Qt6::Quick
-    Qt6::QuickControls2
     Qt6::Sql
     Qt6::Concurrent
     Qt6::DBus
@@ -74,8 +68,33 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     PkgConfig::MPV
 )
 
-# Compiler warnings
+# Resources
+qt_add_resources(RESOURCES resources/qml.qrc)
+
+# Create executable: only main.cpp plus the QML/resources; the audio, library
+# and database code lives in altisidora_core.
+add_executable(${PROJECT_NAME} src/main.cpp ${RESOURCES})
+
+# The installed name (and desktop Exec=) is `altisidora`.
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME altisidora)
+
+# GUI stack, needed only by the application (tests link the subset they use).
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    altisidora_core
+    Qt6::Gui
+    Qt6::Quick
+    Qt6::QuickControls2
+)
+
+# Compiler warnings: the core carries its own copy for its sources; the app
+# keeps the same set for main.cpp.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(altisidora_core PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror=return-type
+    )
     target_compile_options(${PROJECT_NAME} PRIVATE
         -Wall
         -Wextra
