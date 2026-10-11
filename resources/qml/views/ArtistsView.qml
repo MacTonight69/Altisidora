@@ -14,15 +14,39 @@ Rectangle {
     property var artists: Library.artists
     signal openArtist(var artist)
 
-    // All songs of the visible artists (songsByArtist sorts them by album,
-    // disc and track within each artist).
+    // All songs of the visible artists, in playback order. Resolved in ONE pass
+    // over the already-loaded library (Library.songs excludes hidden songs)
+    // instead of one SQL query per artist, which the old per-artist
+    // songsByArtist() loop did.
     function collectSongs() {
+        var buckets = {}
+        var all = Library.songs
+        for (var i = 0; i < all.length; ++i) {
+            var s = all[i]
+            var name = String(s.artist ? s.artist : "")
+            if (!buckets[name])
+                buckets[name] = []
+            buckets[name].push(s)
+        }
         var out = []
         var list = artistsView.artists
-        for (var i = 0; i < list.length; ++i) {
-            var songs = Library.songsByArtist(list[i].name ? list[i].name : "")
-            for (var j = 0; j < songs.length; ++j)
-                out.push(songs[j])
+        for (var j = 0; j < list.length; ++j) {
+            var songs = buckets[String(list[j].name ? list[j].name : "")]
+            if (!songs)
+                continue
+            // songsByArtist() ordered by album_id, disc, track, title; the
+            // album_id order is not available in the QML maps, so albums
+            // sort alphabetically here — a deliberate, minor difference
+            // (restore the exact order by adding albumId to
+            // Song::toVariantMap() if it ever matters).
+            songs.sort(function (a, b) {
+                return String(a.album).localeCompare(String(b.album))
+                       || (a.discNumber - b.discNumber)
+                       || (a.trackNumber - b.trackNumber)
+                       || String(a.title).localeCompare(String(b.title))
+            })
+            for (var m = 0; m < songs.length; ++m)
+                out.push(songs[m])
         }
         return out
     }

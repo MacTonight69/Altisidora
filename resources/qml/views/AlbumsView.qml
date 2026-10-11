@@ -15,17 +15,38 @@ Rectangle {
     property var albums: Library.albums
     signal openAlbum(var album)
 
-    // All songs of the visible albums, respecting each album's
-    // disc/track order (songsByAlbum already sorts that way).
+    // All songs of the visible albums, respecting each album's disc/track
+    // order. Resolved in ONE pass over the already-loaded library
+    // (Library.songs excludes hidden songs) instead of one SQL query per
+    // album, which the old per-album songsByAlbum() loop did.
     function collectSongs() {
+        var buckets = {}
+        var all = Library.songs
+        for (var i = 0; i < all.length; ++i) {
+            var s = all[i]
+            var key = String(s.album ? s.album : "") + "\u0000"
+                    + String(s.artist ? s.artist : "")
+            if (!buckets[key])
+                buckets[key] = []
+            buckets[key].push(s)
+        }
         var out = []
         var list = albumsView.albums
-        for (var i = 0; i < list.length; ++i) {
-            var album = list[i]
-            var songs = Library.songsByAlbum(album.title ? album.title : "",
-                                             album.artist ? album.artist : "")
-            for (var j = 0; j < songs.length; ++j)
-                out.push(songs[j])
+        for (var j = 0; j < list.length; ++j) {
+            var album = list[j]
+            var songKey = String(album.title ? album.title : "") + "\u0000"
+                        + String(album.artist ? album.artist : "")
+            var songs = buckets[songKey]
+            if (!songs)
+                continue
+            // Restore the songsByAlbum() ordering: disc, track, title.
+            songs.sort(function (a, b) {
+                return (a.discNumber - b.discNumber)
+                       || (a.trackNumber - b.trackNumber)
+                       || String(a.title).localeCompare(String(b.title))
+            })
+            for (var m = 0; m < songs.length; ++m)
+                out.push(songs[m])
         }
         return out
     }
