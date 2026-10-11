@@ -378,6 +378,7 @@ Rectangle {
                 radius: 6
 
                 required property int index
+                required property var model
                 // model.<prop> resolves each element's property: for plain
                 // JS arrays `model` proxies the element, for SongListModel
                 // it resolves the named roles (no per-binding map wrap).

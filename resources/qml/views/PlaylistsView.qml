@@ -283,6 +283,7 @@ Rectangle {
 
                     delegate: Rectangle {
                         id: plRow
+                        required property var model
                         width: playlistList.width
                         height: 48
                         radius: 6
@@ -599,6 +600,7 @@ Rectangle {
                     delegate: Rectangle {
                         id: plSongRow
                         required property int index
+                        required property var model
                         width: playlistSongsList.width
                         height: 44
                         radius: 6
