@@ -86,9 +86,13 @@ Test isolation:
   columns, v3 artwork backfill) and records the version in the
   `schema_version` table.
 - Continuous integration (GitHub Actions) was removed and is not present in the
-  repo; validate changes by running `ctest` headless locally. The PKGBUILD is
-  untested on CachyOS/Arch.
+  repo; validate changes by running `ctest` headless locally. The PKGBUILD
+  builds and packages correctly on CachyOS (verified end-to-end: makepkg,
+  `pacman -Qp`, contents, `desktop-file-validate`, packaged-binary smoke run);
+  publishing still needs tag `v0.1.0` pushed upstream and real checksums (see
+  the TODO in `PKGBUILD`).
 
 ## Next steps
 
-1. Test the PKGBUILD on CachyOS.
+1. Publish: push tag `v0.1.0` upstream and generate real PKGBUILD checksums
+   (see the TODO in `PKGBUILD`).
