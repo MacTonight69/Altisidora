@@ -251,8 +251,11 @@ void TestPlayer::testLoadSongKeepsMetadata()
 
     m_player->loadSong(song);
 
-    // loadSong() emits currentSongChanged at least once (on data change).
-    QVERIFY(songSpy.count() >= 1);
+    // loadSong() emits currentSongChanged exactly once: the internal load()
+    // sets the bare path without signalling, and loadSong() then emits the
+    // full metadata map. This guards against reintroducing the duplicate
+    // emission (which doubled every MPRIS Metadata update).
+    QCOMPARE(songSpy.count(), 1);
 
     // The full metadata map must be preserved for the UI.
     const QVariantMap current = m_player->currentSong();

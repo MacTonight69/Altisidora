@@ -653,9 +653,12 @@ void PlayerController::setPlaybackState(PlaybackState::State state)
 
 void PlayerController::updateCurrentSong(const QString &path)
 {
+    // Set the state only; do NOT signal here. loadSong() owns the single
+    // currentSongChanged emission (it restores the full metadata map right
+    // after load() returns). Signalling in both places used to emit twice
+    // per track change, doubling the MPRIS Metadata update.
     m_currentSong.clear();
     m_currentSong[QStringLiteral("path")] = path;
-    emit currentSongChanged(m_currentSong);
 }
 
 void PlayerController::loadEqSettings()
