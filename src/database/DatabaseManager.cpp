@@ -125,6 +125,16 @@ bool DatabaseManager::open(const QString &path)
         qWarning() << "Failed to open database:" << m_db.lastError().text();
         return false;
     }
+
+    // SQLite per-connection pragmas: enforce foreign keys (the code already
+    // keeps the manual cascade order, so this is pure safety) and tune the
+    // journal for the fast single-writer local database. WAL + NORMAL cut
+    // the per-commit fsync cost that dominated scan commits (see A1).
+    QSqlQuery pragma(m_db);
+    pragma.exec(QStringLiteral("PRAGMA foreign_keys = ON"));
+    pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL"));
+    pragma.exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
+
     if (!createTables()) {
         qWarning() << "Failed to create tables:" << m_db.lastError().text();
         return false;
@@ -241,6 +251,15 @@ bool DatabaseManager::createTables()
     execute("CREATE TABLE IF NOT EXISTS schema_version ("
             "version INTEGER)");
     execute("INSERT OR IGNORE INTO schema_version (version) VALUES (1)");
+
+    // Query accelerators: the JOINs in kSongSelect and the aggregates in
+    // getAllAlbums()/getAllArtists() walk songs by foreign key, so each FK
+    // needs an index; playlist_songs.song_id serves removeSong() lookups.
+    // Idempotent, so existing databases pick them up on the next launch.
+    execute("CREATE INDEX IF NOT EXISTS idx_songs_artist_id ON songs(artist_id)");
+    execute("CREATE INDEX IF NOT EXISTS idx_songs_album_id  ON songs(album_id)");
+    execute("CREATE INDEX IF NOT EXISTS idx_songs_genre_id  ON songs(genre_id)");
+    execute("CREATE INDEX IF NOT EXISTS idx_playlist_songs_song_id ON playlist_songs(song_id)");
 
     return true;
 }
