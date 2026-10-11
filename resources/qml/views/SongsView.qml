@@ -47,8 +47,15 @@ Rectangle {
     }
 
     function findSongById(id) {
-        for (var i = 0; i < songCount(); ++i) {
-            var song = songAt(i)
+        // Model-backed: one index lookup plus a single map, instead of mapping
+        // every row until the id matches (the hide flows call this once per
+        // selected id, so the per-row map build must not run per call).
+        if (songsModel) {
+            var row = songsModel.rowOfId(id)
+            return row >= 0 ? songsModel.songData(row) : null
+        }
+        for (var i = 0; i < songs.length; ++i) {
+            var song = songs[i]
             if (song && song.id !== undefined && song.id === id)
                 return song
         }
