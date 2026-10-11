@@ -137,4 +137,7 @@ private:
     void emitPropertiesChanged(const QVariantMap &changed);
 
     MprisPlayer *m_player;
+    // Last whole second relayed through the (non-standard) positionChanged
+    // D-Bus signal; used to coalesce the ~6.7/s poll into ~1/s.
+    qint64 m_lastPositionSecond = -1;
 };

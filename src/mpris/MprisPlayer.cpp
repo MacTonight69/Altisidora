@@ -49,7 +49,17 @@ PlayerAdaptor::PlayerAdaptor(MprisPlayer *parent)
         changed[QStringLiteral("CanGoPrevious")] = canGoPrevious();
         emitPropertiesChanged(changed);
     });
-    connect(player, &PlayerController::positionChanged, this, [this]() {
+    connect(player, &PlayerController::positionChanged, this, [this](qint64 positionMs) {
+        // MPRIS clients poll the Position property; the raw positionChanged
+        // D-Bus signal is non-standard and would fire ~6.7/s while playing
+        // (the mpv poll runs every 150 ms). Coalesce it to one signal per
+        // whole second so any listener still hears about seeks and the
+        // advancing second without the constant D-Bus spam.
+        const qint64 second = positionMs / 1000;
+        if (second == m_lastPositionSecond) {
+            return;
+        }
+        m_lastPositionSecond = second;
         emit positionChanged();
     });
     connect(player, &PlayerController::volumeChanged, this, [this]() {
