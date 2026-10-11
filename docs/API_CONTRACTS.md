@@ -143,6 +143,11 @@ favorite
 The C++ struct field is `artworkPath`; `LibraryController` exposes it to QML
 under the key `artwork`.
 
+`artwork` is populated at scan time from the audio file's embedded
+front-cover picture (falling back to the first picture found): it holds the
+absolute path of the extracted image, cached under a content-hash name in
+`AppDataLocation/artwork/`, or an empty string when the file embeds no art.
+
 ---
 
 ## Error handling

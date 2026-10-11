@@ -16,6 +16,11 @@ Rectangle {
                                         ? Player.currentSong.title : qsTr("No song playing")
     readonly property string songArtist: (Player.currentSong && Player.currentSong.artist)
                                          ? Player.currentSong.artist : ""
+    // Coalesce to "" before any comparison: an empty QVariantMap is truthy in
+    // QML JS, so a bare "Player.currentSong && Player.currentSong.artwork"
+    // chain yields undefined (not false) and breaks bool bindings.
+    readonly property string currentArtwork: (Player.currentSong && Player.currentSong.artwork)
+                                            ? Player.currentSong.artwork : ""
 
     function formatTime(ms) {
         return Utils.formatDuration(ms)
@@ -176,6 +181,24 @@ Rectangle {
         spacing: 20
 
         // ---- now playing ----
+        // Cover thumbnail before the title/artist column. RowLayout sizes
+        // children by implicit size, so the 48px box must be expressed as
+        // Layout.preferred*, not bare width/height (a bare pair renders at
+        // the source's natural size). Invisible items are skipped by the
+        // RowLayout, so the text-only layout is unchanged without artwork.
+        Image {
+            Layout.preferredWidth: 48
+            Layout.preferredHeight: 48
+            visible: controls.currentArtwork !== "" && status === Image.Ready
+            source: controls.currentArtwork !== ""
+                    ? "file://" + controls.currentArtwork : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            cache: true
+            sourceSize.width: 48
+            sourceSize.height: 48
+        }
+
         ColumnLayout {
             Layout.preferredWidth: 240
             Layout.maximumWidth: 320

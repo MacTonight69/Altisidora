@@ -21,6 +21,18 @@ Rectangle {
     property string primaryKey: ""      // album title or artist name
     property string secondaryKey: ""    // album artist (albums only)
     property var modelSongs: []
+    // Album rollup rule (DatabaseManager::refreshAlbumArtwork): the header
+    // shows the FIRST artwork-bearing song in playback order, not merely the
+    // first song — otherwise a track-1-without-art album shows a cover on
+    // its card but not in the drill-down header.
+    readonly property string headerArtwork: {
+        const songs = detail.modelSongs
+        for (let i = 0; i < songs.length; ++i) {
+            if (songs[i].artwork)
+                return songs[i].artwork
+        }
+        return ""
+    }
     // The StackView attached property is unreliable inside descendants of a
     // pushed component; main.qml owns the stack and handles the pop.
     signal backRequested()
@@ -81,6 +93,23 @@ Rectangle {
                     color: backButton.hovered ? Theme.rowHover : "transparent"
                 }
                 onClicked: detail.backRequested()
+            }
+
+            // Embedded cover art for this collection, taken from the first
+            // artwork-bearing song (the album-card rollup rule). Same
+            // fallback pattern as the other views: it collapses to nothing
+            // while empty, so the header stays as-is.
+            Image {
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 40
+                visible: detail.headerArtwork !== "" && status === Image.Ready
+                source: detail.headerArtwork !== ""
+                        ? "file://" + detail.headerArtwork : ""
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+                sourceSize.width: 40
+                sourceSize.height: 40
             }
 
             ColumnLayout {

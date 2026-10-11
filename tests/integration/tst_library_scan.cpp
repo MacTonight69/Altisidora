@@ -8,6 +8,22 @@
 #include "../../src/library/LibraryController.h"
 #include "../TestHelpers.h"
 
+#include <taglib/mpegfile.h>
+#include <taglib/id3v2tag.h>
+#include <taglib/attachedpictureframe.h>
+#include <taglib/tbytevector.h>
+#include <taglib/tstring.h>
+
+namespace {
+
+// Minimal valid 1x1 red PNG (69 bytes), the same test picture used by
+// tst_metadata: small enough to inline, real enough to decode.
+const char kRedPngHex[] =
+    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
+    "0000000c4944415478da63f8cfc0000003010100f70341430000000049454e44ae426082";
+
+} // namespace
+
 /**
  * @brief Integration test for the library scan workflow.
  *
@@ -31,6 +47,7 @@ private slots:
     void testPersistenceAcrossRestart();
     void testPersonalScanFilterAndDedupe();
     void testRescanOnlyProcessesChangedFiles();
+    void testScanExtractsEmbeddedArtwork();
 
 private:
     void removeDatabaseFiles();
@@ -239,6 +256,52 @@ void tst_library_scan::testRescanOnlyProcessesChangedFiles()
     }
     QCOMPARE(changedRows, 1);
     QCOMPARE(stableRows, 1);
+}
+
+void tst_library_scan::testScanExtractsEmbeddedArtwork()
+{
+    removeDatabaseFiles();
+
+    const QString dir = m_tempDir.filePath(QStringLiteral("artwork_music"));
+    QDir().mkpath(dir);
+    const QString path = dir + QStringLiteral("/with_cover.mp3");
+    QVERIFY(TestHelpers::createMpegAudioFile(path, 40)); // ~1 s
+
+    // Tag the file and embed a front-cover picture.
+    const QByteArray art = QByteArray::fromHex(kRedPngHex);
+    {
+        TagLib::MPEG::File mf(path.toStdString().c_str());
+        QVERIFY(mf.isValid());
+        TagLib::ID3v2::Tag *tag = mf.ID3v2Tag(true);
+        tag->setTitle(TagLib::String("Covered", TagLib::String::UTF8));
+        tag->setArtist(TagLib::String("Artist A", TagLib::String::UTF8));
+        tag->setAlbum(TagLib::String("Album X", TagLib::String::UTF8));
+        auto *pic = new TagLib::ID3v2::AttachedPictureFrame();
+        pic->setType(TagLib::ID3v2::AttachedPictureFrame::FrontCover);
+        pic->setMimeType("image/png");
+        pic->setPicture(TagLib::ByteVector(art.constData(),
+                                           static_cast<unsigned int>(art.size())));
+        tag->addFrame(pic);
+        QVERIFY(mf.save());
+    }
+
+    LibraryController controller;
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 1);
+
+    // The ingested song row carries the extracted artwork path.
+    const QVariantMap song = songByPath(&controller, path);
+    QVERIFY(!song.isEmpty());
+    const QString artwork = song.value(QStringLiteral("artwork")).toString();
+    QVERIFY(!artwork.isEmpty());
+    QVERIFY(QFile::exists(artwork));
+
+    // The album rollup exposed the same cover for the album card.
+    const QVector<QVariant> albums = controller.albums();
+    QCOMPARE(albums.size(), 1);
+    QCOMPARE(albums.first().toMap().value(QStringLiteral("artwork")).toString(),
+             artwork);
 }
 
 QTEST_MAIN(tst_library_scan)

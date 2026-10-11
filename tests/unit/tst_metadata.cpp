@@ -1,6 +1,7 @@
 #include <QtTest>
 #include <QFile>
 #include <QFileInfo>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <functional>
 
@@ -9,8 +10,37 @@
 
 #include <taglib/mpegfile.h>
 #include <taglib/id3v2tag.h>
+#include <taglib/attachedpictureframe.h>
 #include <taglib/tag.h>
 #include <taglib/tstring.h>
+
+namespace {
+
+// Minimal valid 1x1 PNGs (69 bytes each, red and green pixels): small
+// enough to inline, real enough that image decoders accept them. The
+// different pixel colours make front/back cover selection observable.
+const char kRedPngHex[] =
+    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
+    "0000000c4944415478da63f8cfc0000003010100f70341430000000049454e44ae426082";
+const char kGreenPngHex[] =
+    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
+    "0000000c4944415478da6360f8cf00000202010045f452d40000000049454e44ae426082";
+
+// Attaches `art` to the tag (downcast to its real ID3v2 type, as filled by
+// writeMpegFile) as a picture frame of the given ID3v2 picture type.
+void attachPicture(TagLib::Tag *tag,
+                   TagLib::ID3v2::AttachedPictureFrame::Type type,
+                   const QByteArray &art)
+{
+    auto *pic = new TagLib::ID3v2::AttachedPictureFrame();
+    pic->setType(type);
+    pic->setMimeType("image/png");
+    pic->setPicture(TagLib::ByteVector(art.constData(),
+                                       static_cast<unsigned int>(art.size())));
+    static_cast<TagLib::ID3v2::Tag *>(tag)->addFrame(pic);
+}
+
+} // namespace
 
 /**
  * @brief Tests for MetadataReader (src/library/MetadataReader.cpp).
@@ -24,6 +54,7 @@ class TestMetadata : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void testReadTitle();
     void testReadArtist();
     void testReadAlbum();
@@ -34,6 +65,11 @@ private slots:
     void testReadFallbackTitleFromFileName();
     void testReadFallbackTitleForUnparseableSupportedFile();
     void testReadUtf8JapaneseTags();
+
+    // Embedded artwork extraction
+    void testReadArtworkFromFrontCover();
+    void testReadArtworkPrefersFrontCover();
+    void testReadArtworkIdempotent();
 
     // Error handling tests
     void testReadNonExistentFile();
@@ -49,6 +85,14 @@ private:
 
     QTemporaryDir m_tempDir;
 };
+
+void TestMetadata::initTestCase()
+{
+    // Artwork extraction persists its cache under AppDataLocation; test
+    // mode keeps those files out of the developer's real data directory.
+    QStandardPaths::setTestModeEnabled(true);
+    QVERIFY(m_tempDir.isValid());
+}
 
 bool TestMetadata::writeMpegFile(const QString &filePath,
                                  const std::function<void(TagLib::Tag *)> &fill)
@@ -170,6 +214,8 @@ void TestMetadata::testReadFallbackTitleFromFileName()
     QCOMPARE(song.title, QStringLiteral("untagged_song"));
     QVERIFY(song.artist.isEmpty());
     QVERIFY(song.album.isEmpty());
+    // And with no embedded art either, there is no cached artwork file.
+    QVERIFY(song.artworkPath.isEmpty());
 }
 
 void TestMetadata::testReadFallbackTitleForUnparseableSupportedFile()
@@ -209,6 +255,64 @@ void TestMetadata::testReadUtf8JapaneseTags()
     QCOMPARE(song.album, QStringLiteral("TOHO BOSSA NOVA 12"));
     QVERIFY(!song.title.contains(QChar(0xFFFD))); // no replacement chars
     QVERIFY(!song.title.contains(QChar(0x03)));   // no raw encoding byte
+}
+
+// A front-cover picture must be extracted to the artwork cache: the song
+// carries the absolute cache path, the file exists and its bytes are
+// identical to the embedded picture (byte-perfect round trip).
+void TestMetadata::testReadArtworkFromFrontCover()
+{
+    const QString filePath = m_tempDir.filePath(QStringLiteral("artwork.mp3"));
+    const QByteArray art = QByteArray::fromHex(kRedPngHex);
+    QVERIFY(writeMpegFile(filePath, [&art](TagLib::Tag *tag) {
+        attachPicture(tag, TagLib::ID3v2::AttachedPictureFrame::FrontCover, art);
+    }));
+
+    const Song song = MetadataReader().read(filePath);
+    QVERIFY(!song.artworkPath.isEmpty());
+    // The extension comes from the declared MIME type.
+    QVERIFY(song.artworkPath.endsWith(QStringLiteral(".png")));
+    QVERIFY(QFile::exists(song.artworkPath));
+
+    QFile cached(song.artworkPath);
+    QVERIFY(cached.open(QIODevice::ReadOnly));
+    QCOMPARE(cached.readAll(), art);
+}
+
+// When a back cover is added first and a front cover second, the front
+// cover must win regardless of frame order.
+void TestMetadata::testReadArtworkPrefersFrontCover()
+{
+    const QString filePath = m_tempDir.filePath(QStringLiteral("artwork_order.mp3"));
+    const QByteArray back = QByteArray::fromHex(kRedPngHex);
+    const QByteArray front = QByteArray::fromHex(kGreenPngHex);
+    QVERIFY(writeMpegFile(filePath, [&back, &front](TagLib::Tag *tag) {
+        attachPicture(tag, TagLib::ID3v2::AttachedPictureFrame::BackCover, back);
+        attachPicture(tag, TagLib::ID3v2::AttachedPictureFrame::FrontCover, front);
+    }));
+
+    const Song song = MetadataReader().read(filePath);
+    QVERIFY(!song.artworkPath.isEmpty());
+    QFile cached(song.artworkPath);
+    QVERIFY(cached.open(QIODevice::ReadOnly));
+    QCOMPARE(cached.readAll(), front);
+}
+
+// The cache name is derived from the picture content, so re-reading the
+// same file returns the same path instead of writing a duplicate.
+void TestMetadata::testReadArtworkIdempotent()
+{
+    const QString filePath = m_tempDir.filePath(QStringLiteral("artwork_twice.mp3"));
+    const QByteArray art = QByteArray::fromHex(kGreenPngHex);
+    QVERIFY(writeMpegFile(filePath, [&art](TagLib::Tag *tag) {
+        attachPicture(tag, TagLib::ID3v2::AttachedPictureFrame::FrontCover, art);
+    }));
+
+    const Song first = MetadataReader().read(filePath);
+    const Song second = MetadataReader().read(filePath);
+    QVERIFY(!first.artworkPath.isEmpty());
+    QCOMPARE(second.artworkPath, first.artworkPath);
+    QVERIFY(QFile::exists(first.artworkPath));
 }
 
 void TestMetadata::testReadNonExistentFile()

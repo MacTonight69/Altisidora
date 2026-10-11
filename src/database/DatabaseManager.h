@@ -64,6 +64,13 @@ public:
 
     // Albums
     QList<Album> getAllAlbums() const;
+    /**
+     * @brief Set each album's artwork_path from its first artwork-bearing
+     *        song, in disc/track order.
+     *
+     * Call inside the scan transaction; mirrors getSongsByAlbum() ordering.
+     */
+    void refreshAlbumArtwork();
 
     // Playlists
     bool addPlaylist(Playlist &playlist);

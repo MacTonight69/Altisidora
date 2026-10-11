@@ -37,9 +37,11 @@ private slots:
     void testIgnoredFileHiddenFromQueries();
     void testIgnoredDirectoryHidesChildren();
     void testSchemaMigrationAddsFileStats();
+    void testSchemaMigrationBackfillsArtwork();
     void testSongFileStatsReturnsStoredValues();
     void testUpsertSongInsertsNewSong();
     void testUpsertSongUpdatesMetadataButKeepsUserData();
+    void testRefreshAlbumArtwork();
 
 private:
     DatabaseManager m_db;
@@ -566,12 +568,85 @@ void TestDatabase::testSchemaMigrationAddsFileStats()
     QCOMPARE(songs.first().playCount, 7);
     QVERIFY(songs.first().favorite);
 
-    // And the stored schema version is 2, as a single row.
+    // And the stored schema version is 3 (bumped by the artwork backfill
+    // migration), as a single row.
     QSqlQuery versionQuery(QSqlDatabase::database());
     QVERIFY(versionQuery.exec(QStringLiteral("SELECT version FROM schema_version")));
     QVERIFY(versionQuery.next());
-    QCOMPARE(versionQuery.value(0).toInt(), 2);
+    QCOMPARE(versionQuery.value(0).toInt(), 3);
     QVERIFY(!versionQuery.next());
+}
+
+// Schema v3 (embedded artwork): a v2 database whose rows were written
+// without artwork extraction must have its artwork-less songs marked stale
+// (mtime = 0) so the next scan re-reads them and backfills artwork_path.
+// The migration runs once (guarded by the stored version), so a file that
+// genuinely has no embedded art is not forced into a rescan loop.
+void TestDatabase::testSchemaMigrationBackfillsArtwork()
+{
+    // Build a v2 database by hand: mtime/size exist and hold real
+    // fingerprints, schema_version at 2.
+    const QString v2Path = m_tempDir.filePath(QStringLiteral("v2.db"));
+    QFile::remove(v2Path);
+    {
+        const QString connName = QStringLiteral("v2_setup");
+        {
+            QSqlDatabase setup = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+            setup.setDatabaseName(v2Path);
+            QVERIFY(setup.open());
+            {
+                QSqlQuery q(setup);
+                QVERIFY(q.exec(QStringLiteral(
+                    "CREATE TABLE songs ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE NOT NULL, "
+                    "title TEXT, artist_id INTEGER, album_id INTEGER, genre_id INTEGER, "
+                    "year INTEGER, track_number INTEGER, disc_number INTEGER, "
+                    "duration INTEGER, artwork_path TEXT, mtime INTEGER, size INTEGER, "
+                    "date_added TEXT, last_played TEXT, play_count INTEGER DEFAULT 0, "
+                    "favorite INTEGER DEFAULT 0)")));
+                QVERIFY(q.exec(QStringLiteral(
+                    "INSERT INTO songs (path, artwork_path, mtime, size) "
+                    "VALUES ('/music/needs_art.mp3', NULL, 111, 1)")));
+                QVERIFY(q.exec(QStringLiteral(
+                    "INSERT INTO songs (path, artwork_path, mtime, size) "
+                    "VALUES ('/music/has_art.mp3', '/cache/a.png', 222, 2)")));
+                QVERIFY(q.exec(QStringLiteral("CREATE TABLE schema_version (version INTEGER)")));
+                QVERIFY(q.exec(QStringLiteral("INSERT INTO schema_version (version) VALUES (2)")));
+            }
+            setup.close();
+        }
+        QSqlDatabase::removeDatabase(connName);
+    }
+
+    m_db.close();
+    DatabaseManager migrated;
+    QVERIFY(migrated.open(v2Path));
+
+    {
+        const auto stats = migrated.songFileStats();
+        // Artwork-less row: the fingerprint was broken -> forced rescan.
+        QCOMPARE(stats.value(QStringLiteral("/music/needs_art.mp3")).first, 0LL);
+        // Artwork-bearing row: untouched.
+        QCOMPARE(stats.value(QStringLiteral("/music/has_art.mp3")).first, 222LL);
+    }
+
+    // Simulate the rescan the backfill triggers: the file was re-read and
+    // got a fresh fingerprint (it simply has no embedded art).
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral(
+            "UPDATE songs SET mtime = 999, size = 42 "
+            "WHERE path = '/music/needs_art.mp3'")));
+    }
+
+    // Reopen at v3: the version guard stops the migration from running
+    // again, so the fingerprint survives (no permanent rescan loop).
+    migrated.close();
+    QVERIFY(migrated.open(v2Path));
+
+    const auto statsAgain = migrated.songFileStats();
+    QCOMPARE(statsAgain.value(QStringLiteral("/music/needs_art.mp3")).first, 999LL);
+    QCOMPARE(statsAgain.value(QStringLiteral("/music/has_art.mp3")).first, 222LL);
 }
 
 void TestDatabase::testSongFileStatsReturnsStoredValues()
@@ -669,6 +744,57 @@ void TestDatabase::testUpsertSongUpdatesMetadataButKeepsUserData()
     const auto stats = m_db.songFileStats();
     QCOMPARE(stats.value(song.path).first, 300LL);
     QCOMPARE(stats.value(song.path).second, 400LL);
+}
+
+void TestDatabase::testRefreshAlbumArtwork()
+{
+    // Album X: only track 3 carries artwork, so the album must inherit
+    // track 3's cached cover.
+    Song t1;
+    t1.path = QStringLiteral("/music/aw/t1.mp3");
+    t1.title = QStringLiteral("Track 1");
+    t1.artist = QStringLiteral("Artist A");
+    t1.album = QStringLiteral("Album X");
+    t1.trackNumber = 1;
+
+    Song t2;
+    t2.path = QStringLiteral("/music/aw/t2.mp3");
+    t2.title = QStringLiteral("Track 2");
+    t2.artist = t1.artist;
+    t2.album = t1.album;
+    t2.trackNumber = 2;
+
+    Song t3;
+    t3.path = QStringLiteral("/music/aw/t3.mp3");
+    t3.title = QStringLiteral("Track 3");
+    t3.artist = t1.artist;
+    t3.album = t1.album;
+    t3.trackNumber = 3;
+    t3.artworkPath = QStringLiteral("/cache/track3.png");
+
+    // Album Y: no artwork anywhere, so the album stays without a cover.
+    Song bare;
+    bare.path = QStringLiteral("/music/bare/b.mp3");
+    bare.title = QStringLiteral("Bare");
+    bare.artist = QStringLiteral("Artist B");
+    bare.album = QStringLiteral("Album Y");
+
+    QVERIFY(m_db.addSong(t1));
+    QVERIFY(m_db.addSong(t2));
+    QVERIFY(m_db.addSong(t3));
+    QVERIFY(m_db.addSong(bare));
+
+    m_db.refreshAlbumArtwork();
+
+    const QList<Album> albums = m_db.getAllAlbums();
+    QCOMPARE(albums.size(), 2);
+    for (const Album &album : albums) {
+        if (album.title == QStringLiteral("Album X"))
+            QCOMPARE(album.artworkPath, QStringLiteral("/cache/track3.png"));
+        else
+            QVERIFY(album.title == QStringLiteral("Album Y")
+                    && album.artworkPath.isEmpty());
+    }
 }
 
 QTEST_MAIN(TestDatabase)

@@ -21,7 +21,7 @@ the controllers are in place. All tests pass.
 | Database | `src/database/` | Implemented | `DatabaseManager`: SQLite, prepared statements, schema version table, CRUD. Songs are normalized (artist/album/genre rows resolved on insert); reads JOIN names back and artist/album/genre/playlist queries return `songCount` |
 | Audio | `src/audio/` | Implemented | `PlayerController` wrapping a libmpv session (10-band EQ, repeat-one); `load(url)` for raw URLs and `loadSong(map)` to keep library metadata for the UI |
 | System Integration | `src/mpris/` | Implemented | `MprisPlayer`: MPRIS v2 (`org.mpris.MediaPlayer2.altisidora`) over Qt DBus, registered in `src/main.cpp` |
-| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title), `LibraryController` (scan/search/refresh) |
+| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh) |
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
 | GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (click / Ctrl / Shift / Ctrl+A) with batch add to playlist |
 | Tests | `tests/` | Implemented | 10 unit + 2 integration suites, all passing; see below |
@@ -69,8 +69,6 @@ Test isolation:
 
 ## Known limitations
 
-- `MetadataReader` does not extract embedded artwork yet; album cards use a
-  generated placeholder color.
 - Tag text from files whose ID3 tags genuinely declare a legacy encoding
   (e.g. Shift-JIS mislabeled as ISO-8859-1) is not normalized. UTF-8 and
   UTF-16 ID3v2 tags are read correctly; a real Shift-JIS tag re-decode fallback
@@ -83,14 +81,14 @@ Test isolation:
   by the suite.
 - `LibraryController` does not load existing songs in its constructor; callers
   must invoke `refresh()` (done once in `src/main.cpp`; QML does not call it).
-- Migrations: only schema version 1 exists; there is no migration runner yet
-  (`DatabaseManager` creates the tables and records the version in the
-  `schema_version` table).
+- Migrations: there is no standalone migration runner; `DatabaseManager`
+  applies versioned in-place migrations in `createTables()` (v2 file-stat
+  columns, v3 artwork backfill) and records the version in the
+  `schema_version` table.
 - Continuous integration (GitHub Actions) was removed and is not present in the
   repo; validate changes by running `ctest` headless locally. The PKGBUILD is
   untested on CachyOS/Arch.
 
 ## Next steps
 
-1. Artwork extraction and display (embedded tags → `artworkPath`).
-2. Test the PKGBUILD on CachyOS.
+1. Test the PKGBUILD on CachyOS.

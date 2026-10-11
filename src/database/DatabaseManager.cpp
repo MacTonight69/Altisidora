@@ -284,11 +284,24 @@ bool DatabaseManager::createTables()
     // Schema version
     execute("CREATE TABLE IF NOT EXISTS schema_version ("
             "version INTEGER)");
+    // Read the version stored by a previous open BEFORE overwriting it: the
+    // v3 artwork backfill below must fire exactly once per legacy database.
+    // Running it on every open would keep artwork-less files in a permanent
+    // rescan loop (their artwork_path stays empty forever, so the fingerprint
+    // would be reset again and again).
+    int storedVersion = 0;
+    {
+        QSqlQuery stored(m_db);
+        if (stored.exec(QStringLiteral("SELECT version FROM schema_version"))
+            && stored.next()) {
+            storedVersion = stored.value(0).toInt();
+        }
+    }
     // Schema v2 adds the file-change columns below; record it as a single row
     // so repeated opens do not accumulate rows (the old INSERT OR IGNORE had
     // no UNIQUE constraint and therefore inserted one row per launch).
     execute("DELETE FROM schema_version");
-    execute("INSERT INTO schema_version (version) VALUES (2)");
+    execute("INSERT INTO schema_version (version) VALUES (3)");
 
     // Schema migration: an existing database predating v2 lacks mtime/size.
     // PRAGMA table_info lists the current columns; ALTER TABLE ADD COLUMN is
@@ -305,6 +318,17 @@ bool DatabaseManager::createTables()
             execute(QStringLiteral("ALTER TABLE songs ADD COLUMN mtime INTEGER"));
         if (!columns.contains(QStringLiteral("size")))
             execute(QStringLiteral("ALTER TABLE songs ADD COLUMN size INTEGER"));
+    }
+
+    // Schema v3 (embedded artwork): rows written before artwork extraction
+    // existed carry an empty artwork_path even when the file embeds a cover.
+    // Zeroing mtime breaks the scan fingerprint check (mtime = 0 never
+    // matches a real file), so the next scan re-reads those files once and
+    // backfills artwork_path. Guarded by the stored version to run only when
+    // upgrading from a pre-v3 database; fresh databases have no songs yet.
+    if (storedVersion < 3) {
+        execute("UPDATE songs SET mtime = 0 "
+                "WHERE artwork_path IS NULL OR artwork_path = ''");
     }
 
     // Query accelerators: the JOINs in kSongSelect and the aggregates in
@@ -625,6 +649,16 @@ QList<Album> DatabaseManager::getAllAlbums() const
         }
     }
     return albums;
+}
+
+void DatabaseManager::refreshAlbumArtwork()
+{
+    // First track that has artwork, in disc/track order — the common pattern.
+    execute("UPDATE albums SET artwork_path = ("
+            "SELECT s.artwork_path FROM songs s "
+            "WHERE s.album_id = albums.id AND s.artwork_path IS NOT NULL "
+            "AND s.artwork_path != '' "
+            "ORDER BY s.disc_number, s.track_number, s.id LIMIT 1)");
 }
 
 bool DatabaseManager::addPlaylist(Playlist &playlist)

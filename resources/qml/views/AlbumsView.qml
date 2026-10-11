@@ -162,8 +162,24 @@ Rectangle {
                             radius: 6
                             color: albumsView.albumColor(modelData.title)
 
+                            // Embedded cover art layered over the colored
+                            // placeholder; it appears only once decoded, so
+                            // the placeholder never flashes empty.
+                            Image {
+                                anchors.fill: parent
+                                visible: modelData.artwork && status === Image.Ready
+                                source: modelData.artwork ? "file://" + modelData.artwork : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
+                                sourceSize.width: 352
+                                sourceSize.height: 352
+                            }
+
                             Text {
                                 anchors.centerIn: parent
+                                // The glyph is the no-artwork fallback.
+                                visible: !modelData.artwork
                                 text: "\u266A"
                                 color: "#ffffff"
                                 opacity: 0.85

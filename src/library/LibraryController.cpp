@@ -206,6 +206,10 @@ void LibraryController::handleScanFinished()
             Song mutableSong = song;
             m_db.upsertSong(mutableSong);
         }
+        // Album covers roll up from the freshly written songs' artwork, in
+        // the same transaction so the library never shows covers without
+        // their songs (or vice versa).
+        m_db.refreshAlbumArtwork();
         if (!m_db.commitTransaction())
             qWarning() << "LibraryController: failed to commit scan transaction";
     }
