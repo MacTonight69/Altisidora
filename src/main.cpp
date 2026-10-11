@@ -141,10 +141,9 @@ int main(int argc, char *argv[])
         static const char *kAppFonts[] = {
             ":/fonts/Baskervville.otf",
             ":/fonts/SunnyBrunch.ttf",
-            ":/fonts/Anarchaos.otf",
-            ":/fonts/Konstruktor.otf",
-            ":/fonts/LowerPixel.otf",
-            ":/fonts/Achaflft.ttf",
+            ":/fonts/AgainstMyself.ttf",
+            ":/fonts/Russian.ttf",
+            ":/fonts/PixeloidSans.ttf",
             ":/fonts/HandmadeAlphabet.otf",
             ":/fonts/Elaesy.otf",
         };

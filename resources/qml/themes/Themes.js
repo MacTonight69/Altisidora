@@ -74,7 +74,7 @@ var themes = {
     "Maya": {
         name: "Maya",
         fontScale: 1.9,
-        fontFamily: "Anarchaos",
+        fontFamily: "against myself",
         bg: "#141414",
         bgAlt: "#0a0a0a",
         viewBg: "#161616",
@@ -100,7 +100,7 @@ var themes = {
     // Red and yellow, like the colours of communism.
     "Comunism": {
         name: "Comunism",
-        fontFamily: "Konstruktor",
+        fontFamily: "Russian",
         // Red-dominant flag colours: a dark red base with golden-yellow
         // ornaments (inverted from the original yellow/red look).
         bg: "#591214",
@@ -128,7 +128,7 @@ var themes = {
     // Blue and black, a calm technical look.
     "Good Technic": {
         name: "Good Technic",
-        fontFamily: "Lower Pixel",
+        fontFamily: "Pixeloid Sans",
         bg: "#0d1117",
         bgAlt: "#060a10",
         viewBg: "#0f151c",
