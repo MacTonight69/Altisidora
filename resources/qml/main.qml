@@ -210,6 +210,15 @@ ApplicationWindow {
         onTriggered: Library.scan(root.pendingScanPath)
     }
 
+    // Debounce search: a keystroke only (re)schedules the re-filter, which
+    // then runs Library.search() + the album/artist JS filters once the
+    // user pauses for 200 ms instead of on every keystroke.
+    Timer {
+        id: searchDebounce
+        interval: 200
+        onTriggered: root.applySearch(root.searchQuery)
+    }
+
     // ---- folder picker for "Scan library" ----
     FolderDialog {
         id: folderDialog
@@ -443,7 +452,7 @@ ApplicationWindow {
 
                             onQueryChanged: function (query) {
                                 root.searchQuery = query
-                                root.applySearch(query)
+                                searchDebounce.restart()
                             }
                         }
                     }
