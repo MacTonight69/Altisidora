@@ -76,10 +76,11 @@ QVector<QString> Scanner::scan(const QString &dirPath,
         // ignored files (never report them).
         if (isIgnoredEntry(entry, ignoredPaths))
             continue;
-        const QFileInfo info(entry);
-        if (info.isSymLink())
-            continue;
-        if (info.isDir())
+        // QDir::NoSymLinks already filtered symlinks out of the iteration,
+        // so every remaining entry is a real file or directory. Reuse the
+        // iterator's cached QFileInfo instead of building a fresh one (which
+        // would stat the entry again) just to tell the two apart.
+        if (it.fileInfo().isDir())
             found += scan(entry, ignoredPaths);
         else if (isSupportedAudioFile(entry))
             found.append(entry);

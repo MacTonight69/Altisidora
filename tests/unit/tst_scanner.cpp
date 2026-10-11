@@ -29,6 +29,7 @@ private slots:
     void testIsSupportedAudioFile();
     void testSupportedExtensionsCaseInsensitive();
     void testScanFindsWebmAndMatroska();
+    void testScanSkipsSymlinks();
 
 private:
     QTemporaryDir m_tempDir;
@@ -41,7 +42,11 @@ void TestScanner::init()
     const auto entries = root.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot
                                             | QDir::Hidden | QDir::System);
     for (const QFileInfo &info : entries) {
-        if (info.isDir()) {
+        if (info.isSymLink()) {
+            // Unlink the symlink itself; never recurse through it (that
+            // would delete content outside the temporary directory).
+            QFile::remove(info.absoluteFilePath());
+        } else if (info.isDir()) {
             QDir(info.absoluteFilePath()).removeRecursively();
         } else {
             QFile::remove(info.absoluteFilePath());
@@ -204,6 +209,35 @@ void TestScanner::testScanFindsWebmAndMatroska()
     for (const QString &path : found) {
         QVERIFY(Scanner::isSupportedAudioFile(path));
     }
+}
+
+void TestScanner::testScanSkipsSymlinks()
+{
+    // The walk relies on QDir::NoSymLinks: symlinked files and directories
+    // must be neither reported nor descended into. This pins that contract
+    // (no content leaks in from outside the scanned tree, no recursion
+    // through a link) so the redundant per-entry check cannot creep back.
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 1); // one real song
+
+    QTemporaryDir outside;
+    QVERIFY(outside.isValid());
+    const QStringList outsideFiles =
+        TestHelpers::createTestMusicDirectory(outside.path(), 1);
+    QCOMPARE(outsideFiles.size(), 1);
+
+    // Symlink to an external audio file: must not be reported.
+    if (!QFile::link(outsideFiles.first(),
+                     m_tempDir.filePath(QStringLiteral("linked.mp3")))) {
+        QSKIP("filesystem does not support symlinks");
+    }
+    // Symlink to an external directory: must not be descended into.
+    QVERIFY(QFile::link(outside.path(),
+                        m_tempDir.filePath(QStringLiteral("linkeddir"))));
+
+    Scanner scanner;
+    const auto found = scanner.scan(m_tempDir.path(), {});
+    // Only the real song inside the scanned tree.
+    QCOMPARE(found.size(), 1);
 }
 
 QTEST_MAIN(TestScanner)
