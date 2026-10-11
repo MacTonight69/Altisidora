@@ -340,6 +340,10 @@ bool DatabaseManager::createTables()
     execute("CREATE INDEX IF NOT EXISTS idx_songs_genre_id  ON songs(genre_id)");
     execute("CREATE INDEX IF NOT EXISTS idx_playlist_songs_song_id ON playlist_songs(song_id)");
     execute("CREATE INDEX IF NOT EXISTS idx_ignored_paths_path ON ignored_paths(path)");
+    // The artists/albums LEFT JOIN in getAllArtists() probes albums by
+    // artist_id on every (artist, song) row; without this index each probe
+    // is a full table scan.
+    execute("CREATE INDEX IF NOT EXISTS idx_albums_artist_id ON albums(artist_id)");
 
     return true;
 }
@@ -596,6 +600,12 @@ QList<Artist> DatabaseManager::getAllArtists() const
 {
     QList<Artist> artists;
     QSqlQuery query(m_db);
+    // No ignore clause on the albums join: albums have no path column, and
+    // a clause there could only re-check the already-filtered s.path from
+    // the songs join (TRUE for matched songs, TRUE for NULL-extended rows)
+    // — a tautology evaluated per (artist, song, album) fan-out row. Albums
+    // are only reachable through their songs for visibility purposes, so
+    // the songs join above is the single place filtering happens.
     if (query.exec(QStringLiteral(
             "SELECT a.id, a.name, "
             "COUNT(DISTINCT s.id) AS song_count, "
@@ -604,8 +614,7 @@ QList<Artist> DatabaseManager::getAllArtists() const
             "LEFT JOIN songs s ON s.artist_id = a.id AND ") +
             QString::fromLatin1(kNotIgnoredClause) +
             QStringLiteral(
-            "LEFT JOIN albums al ON al.artist_id = a.id AND ") +
-            QString::fromLatin1(kNotIgnoredClause) +
+            "LEFT JOIN albums al ON al.artist_id = a.id ") +
             QStringLiteral(
             "GROUP BY a.id, a.name "
             "HAVING song_count > 0 "

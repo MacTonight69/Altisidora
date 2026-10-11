@@ -30,6 +30,9 @@ private slots:
     void testSongsByAlbum();
     void testSongsByArtist();
     void testGetAllArtistsAggregates();
+    void testGetAllArtistsCountsAlbumsWithOnlyIgnoredSongs();
+    void testGetAllArtistsKeepsSameAlbumTitleApart();
+    void testGetAllArtistsHidesFullyIgnoredArtist();
     void testGetAllAlbumsAggregates();
     void testPlaylistLifecycle();
     void testPlaylistSongs();
@@ -306,12 +309,15 @@ void TestDatabase::testGetAllArtistsAggregates()
     Song a1;
     a1.path = QStringLiteral("/music/a1.mp3");
     a1.artist = QStringLiteral("Artist A");
+    a1.album = QStringLiteral("Album X");
     Song a2;
     a2.path = QStringLiteral("/music/a2.mp3");
     a2.artist = QStringLiteral("Artist A");
+    a2.album = QStringLiteral("Album X");
     Song b1;
     b1.path = QStringLiteral("/music/b1.mp3");
     b1.artist = QStringLiteral("Artist B");
+    b1.album = QStringLiteral("Album Z");
 
     QVERIFY(m_db.addSong(a1));
     QVERIFY(m_db.addSong(a2));
@@ -321,12 +327,98 @@ void TestDatabase::testGetAllArtistsAggregates()
     QCOMPARE(artists.size(), 2);
     for (const Artist &artist : artists) {
         if (artist.name == QStringLiteral("Artist A")) {
+            // Two songs share one album: the (artist, song, album) fan-out
+            // must not inflate either aggregate.
             QCOMPARE(artist.songCount, 2);
+            QCOMPARE(artist.albumCount, 1);
         } else {
             QCOMPARE(artist.name, QStringLiteral("Artist B"));
             QCOMPARE(artist.songCount, 1);
+            QCOMPARE(artist.albumCount, 1);
         }
     }
+}
+
+// The ignore feature acts on song paths; albums have no path of their own
+// and are only reachable through their songs. An album whose every song is
+// hidden therefore still belongs to the artist: album_count keeps counting
+// it while song_count drops. Pins this behavior for the aggregate join.
+void TestDatabase::testGetAllArtistsCountsAlbumsWithOnlyIgnoredSongs()
+{
+    Song inA;
+    inA.path = QStringLiteral("/music/agg/inA.mp3");
+    inA.artist = QStringLiteral("Artist A");
+    inA.album = QStringLiteral("Album A");
+    Song inB;
+    inB.path = QStringLiteral("/music/agg/inB.mp3");
+    inB.artist = QStringLiteral("Artist A");
+    inB.album = QStringLiteral("Album B");
+
+    QVERIFY(m_db.addSong(inA));
+    QVERIFY(m_db.addSong(inB));
+
+    // Hide the only song of Album A: the song disappears from songCount,
+    // the album stays in albumCount.
+    QVERIFY(m_db.addIgnoredPath(inA.path));
+
+    const QList<Artist> hidden = m_db.getAllArtists();
+    QCOMPARE(hidden.size(), 1);
+    QCOMPARE(hidden.first().name, QStringLiteral("Artist A"));
+    QCOMPARE(hidden.first().songCount, 1);
+    QCOMPARE(hidden.first().albumCount, 2);
+
+    // Un-hiding restores the song without any rescan.
+    QVERIFY(m_db.removeIgnoredPath(inA.path));
+    const QList<Artist> restored = m_db.getAllArtists();
+    QCOMPARE(restored.size(), 1);
+    QCOMPARE(restored.first().songCount, 2);
+    QCOMPARE(restored.first().albumCount, 2);
+}
+
+// Albums are keyed on (title, artist_id): the same album title under two
+// different artists is two distinct albums, one per artist.
+void TestDatabase::testGetAllArtistsKeepsSameAlbumTitleApart()
+{
+    Song a1;
+    a1.path = QStringLiteral("/music/hits/a1.mp3");
+    a1.artist = QStringLiteral("Artist A");
+    a1.album = QStringLiteral("Greatest Hits");
+    Song b1;
+    b1.path = QStringLiteral("/music/hits/b1.mp3");
+    b1.artist = QStringLiteral("Artist B");
+    b1.album = QStringLiteral("Greatest Hits");
+
+    QVERIFY(m_db.addSong(a1));
+    QVERIFY(m_db.addSong(b1));
+
+    const QList<Artist> artists = m_db.getAllArtists();
+    QCOMPARE(artists.size(), 2);
+    for (const Artist &artist : artists) {
+        QCOMPARE(artist.songCount, 1);
+        QCOMPARE(artist.albumCount, 1);
+    }
+}
+
+// An artist whose every song is hidden aggregates to song_count = 0, so
+// the HAVING clause keeps the artist out of the list entirely (the rows
+// stay in the database and come back once un-hidden).
+void TestDatabase::testGetAllArtistsHidesFullyIgnoredArtist()
+{
+    Song audible;
+    audible.path = QStringLiteral("/music/audible.mp3");
+    audible.artist = QStringLiteral("Audible Artist");
+    Song muted;
+    muted.path = QStringLiteral("/music/muted.mp3");
+    muted.artist = QStringLiteral("Muted Artist");
+
+    QVERIFY(m_db.addSong(audible));
+    QVERIFY(m_db.addSong(muted));
+
+    QVERIFY(m_db.addIgnoredPath(muted.path));
+
+    const QList<Artist> artists = m_db.getAllArtists();
+    QCOMPARE(artists.size(), 1);
+    QCOMPARE(artists.first().name, QStringLiteral("Audible Artist"));
 }
 
 void TestDatabase::testGetAllAlbumsAggregates()
