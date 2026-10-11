@@ -129,6 +129,18 @@ private:
     DatabaseManager m_db;
     QVector<Song> m_songs;
 
+    // QML-facing views of the library (QVariant wrappers). Built once per
+    // library change instead of on every property read; QVector is
+    // implicitly shared, so returning them is cheap. m_cachesStale is set
+    // in refresh()/handleScanFinished() (the only two paths that rebuild
+    // m_songs).
+    mutable QVector<QVariant> m_cachedSongs;
+    mutable QVector<QVariant> m_cachedAlbums;
+    mutable QVector<QVariant> m_cachedArtists;
+    mutable bool m_cachesStale = true;
+
+    void rebuildCaches() const;
+
     // Background scan machinery. Scanner/MetadataReader are used by the
     // worker thread only through local copies created in scan().
     QFutureWatcher<QList<Song>> m_scanWatcher;

@@ -30,29 +30,48 @@ LibraryController::LibraryController(QObject *parent)
 
 QVector<QVariant> LibraryController::songs() const
 {
-    QVector<QVariant> result;
-    for (const Song &song : m_songs) {
-        result.append(song.toVariantMap());
-    }
-    return result;
+    if (m_cachesStale)
+        rebuildCaches();
+    return m_cachedSongs;
 }
 
 QVector<QVariant> LibraryController::albums() const
 {
-    QVector<QVariant> result;
-    for (const Album &album : m_db.getAllAlbums()) {
-        result.append(albumToVariant(album));
-    }
-    return result;
+    if (m_cachesStale)
+        rebuildCaches();
+    return m_cachedAlbums;
 }
 
 QVector<QVariant> LibraryController::artists() const
 {
-    QVector<QVariant> result;
-    for (const Artist &artist : m_db.getAllArtists()) {
-        result.append(artistToVariant(artist));
+    if (m_cachesStale)
+        rebuildCaches();
+    return m_cachedArtists;
+}
+
+void LibraryController::rebuildCaches() const
+{
+    m_cachedSongs.clear();
+    m_cachedSongs.reserve(m_songs.size());
+    for (const Song &song : m_songs) {
+        m_cachedSongs.append(song.toVariantMap());
     }
-    return result;
+
+    const QList<Album> albums = m_db.getAllAlbums();
+    m_cachedAlbums.clear();
+    m_cachedAlbums.reserve(albums.size());
+    for (const Album &album : albums) {
+        m_cachedAlbums.append(albumToVariant(album));
+    }
+
+    const QList<Artist> artists = m_db.getAllArtists();
+    m_cachedArtists.clear();
+    m_cachedArtists.reserve(artists.size());
+    for (const Artist &artist : artists) {
+        m_cachedArtists.append(artistToVariant(artist));
+    }
+
+    m_cachesStale = false;
 }
 
 void LibraryController::scan(const QString &directory)
@@ -121,6 +140,7 @@ void LibraryController::handleScanFinished()
     }
 
     m_songs = m_db.getAllSongs().toVector();
+    m_cachesStale = true;
     m_scanRunning = false;
     emit libraryChanged();
     emit scanFinished();
@@ -129,6 +149,7 @@ void LibraryController::handleScanFinished()
 void LibraryController::refresh()
 {
     m_songs = m_db.getAllSongs().toVector();
+    m_cachesStale = true;
     emit libraryChanged();
 }
 
