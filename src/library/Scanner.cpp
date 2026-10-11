@@ -3,8 +3,22 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QSet>
 
 namespace {
+
+// Supported audio extensions. Constructed once per process: the old code
+// rebuilt this QStringList on every isSupportedAudioFile() call (~2-3 calls
+// per file during a scan), and the extension check was a linear contains().
+static const QStringList kSupportedExtensions = {
+    "mp3", "flac", "ogg", "m4a", "wav", "opus", "aac", "wma", "aiff",
+    // WebM / Matroska carry audio (Opus/Vorbis) that libmpv plays back; the
+    // video track, if any, is simply not displayed.
+    "webm", "mka", "mkv"
+};
+
+static const QSet<QString> kSupportedExtensionSet(kSupportedExtensions.cbegin(),
+                                                 kSupportedExtensions.cend());
 
 /**
  * @brief Whether a path matches an ignored entry.
@@ -34,16 +48,12 @@ Scanner::Scanner()
 
 QStringList Scanner::supportedExtensions()
 {
-    return {"mp3", "flac", "ogg", "m4a", "wav", "opus", "aac", "wma", "aiff",
-            // WebM / Matroska carry audio (Opus/Vorbis) that libmpv
-            // plays back; the video track, if any, is simply not displayed.
-            "webm", "mka", "mkv"};
+    return kSupportedExtensions; // API preserved for callers and tests
 }
 
 bool Scanner::isSupportedAudioFile(const QString &filePath)
 {
-    QString ext = QFileInfo(filePath).suffix().toLower();
-    return supportedExtensions().contains(ext);
+    return kSupportedExtensionSet.contains(QFileInfo(filePath).suffix().toLower());
 }
 
 QVector<QString> Scanner::scan(const QString &dirPath,
