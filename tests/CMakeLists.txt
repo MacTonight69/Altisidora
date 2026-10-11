@@ -40,6 +40,7 @@ set(INTEGRATION_TESTS
 # Keyed by test name: <test>_PROD_SOURCES.
 set(tst_models_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/models/Song.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/SongListModel.cpp
 )
 set(tst_database_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
@@ -69,6 +70,7 @@ set(tst_playlist_PROD_SOURCES
 )
 set(tst_library_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/SongListModel.cpp
     ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
@@ -83,6 +85,7 @@ set(tst_mpris_PROD_SOURCES
 )
 set(tst_library_scan_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/SongListModel.cpp
     ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp
@@ -93,6 +96,7 @@ set(tst_playback_PROD_SOURCES
     ${CMAKE_SOURCE_DIR}/src/audio/PlayerController.h
     ${CMAKE_SOURCE_DIR}/src/audio/PlaybackState.h
     ${CMAKE_SOURCE_DIR}/src/library/LibraryController.cpp
+    ${CMAKE_SOURCE_DIR}/src/library/SongListModel.cpp
     ${CMAKE_SOURCE_DIR}/src/library/Scanner.cpp
     ${CMAKE_SOURCE_DIR}/src/library/MetadataReader.cpp
     ${CMAKE_SOURCE_DIR}/src/database/DatabaseManager.cpp

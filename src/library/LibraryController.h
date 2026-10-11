@@ -9,6 +9,7 @@
 #include "../models/Artist.h"
 #include "../models/Album.h"
 #include "../database/DatabaseManager.h"
+#include "SongListModel.h"
 
 /**
  * @brief Application-level library controller.
@@ -24,6 +25,10 @@ class LibraryController : public QObject
     Q_PROPERTY(QVector<QVariant> albums READ albums NOTIFY libraryChanged)
     Q_PROPERTY(QVector<QVariant> artists READ artists NOTIFY libraryChanged)
     Q_PROPERTY(QStringList ignoredPaths READ ignoredPaths NOTIFY libraryChanged)
+    // Render model for the Songs list when it is not filtered by search
+    // (delegates then read roles instead of QVariantMap re-wrapping). The
+    // pointer is stable for the controller's lifetime: CONSTANT.
+    Q_PROPERTY(SongListModel* songsModel READ songsModel CONSTANT)
 
 public:
     explicit LibraryController(QObject *parent = nullptr);
@@ -31,6 +36,7 @@ public:
     QVector<QVariant> songs() const;
     QVector<QVariant> albums() const;
     QVector<QVariant> artists() const;
+    SongListModel *songsModel() const;
 
 public slots:
     /**
@@ -128,6 +134,10 @@ private:
 
     DatabaseManager m_db;
     QVector<Song> m_songs;
+
+    // Role-based render model over the same m_songs snapshot (see
+    // songsModel()). Kept in sync by refresh()/handleScanFinished().
+    SongListModel m_songsModel;
 
     // QML-facing views of the library (QVariant wrappers). Built once per
     // library change instead of on every property read; QVector is

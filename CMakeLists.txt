@@ -39,6 +39,7 @@ set(SOURCES
     src/app/PlaylistController.cpp
     src/app/SettingsController.cpp
     src/library/LibraryController.cpp
+    src/library/SongListModel.cpp
     src/library/Scanner.cpp
     src/library/MetadataReader.cpp
     src/database/DatabaseManager.cpp

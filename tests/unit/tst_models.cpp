@@ -5,6 +5,7 @@
 #include "models/Album.h"
 #include "models/Artist.h"
 #include "models/Playlist.h"
+#include "library/SongListModel.h"
 
 /**
  * @brief Tests for the real domain models (src/models).
@@ -18,6 +19,7 @@ class TestModels : public QObject
 private slots:
     void testSongDefaultValues();
     void testSongToVariantMap();
+    void testSongListModel();
 
     void testAlbumDefaultValues();
 
@@ -85,6 +87,71 @@ void TestModels::testSongToVariantMap()
     QCOMPARE(map.value(QStringLiteral("playCount")).toInt(), song.playCount);
     QCOMPARE(map.value(QStringLiteral("favorite")).toBool(), song.favorite);
     QVERIFY(!map.contains(QStringLiteral("artworkPath")));
+}
+
+void TestModels::testSongListModel()
+{
+    SongListModel model;
+
+    // A fresh model has no rows.
+    QCOMPARE(model.rowCount(), 0);
+    QCOMPARE(model.rowOfId(1), -1);
+    QVERIFY(model.songData(0).isEmpty());
+
+    QVector<Song> songs;
+    Song s1;
+    s1.id = 1;
+    s1.path = QStringLiteral("/music/one.flac");
+    s1.title = QStringLiteral("One");
+    s1.artist = QStringLiteral("Artist A");
+    s1.album = QStringLiteral("Album X");
+    s1.genre = QStringLiteral("Rock");
+    s1.year = 2020;
+    s1.trackNumber = 1;
+    s1.discNumber = 1;
+    s1.duration = 190000;
+    s1.artworkPath = QStringLiteral("/art/one.jpg");
+    s1.favorite = true;
+    Song s2;
+    s2.id = 7;
+    s2.title = QStringLiteral("Two");
+    s2.duration = 210000;
+    songs << s1 << s2;
+
+    model.setSongs(songs);
+    QCOMPARE(model.rowCount(), 2);
+
+    // Role access matches the QML-facing map names.
+    const QModelIndex top = model.index(0);
+    QCOMPARE(model.data(top, SongListModel::IdRole).toInt(), 1);
+    QCOMPARE(model.data(top, SongListModel::TitleRole).toString(), s1.title);
+    QCOMPARE(model.data(top, SongListModel::ArtistRole).toString(), s1.artist);
+    QCOMPARE(model.data(top, SongListModel::AlbumRole).toString(), s1.album);
+    QCOMPARE(model.data(top, SongListModel::GenreRole).toString(), s1.genre);
+    QCOMPARE(model.data(top, SongListModel::YearRole).toInt(), 2020);
+    QCOMPARE(model.data(top, SongListModel::TrackNumberRole).toInt(), 1);
+    QCOMPARE(model.data(top, SongListModel::DiscNumberRole).toInt(), 1);
+    QCOMPARE(model.data(top, SongListModel::DurationRole).toLongLong(), qint64(190000));
+    QCOMPARE(model.data(top, SongListModel::ArtworkRole).toString(), s1.artworkPath);
+    QCOMPARE(model.data(top, SongListModel::FavoriteRole).toBool(), true);
+    QCOMPARE(model.data(model.index(1), SongListModel::TitleRole).toString(), s2.title);
+
+    // Invalid rows return a null QVariant, never a crash.
+    QVERIFY(!model.data(QModelIndex(), SongListModel::TitleRole).isValid());
+    QVERIFY(!model.data(model.index(-1), SongListModel::TitleRole).isValid());
+    QVERIFY(!model.data(model.index(5), SongListModel::TitleRole).isValid());
+
+    // Helpers for QML scripts.
+    QCOMPARE(model.rowOfId(7), 1);
+    QCOMPARE(model.rowOfId(999), -1);
+    QCOMPARE(model.songData(1).value(QStringLiteral("title")).toString(), s2.title);
+    QVERIFY(model.songData(9).isEmpty());
+
+    // roleNames() is what Qt Quick uses to expose roles as model.<name>.
+    const QHash<int, QByteArray> roles = model.roleNames();
+    QCOMPARE(roles.value(SongListModel::TitleRole), QByteArray("title"));
+    QCOMPARE(roles.value(SongListModel::IdRole), QByteArray("id"));
+    QCOMPARE(roles.value(SongListModel::FavoriteRole), QByteArray("favorite"));
 }
 
 void TestModels::testAlbumDefaultValues()

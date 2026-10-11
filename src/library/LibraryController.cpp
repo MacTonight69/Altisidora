@@ -19,6 +19,7 @@ constexpr qint64 kMinPersonalAudioDurationMs = 30000;
 
 LibraryController::LibraryController(QObject *parent)
     : QObject(parent)
+    , m_songsModel(this)
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dataPath);
@@ -47,6 +48,11 @@ QVector<QVariant> LibraryController::artists() const
     if (m_cachesStale)
         rebuildCaches();
     return m_cachedArtists;
+}
+
+SongListModel *LibraryController::songsModel() const
+{
+    return const_cast<SongListModel *>(&m_songsModel);
 }
 
 void LibraryController::rebuildCaches() const
@@ -141,6 +147,7 @@ void LibraryController::handleScanFinished()
 
     m_songs = m_db.getAllSongs().toVector();
     m_cachesStale = true;
+    m_songsModel.setSongs(m_songs);
     m_scanRunning = false;
     emit libraryChanged();
     emit scanFinished();
@@ -150,6 +157,7 @@ void LibraryController::refresh()
 {
     m_songs = m_db.getAllSongs().toVector();
     m_cachesStale = true;
+    m_songsModel.setSongs(m_songs);
     emit libraryChanged();
 }
 
