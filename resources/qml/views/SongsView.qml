@@ -14,6 +14,12 @@ Rectangle {
 
     property var songs: []
 
+    // Optional render model (SongListModel). When set, the ListView binds to
+    // it instead of the plain songs array. The delegate reads model.<prop>
+    // either way: for a JS array `model` proxies the element, for the C++
+    // model it resolves the roleNames() roles.
+    property var songsModel: null
+
     // Optional custom message for the empty state (used by drill-down views
     // when an album/artist has no visible songs).
     property string emptyHint: ""
@@ -330,7 +336,7 @@ Rectangle {
             id: songList
             Layout.fillWidth: true
             Layout.fillHeight: true
-            model: songsView.songs
+            model: songsView.songsModel ? songsView.songsModel : songsView.songs
             clip: true
             spacing: 2
             boundsBehavior: Flickable.StopAtBounds
@@ -354,16 +360,17 @@ Rectangle {
                 radius: 6
 
                 required property int index
-                required property var modelData
-                property var song: modelData
+                // model.<prop> resolves each element's property: for plain
+                // JS arrays `model` proxies the element, for SongListModel
+                // it resolves the named roles (no per-binding map wrap).
                 property bool isCurrent: Player.currentSong !== undefined
                                          && Player.currentSong !== null
                                          && Player.currentSong.id !== undefined
-                                         && Player.currentSong.id === song.id
+                                         && Player.currentSong.id === model.id
                 // Depends on selectedCount so it re-evaluates when the
                 // selection (either as a Set or its size) changes.
                 property bool isSelected: songsView.selectedCount > 0
-                                          && songsView.selectedIds.has(song.id)
+                                          && songsView.selectedIds.has(model.id)
 
                 color: isSelected ? Theme.selection
                        : isCurrent ? Theme.rowCurrent
@@ -382,10 +389,10 @@ Rectangle {
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: function (mouse) {
                         if (mouse.button === Qt.RightButton) {
-                            songsView.onRowRightClicked(songRow.index, songRow.song.id)
+                            songsView.onRowRightClicked(songRow.index, model.id)
                             return
                         }
-                        songsView.onRowClicked(songRow.index, songRow.song.id, mouse.modifiers)
+                        songsView.onRowClicked(songRow.index, model.id, mouse.modifiers)
                     }
                 }
 
@@ -397,7 +404,7 @@ Rectangle {
 
                     Text {
                         Layout.fillWidth: true
-                        text: songRow.song.title ? songRow.song.title : qsTr("Unknown title")
+                        text: model.title ? model.title : qsTr("Unknown title")
                         // Accent at rest, lighter on hover, selection colour when selected.
                         color: songRow.isSelected ? Theme.selectionText
                                : songMouse.containsMouse ? Theme.accentAltHover : Theme.accentAlt
@@ -407,7 +414,7 @@ Rectangle {
                     }
                     Text {
                         Layout.preferredWidth: 160
-                        text: songRow.song.artist ? songRow.song.artist : ""
+                        text: model.artist ? model.artist : ""
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                         font.family: Theme.fontFamily
                         font.pixelSize: 12 * Theme.fontScale
@@ -415,7 +422,7 @@ Rectangle {
                     }
                     Text {
                         Layout.preferredWidth: 160
-                        text: songRow.song.album ? songRow.song.album : ""
+                        text: model.album ? model.album : ""
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                         font.family: Theme.fontFamily
                         font.pixelSize: 12 * Theme.fontScale
@@ -424,7 +431,7 @@ Rectangle {
                     Text {
                         Layout.preferredWidth: 50
                         horizontalAlignment: Text.AlignRight
-                        text: songsView.formatDuration(songRow.song.duration)
+                        text: songsView.formatDuration(model.duration)
                         color: songRow.isSelected ? Theme.selectionTextMuted : Theme.textMuted
                         font.family: Theme.fontFamily
                         font.pixelSize: 12 * Theme.fontScale
@@ -459,7 +466,7 @@ Rectangle {
                         onClicked: {
                             // Single-song add always targets just this row.
                             songsView.addFromSelection = false
-                            songsView.targetSongIds = [songRow.song.id]
+                            songsView.targetSongIds = [model.id]
                             addToMenu.popup()
                         }
                     }

@@ -526,7 +526,10 @@ ApplicationWindow {
     Component {
         id: songsComponent
         SongsView {
+            // Search path keeps the filtered JS array; the full library
+            // renders through the role-based SongListModel instead.
             songs: root.filteredSongs !== null ? root.filteredSongs : Library.songs
+            songsModel: root.filteredSongs !== null ? null : Library.songsModel
         }
     }
 
