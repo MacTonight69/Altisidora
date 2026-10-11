@@ -500,7 +500,7 @@ Rectangle {
         visible: songsView.songCount() === 0
         text: songsView.emptyHint.length > 0
               ? songsView.emptyHint
-              : Library.songs.length === 0
+              : Library.songCount() === 0
                 ? (Library.ignoredPaths.length > 0
                    ? qsTr("All songs are hidden — manage them in Settings")
                    : qsTr("No songs yet — press Scan library"))

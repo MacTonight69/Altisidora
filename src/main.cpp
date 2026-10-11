@@ -12,6 +12,7 @@
 #include <QFileInfo>
 #include <QMouseEvent>
 #include <QRectF>
+#include <QTimer>
 #include <QUrl>
 
 #include "audio/PlayerController.h"
@@ -176,7 +177,6 @@ int main(int argc, char *argv[])
     // Expose playback to the desktop as an MPRIS media player, so MangoWM /
     // system media controls see the audio while it is playing.
     MprisPlayer mpris(&player);
-    mpris.registerService();
 
     QQmlApplicationEngine engine;
 
@@ -214,6 +214,14 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty()) {
         return -1;
     }
+
+    // Defer MPRIS registration until after the first paint: registerService()
+    // does synchronous D-Bus round-trips that would block startup. mpris is a
+    // stack local that lives for the duration of main(), so capturing its
+    // address is safe.
+    QTimer::singleShot(0, &mpris, [&mpris]() {
+        mpris.registerService();
+    });
 
     // Clicking anywhere outside the search bar drops its focus. The rest
     // of the UI is mostly Qt.NoFocus, so QML never blurs it on its own.

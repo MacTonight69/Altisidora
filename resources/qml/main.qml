@@ -33,8 +33,6 @@ ApplicationWindow {
     palette.toolTipBase: Theme.field
     palette.toolTipText: Theme.textPrimary
 
-    Component.onCompleted: root.applyTheme(AppSettings.theme)
-
     // Every settings change re-applies the theme so the typography scale
     // assigned at theme-change time stays the source of truth, no matter
     // where the change comes from (in-app combo, config edit, ...).

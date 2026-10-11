@@ -166,17 +166,21 @@ private:
     SongListModel m_searchModel;
     bool m_searchActive = false;
 
-    // QML-facing views of the library (QVariant wrappers). Built once per
-    // library change instead of on every property read; QVector is
-    // implicitly shared, so returning them is cheap. m_cachesStale is set
-    // in refresh()/handleScanFinished() (the only two paths that rebuild
+    // QML-facing views of the library (QVariant wrappers). Built lazily per
+    // property on first read after a library change; QVector is implicitly
+    // shared, so returning them is cheap. Each flag is set in
+    // refresh()/handleScanFinished() (the only two paths that rebuild
     // m_songs).
     mutable QVector<QVariant> m_cachedSongs;
     mutable QVector<QVariant> m_cachedAlbums;
     mutable QVector<QVariant> m_cachedArtists;
-    mutable bool m_cachesStale = true;
+    mutable bool m_songsStale = true;
+    mutable bool m_albumsStale = true;
+    mutable bool m_artistsStale = true;
 
-    void rebuildCaches() const;
+    void rebuildSongsCache() const;
+    void rebuildAlbumsCache() const;
+    void rebuildArtistsCache() const;
 
     // Background scan machinery. Scanner/MetadataReader are used by the
     // worker thread only through local copies created in scan().

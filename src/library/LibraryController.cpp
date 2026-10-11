@@ -28,7 +28,8 @@ LibraryController::LibraryController(QObject *parent)
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dataPath);
-    m_db.open(dataPath + "/library.db");
+    if (!m_db.open(dataPath + "/library.db"))
+        qWarning() << "LibraryController: failed to open database";
 
     connect(&m_scanWatcher, &QFutureWatcher<QList<Song>>::finished,
             this, &LibraryController::handleScanFinished);
@@ -36,22 +37,22 @@ LibraryController::LibraryController(QObject *parent)
 
 QVector<QVariant> LibraryController::songs() const
 {
-    if (m_cachesStale)
-        rebuildCaches();
+    if (m_songsStale)
+        rebuildSongsCache();
     return m_cachedSongs;
 }
 
 QVector<QVariant> LibraryController::albums() const
 {
-    if (m_cachesStale)
-        rebuildCaches();
+    if (m_albumsStale)
+        rebuildAlbumsCache();
     return m_cachedAlbums;
 }
 
 QVector<QVariant> LibraryController::artists() const
 {
-    if (m_cachesStale)
-        rebuildCaches();
+    if (m_artistsStale)
+        rebuildArtistsCache();
     return m_cachedArtists;
 }
 
@@ -70,29 +71,36 @@ bool LibraryController::searchActive() const
     return m_searchActive;
 }
 
-void LibraryController::rebuildCaches() const
+void LibraryController::rebuildSongsCache() const
 {
     m_cachedSongs.clear();
     m_cachedSongs.reserve(m_songs.size());
     for (const Song &song : m_songs) {
         m_cachedSongs.append(song.toVariantMap());
     }
+    m_songsStale = false;
+}
 
+void LibraryController::rebuildAlbumsCache() const
+{
     const QList<Album> albums = m_db.getAllAlbums();
     m_cachedAlbums.clear();
     m_cachedAlbums.reserve(albums.size());
     for (const Album &album : albums) {
         m_cachedAlbums.append(albumToVariant(album));
     }
+    m_albumsStale = false;
+}
 
+void LibraryController::rebuildArtistsCache() const
+{
     const QList<Artist> artists = m_db.getAllArtists();
     m_cachedArtists.clear();
     m_cachedArtists.reserve(artists.size());
     for (const Artist &artist : artists) {
         m_cachedArtists.append(artistToVariant(artist));
     }
-
-    m_cachesStale = false;
+    m_artistsStale = false;
 }
 
 void LibraryController::scan(const QString &directory)
@@ -203,7 +211,9 @@ void LibraryController::handleScanFinished()
     }
 
     m_songs = m_db.getAllSongs().toVector();
-    m_cachesStale = true;
+    m_songsStale = true;
+    m_albumsStale = true;
+    m_artistsStale = true;
     m_songsModel.applySnapshot(m_songs);
     m_scanRunning = false;
     emit libraryChanged();
@@ -213,7 +223,9 @@ void LibraryController::handleScanFinished()
 void LibraryController::refresh()
 {
     m_songs = m_db.getAllSongs().toVector();
-    m_cachesStale = true;
+    m_songsStale = true;
+    m_albumsStale = true;
+    m_artistsStale = true;
     m_songsModel.applySnapshot(m_songs);
     emit libraryChanged();
 }

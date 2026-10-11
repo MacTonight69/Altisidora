@@ -315,6 +315,7 @@ bool DatabaseManager::createTables()
     execute("CREATE INDEX IF NOT EXISTS idx_songs_album_id  ON songs(album_id)");
     execute("CREATE INDEX IF NOT EXISTS idx_songs_genre_id  ON songs(genre_id)");
     execute("CREATE INDEX IF NOT EXISTS idx_playlist_songs_song_id ON playlist_songs(song_id)");
+    execute("CREATE INDEX IF NOT EXISTS idx_ignored_paths_path ON ignored_paths(path)");
 
     return true;
 }

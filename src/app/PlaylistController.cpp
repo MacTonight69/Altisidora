@@ -7,8 +7,8 @@ PlaylistController::PlaylistController(QObject *parent)
     : QObject(parent)
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataPath);
-    m_db.open(dataPath + "/library.db");
+    if (!m_db.open(dataPath + "/library.db"))
+        qWarning() << "PlaylistController: failed to open database";
 }
 
 QVector<QVariant> PlaylistController::playlists() const
