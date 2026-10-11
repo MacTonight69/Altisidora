@@ -455,6 +455,13 @@ void PlayerController::pollTick()
 
     drainMpvEvents();
 
+    // Stopped with nothing pending: the four property reads below would only
+    // re-confirm Stopped. Skip them and keep draining events, so a later
+    // load() (m_pendingLoad) can still transition out of the stopped state.
+    if (m_playbackState == PlaybackState::Stopped && !m_pendingLoad) {
+        return;
+    }
+
     int pause = 0;
     int idle = 0;
     double positionSeconds = -1.0;
