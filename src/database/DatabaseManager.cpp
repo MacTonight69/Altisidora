@@ -144,6 +144,21 @@ bool DatabaseManager::isOpen() const
     return m_db.isOpen();
 }
 
+bool DatabaseManager::beginTransaction()
+{
+    return m_db.transaction();
+}
+
+bool DatabaseManager::commitTransaction()
+{
+    return m_db.commit();
+}
+
+bool DatabaseManager::rollbackTransaction()
+{
+    return m_db.rollback();
+}
+
 bool DatabaseManager::execute(const QString &sql)
 {
     QSqlQuery query(m_db);

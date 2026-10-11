@@ -27,6 +27,14 @@ public:
     void close();
     bool isOpen() const;
 
+    // Explicitly group multiple writes into one SQLite transaction (each
+    // statement in autocommit mode is its own fsync; a scan commits tens of
+    // thousands of statements, so wrapping them in one transaction is a
+    // large scan-speed win).
+    bool beginTransaction();
+    bool commitTransaction();
+    bool rollbackTransaction();
+
     // Schema
     bool createTables();
 

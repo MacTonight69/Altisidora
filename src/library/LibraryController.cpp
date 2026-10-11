@@ -105,11 +105,19 @@ void LibraryController::startScan(const QString &directory, qint64 minDurationMs
 void LibraryController::handleScanFinished()
 {
     const QList<Song> found = m_scanWatcher.result();
-    for (const Song &song : found) {
-        // addSong() needs a non-const Song& (it stores the generated id);
-        // duplicate paths are silently rejected.
-        Song mutableSong = song;
-        m_db.addSong(mutableSong);
+    if (!found.isEmpty()) {
+        // One transaction for the whole batch: in autocommit every addSong()
+        // statement would be its own fsync (~6 statements per song).
+        if (!m_db.beginTransaction())
+            qWarning() << "LibraryController: failed to start scan transaction";
+        for (const Song &song : found) {
+            // addSong() needs a non-const Song& (it stores the generated id);
+            // duplicate paths are silently rejected.
+            Song mutableSong = song;
+            m_db.addSong(mutableSong);
+        }
+        if (!m_db.commitTransaction())
+            qWarning() << "LibraryController: failed to commit scan transaction";
     }
 
     m_songs = m_db.getAllSongs().toVector();
