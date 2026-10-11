@@ -115,6 +115,12 @@ DatabaseManager::DatabaseManager()
 
 DatabaseManager::~DatabaseManager()
 {
+    // The connection is process-wide and shared with every other manager (see
+    // the constructor). close() therefore tears it down for all of them; this
+    // is safe only because the owners (the library and playlist controllers,
+    // stack locals in main) are all destroyed together at shutdown. If a
+    // manager ever gets a shorter lifetime, give the connection a single owner
+    // and pass it in instead of sharing the default one.
     close();
 }
 
