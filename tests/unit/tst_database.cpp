@@ -36,6 +36,10 @@ private slots:
     void testIgnoredPathsLifecycle();
     void testIgnoredFileHiddenFromQueries();
     void testIgnoredDirectoryHidesChildren();
+    void testSchemaMigrationAddsFileStats();
+    void testSongFileStatsReturnsStoredValues();
+    void testUpsertSongInsertsNewSong();
+    void testUpsertSongUpdatesMetadataButKeepsUserData();
 
 private:
     DatabaseManager m_db;
@@ -499,6 +503,172 @@ void TestDatabase::testIgnoredDirectoryHidesChildren()
     QVERIFY(m_db.addIgnoredPath(QStringLiteral("/music/album"), /*isDir=*/true));
     QCOMPARE(m_db.getAllSongs().size(), 1);
     QCOMPARE(m_db.getAllSongs().first().path, outside.path);
+}
+
+void TestDatabase::testSchemaMigrationAddsFileStats()
+{
+    // Build a v1 database by hand: songs without mtime/size, schema_version
+    // at 1, plus a row that must survive the migration untouched.
+    const QString legacyPath = m_tempDir.filePath(QStringLiteral("legacy.db"));
+    QFile::remove(legacyPath);
+    {
+        const QString connName = QStringLiteral("legacy_setup");
+        {
+            QSqlDatabase setup = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+            setup.setDatabaseName(legacyPath);
+            QVERIFY(setup.open());
+            {
+                QSqlQuery q(setup);
+                QVERIFY(q.exec(QStringLiteral(
+                    "CREATE TABLE songs ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE NOT NULL, "
+                    "title TEXT, artist_id INTEGER, album_id INTEGER, genre_id INTEGER, "
+                    "year INTEGER, track_number INTEGER, disc_number INTEGER, "
+                    "duration INTEGER, artwork_path TEXT, date_added TEXT, "
+                    "last_played TEXT, play_count INTEGER DEFAULT 0, "
+                    "favorite INTEGER DEFAULT 0)")));
+                QVERIFY(q.exec(QStringLiteral(
+                    "INSERT INTO songs (path, title, play_count, favorite) "
+                    "VALUES ('/music/legacy.mp3', 'Legacy', 7, 1)")));
+                QVERIFY(q.exec(QStringLiteral("CREATE TABLE schema_version (version INTEGER)")));
+                QVERIFY(q.exec(QStringLiteral("INSERT INTO schema_version (version) VALUES (1)")));
+            }
+            setup.close();
+        }
+        QSqlDatabase::removeDatabase(connName);
+    }
+
+    // Reopen through DatabaseManager: free the shared connection first, then
+    // createTables() migrates the v1 schema in place.
+    m_db.close();
+    DatabaseManager migrated;
+    QVERIFY(migrated.open(legacyPath));
+
+    // mtime/size now exist.
+    bool hasMtime = false;
+    bool hasSize = false;
+    {
+        QSqlQuery info(QSqlDatabase::database());
+        QVERIFY(info.exec(QStringLiteral("PRAGMA table_info(songs)")));
+        while (info.next()) {
+            const QString name = info.value(QStringLiteral("name")).toString();
+            hasMtime = hasMtime || name == QStringLiteral("mtime");
+            hasSize = hasSize || name == QStringLiteral("size");
+        }
+    }
+    QVERIFY(hasMtime);
+    QVERIFY(hasSize);
+
+    // The legacy row is intact (no data loss, user data preserved).
+    const QList<Song> songs = migrated.getAllSongs();
+    QCOMPARE(songs.size(), 1);
+    QCOMPARE(songs.first().path, QStringLiteral("/music/legacy.mp3"));
+    QCOMPARE(songs.first().playCount, 7);
+    QVERIFY(songs.first().favorite);
+
+    // And the stored schema version is 2, as a single row.
+    QSqlQuery versionQuery(QSqlDatabase::database());
+    QVERIFY(versionQuery.exec(QStringLiteral("SELECT version FROM schema_version")));
+    QVERIFY(versionQuery.next());
+    QCOMPARE(versionQuery.value(0).toInt(), 2);
+    QVERIFY(!versionQuery.next());
+}
+
+void TestDatabase::testSongFileStatsReturnsStoredValues()
+{
+    Song song;
+    song.path = QStringLiteral("/music/stats.mp3");
+    song.title = QStringLiteral("Stats");
+    song.mtimeMs = 1234567890123LL;
+    song.size = 4242;
+    QVERIFY(m_db.upsertSong(song));
+
+    const auto stats = m_db.songFileStats();
+    QVERIFY(stats.contains(song.path));
+    QCOMPARE(stats.value(song.path).first, 1234567890123LL);
+    QCOMPARE(stats.value(song.path).second, 4242LL);
+
+    // Unknown paths are absent.
+    QVERIFY(!stats.contains(QStringLiteral("/music/nope.mp3")));
+}
+
+void TestDatabase::testUpsertSongInsertsNewSong()
+{
+    Song song;
+    song.path = QStringLiteral("/music/new.mp3");
+    song.title = QStringLiteral("Brand New");
+    song.artist = QStringLiteral("Artist A");
+    song.album = QStringLiteral("Album X");
+    song.genre = QStringLiteral("Rock");
+    song.year = 2024;
+    song.duration = 12345;
+    song.mtimeMs = 111;
+    song.size = 222;
+
+    QVERIFY(m_db.upsertSong(song));
+    QVERIFY(song.id > 0);
+
+    const Song stored = m_db.getSong(song.id);
+    QCOMPARE(stored.path, song.path);
+    QCOMPARE(stored.title, QStringLiteral("Brand New"));
+    QCOMPARE(stored.artist, QStringLiteral("Artist A"));
+    QCOMPARE(stored.album, QStringLiteral("Album X"));
+    QCOMPARE(stored.genre, QStringLiteral("Rock"));
+    QCOMPARE(stored.duration, qint64(12345));
+}
+
+void TestDatabase::testUpsertSongUpdatesMetadataButKeepsUserData()
+{
+    Song song;
+    song.path = QStringLiteral("/music/rescan.mp3");
+    song.title = QStringLiteral("Original");
+    song.artist = QStringLiteral("Artist A");
+    song.album = QStringLiteral("Album X");
+    song.duration = 1000;
+    song.mtimeMs = 100;
+    song.size = 200;
+    QVERIFY(m_db.upsertSong(song));
+    const int id = song.id;
+    QVERIFY(id > 0);
+
+    // Simulate user data a rescan must never clobber.
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        q.prepare(QStringLiteral(
+            "UPDATE songs SET play_count = 9, favorite = 1, "
+            "date_added = '2020-01-02T03:04:05' WHERE id = ?"));
+        q.addBindValue(id);
+        QVERIFY(q.exec());
+    }
+
+    // Rescan-style upsert: same path, new tag metadata and file stats.
+    Song updated;
+    updated.path = song.path;
+    updated.title = QStringLiteral("Updated");
+    updated.artist = QStringLiteral("Artist B");
+    updated.album = QStringLiteral("Album Y");
+    updated.duration = 2000;
+    updated.mtimeMs = 300;
+    updated.size = 400;
+    QVERIFY(m_db.upsertSong(updated));
+    QCOMPARE(updated.id, id); // same row, not a duplicate
+
+    QCOMPARE(m_db.getAllSongs().size(), 1);
+    const Song stored = m_db.getSong(id);
+    QCOMPARE(stored.title, QStringLiteral("Updated"));
+    QCOMPARE(stored.artist, QStringLiteral("Artist B"));
+    QCOMPARE(stored.album, QStringLiteral("Album Y"));
+    QCOMPARE(stored.duration, qint64(2000));
+    // User data untouched.
+    QCOMPARE(stored.playCount, 9);
+    QVERIFY(stored.favorite);
+    QCOMPARE(stored.dateAdded,
+             QDateTime::fromString(QStringLiteral("2020-01-02T03:04:05"), Qt::ISODate));
+
+    // The fingerprint was refreshed too.
+    const auto stats = m_db.songFileStats();
+    QCOMPARE(stats.value(song.path).first, 300LL);
+    QCOMPARE(stats.value(song.path).second, 400LL);
 }
 
 QTEST_MAIN(TestDatabase)

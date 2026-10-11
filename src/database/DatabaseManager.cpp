@@ -5,6 +5,7 @@
 #include <QVariant>
 #include <QDateTime>
 #include <QDebug>
+#include <QSet>
 
 namespace {
 
@@ -96,6 +97,31 @@ qint64 resolveAlbum(QSqlDatabase &db, const QString &title, qint64 artistId, int
         return ins.lastInsertId().toLongLong();
     }
     return -1;
+}
+
+/**
+ * @brief Whether the runtime SQLite supports INSERT ... RETURNING.
+ *
+ * RETURNING needs SQLite >= 3.35 (2021); older system libraries reject the
+ * statement. Probed once per process and cached, so upsertSong() can pick the
+ * fast path (read the row id from the statement itself) or fall back to a
+ * follow-up SELECT. The connection is process-wide (see the constructor), so
+ * the default one is the right place to ask.
+ */
+bool sqliteSupportsReturning()
+{
+    static const bool supported = [] {
+        QSqlQuery query(QSqlDatabase::database());
+        if (!query.exec(QStringLiteral("SELECT sqlite_version()")) || !query.next())
+            return false;
+        const QStringList parts = query.value(0).toString().split(QLatin1Char('.'));
+        if (parts.size() < 2)
+            return false;
+        const int major = parts.at(0).toInt();
+        const int minor = parts.at(1).toInt();
+        return major > 3 || (major == 3 && minor >= 35);
+    }();
+    return supported;
 }
 
 } // namespace
@@ -219,6 +245,8 @@ bool DatabaseManager::createTables()
             "disc_number INTEGER, "
             "duration INTEGER, "
             "artwork_path TEXT, "
+            "mtime INTEGER, "
+            "size INTEGER, "
             "date_added TEXT, "
             "last_played TEXT, "
             "play_count INTEGER DEFAULT 0, "
@@ -256,7 +284,28 @@ bool DatabaseManager::createTables()
     // Schema version
     execute("CREATE TABLE IF NOT EXISTS schema_version ("
             "version INTEGER)");
-    execute("INSERT OR IGNORE INTO schema_version (version) VALUES (1)");
+    // Schema v2 adds the file-change columns below; record it as a single row
+    // so repeated opens do not accumulate rows (the old INSERT OR IGNORE had
+    // no UNIQUE constraint and therefore inserted one row per launch).
+    execute("DELETE FROM schema_version");
+    execute("INSERT INTO schema_version (version) VALUES (2)");
+
+    // Schema migration: an existing database predating v2 lacks mtime/size.
+    // PRAGMA table_info lists the current columns; ALTER TABLE ADD COLUMN is
+    // only issued for the ones missing, so this is idempotent on every open.
+    // Fresh databases already have both from the CREATE above.
+    {
+        QSet<QString> columns;
+        QSqlQuery info(m_db);
+        if (info.exec(QStringLiteral("PRAGMA table_info(songs)"))) {
+            while (info.next())
+                columns.insert(info.value(QStringLiteral("name")).toString());
+        }
+        if (!columns.contains(QStringLiteral("mtime")))
+            execute(QStringLiteral("ALTER TABLE songs ADD COLUMN mtime INTEGER"));
+        if (!columns.contains(QStringLiteral("size")))
+            execute(QStringLiteral("ALTER TABLE songs ADD COLUMN size INTEGER"));
+    }
 
     // Query accelerators: the JOINs in kSongSelect and the aggregates in
     // getAllAlbums()/getAllArtists() walk songs by foreign key, so each FK
@@ -315,6 +364,95 @@ bool DatabaseManager::addSong(Song &song)
     }
     song.id = query.lastInsertId().toLongLong();
     return true;
+}
+
+bool DatabaseManager::upsertSong(Song &song)
+{
+    if (song.path.isEmpty()) {
+        return false;
+    }
+
+    const qint64 artistId = resolveNamedRow(m_db, QStringLiteral("artists"), song.artist);
+    const qint64 albumId = resolveAlbum(m_db, song.album, artistId, song.year);
+    const qint64 genreId = resolveNamedRow(m_db, QStringLiteral("genres"), song.genre);
+
+    const bool useReturning = sqliteSupportsReturning();
+
+    QString sql = QStringLiteral(
+        "INSERT INTO songs (path, title, artist_id, album_id, genre_id, year, "
+        "track_number, disc_number, duration, artwork_path, mtime, size, "
+        "date_added, last_played, play_count, favorite) "
+        "VALUES (:path, :title, :artist_id, :album_id, :genre_id, :year, "
+        ":track_number, :disc_number, :duration, :artwork_path, :mtime, :size, "
+        ":date_added, :last_played, :play_count, :favorite) "
+        // Refresh only the tag-derived columns on conflict. date_added,
+        // last_played, play_count and favorite are intentionally absent so a
+        // rescan can never clobber the user's data.
+        "ON CONFLICT(path) DO UPDATE SET "
+        "title=excluded.title, artist_id=excluded.artist_id, "
+        "album_id=excluded.album_id, genre_id=excluded.genre_id, "
+        "year=excluded.year, track_number=excluded.track_number, "
+        "disc_number=excluded.disc_number, duration=excluded.duration, "
+        "artwork_path=excluded.artwork_path, mtime=excluded.mtime, "
+        "size=excluded.size");
+    if (useReturning) {
+        sql += QStringLiteral(" RETURNING id");
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(sql);
+    query.bindValue(":path", song.path);
+    query.bindValue(":title", song.title);
+    query.bindValue(":artist_id", artistId > 0 ? QVariant(artistId) : QVariant());
+    query.bindValue(":album_id", albumId > 0 ? QVariant(albumId) : QVariant());
+    query.bindValue(":genre_id", genreId > 0 ? QVariant(genreId) : QVariant());
+    query.bindValue(":year", song.year);
+    query.bindValue(":track_number", song.trackNumber);
+    query.bindValue(":disc_number", song.discNumber);
+    query.bindValue(":duration", song.duration);
+    query.bindValue(":artwork_path", song.artworkPath);
+    query.bindValue(":mtime", song.mtimeMs);
+    query.bindValue(":size", song.size);
+    query.bindValue(":date_added", song.dateAdded.toString(Qt::ISODate));
+    query.bindValue(":last_played", song.lastPlayed.toString(Qt::ISODate));
+    query.bindValue(":play_count", song.playCount);
+    query.bindValue(":favorite", song.favorite ? 1 : 0);
+
+    if (!query.exec()) {
+        qWarning() << "Failed to upsert song:" << query.lastError().text();
+        return false;
+    }
+
+    // Read the row id: from RETURNING when the SQLite build supports it, or
+    // with a follow-up lookup otherwise (and as a safety net if the driver
+    // does not expose RETURNING rows).
+    if (useReturning && query.next()) {
+        song.id = query.value(0).toLongLong();
+        return true;
+    }
+
+    QSqlQuery idQuery(m_db);
+    idQuery.prepare(QStringLiteral("SELECT id FROM songs WHERE path = ?"));
+    idQuery.addBindValue(song.path);
+    if (idQuery.exec() && idQuery.next()) {
+        song.id = idQuery.value(0).toLongLong();
+        return true;
+    }
+    return false;
+}
+
+QHash<QString, QPair<qint64, qint64>> DatabaseManager::songFileStats() const
+{
+    QHash<QString, QPair<qint64, qint64>> stats;
+    QSqlQuery query(m_db);
+    if (query.exec(QStringLiteral("SELECT path, mtime, size FROM songs"))) {
+        while (query.next()) {
+            stats.insert(query.value(0).toString(),
+                         qMakePair(query.value(1).toLongLong(),
+                                   query.value(2).toLongLong()));
+        }
+    }
+    return stats;
 }
 
 bool DatabaseManager::removeSong(qint64 id)

@@ -30,6 +30,7 @@ private slots:
     void testSupportedExtensionsCaseInsensitive();
     void testScanFindsWebmAndMatroska();
     void testScanSkipsSymlinks();
+    void testScanEntriesReturnsStats();
 
 private:
     QTemporaryDir m_tempDir;
@@ -238,6 +239,35 @@ void TestScanner::testScanSkipsSymlinks()
     const auto found = scanner.scan(m_tempDir.path(), {});
     // Only the real song inside the scanned tree.
     QCOMPARE(found.size(), 1);
+}
+
+void TestScanner::testScanEntriesReturnsStats()
+{
+    // scanEntries() must return the same files as scan(), each carrying the
+    // path's real modification time and size (the change-detection key).
+    const QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+    QCOMPARE(files.size(), 3);
+
+    Scanner scanner;
+    const auto entries = scanner.scanEntries(m_tempDir.path(), {});
+    QCOMPARE(entries.size(), 3);
+
+    // The path-only API stays consistent with the entries API.
+    const auto paths = scanner.scan(m_tempDir.path(), {});
+    QCOMPARE(paths.size(), entries.size());
+
+    QSet<QString> created(files.begin(), files.end());
+    QSet<QString> seenPaths;
+    for (const Scanner::FileEntry &entry : entries) {
+        QVERIFY(created.contains(entry.path));
+        QVERIFY(paths.contains(entry.path));
+        seenPaths.insert(entry.path);
+
+        const QFileInfo info(entry.path);
+        QCOMPARE(entry.size, info.size());
+        QCOMPARE(entry.mtimeMs, info.lastModified().toMSecsSinceEpoch());
+    }
+    QCOMPARE(seenPaths.size(), 3);
 }
 
 QTEST_MAIN(TestScanner)

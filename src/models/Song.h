@@ -23,6 +23,11 @@ struct Song {
     int trackNumber = 0;
     int discNumber = 0;
     qint64 duration = 0; // milliseconds
+    // File fingerprint captured at scan time. Not exposed to QML (it stays
+    // out of toVariantMap); a rescan compares these against the stored values
+    // to decide whether the file's tags must be read again.
+    qint64 mtimeMs = 0; // last modification time, ms since epoch
+    qint64 size = 0;    // file size in bytes
     QString artworkPath;
     QDateTime dateAdded;
     QDateTime lastPlayed;

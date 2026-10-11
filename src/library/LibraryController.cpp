@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
+#include <QPair>
 #include <QThread>
 #include <QThreadPool>
 #include <QtConcurrent>
@@ -103,47 +105,70 @@ void LibraryController::startScan(const QString &directory, qint64 minDurationMs
 
     // File walking and metadata extraction are CPU/IO-bound and thread-safe:
     // run them off the UI thread with local copies of Scanner/MetadataReader.
-    // Metadata extraction is parallelised further below. Ignored paths are
-    // captured at scan start; new hide/unhide choices apply from the next
-    // scan on.
+    // Metadata extraction is parallelised further below. Ignored paths and
+    // the stored file fingerprints are captured at scan start (they live in
+    // the database, which may only be touched from this, the main, thread);
+    // new hide/unhide choices apply from the next scan on.
     const QStringList ignoredPaths = m_db.ignoredPaths();
-    m_scanWatcher.setFuture(QtConcurrent::run([directory, minDurationMs, ignoredPaths]() {
-        Scanner scanner;
-        const QVector<QString> files = scanner.scan(directory, ignoredPaths);
+    const QHash<QString, QPair<qint64, qint64>> fileStats = m_db.songFileStats();
+    m_scanWatcher.setFuture(QtConcurrent::run(
+        [directory, minDurationMs, ignoredPaths, fileStats]() {
+            Scanner scanner;
+            const QVector<Scanner::FileEntry> entries =
+                scanner.scanEntries(directory, ignoredPaths);
 
-        // Extract tags in parallel: TagLib parsing is CPU-bound and each
-        // read() builds its own TagLib::FileRef (MetadataReader holds no
-        // state), so the work shards cleanly across cores. Use a dedicated
-        // pool rather than the global one: this lambda already runs on a
-        // global-pool thread, and blockingMapped() on that same pool would
-        // deadlock on a single-core machine (its only thread is the one
-        // blocked here, waiting for the map tasks it just queued).
-        QThreadPool pool;
-        pool.setMaxThreadCount(qMax(1, QThread::idealThreadCount()));
-
-        const QList<QString> fileList = files.toList();
-        const QList<Song> read = QtConcurrent::blockingMapped<QList<Song>>(
-            &pool, fileList.cbegin(), fileList.cend(),
-            [](const QString &filePath) {
-                MetadataReader reader; // one per call: no shared state
-                return reader.read(filePath);
-            });
-
-        QList<Song> songs;
-        songs.reserve(read.size());
-        for (const Song &song : read) {
-            if (song.path.isEmpty()) {
-                continue;
+            // Read tags only for files that are new or changed. A file whose
+            // stored mtime AND size both match its on-disk values is already
+            // up to date, so its tags are neither read nor re-written;
+            // unchanged files never reach the database.
+            QVector<Scanner::FileEntry> toRead;
+            toRead.reserve(entries.size());
+            for (const Scanner::FileEntry &entry : entries) {
+                const auto it = fileStats.constFind(entry.path);
+                if (it != fileStats.constEnd()
+                    && it.value().first == entry.mtimeMs
+                    && it.value().second == entry.size) {
+                    continue; // unchanged
+                }
+                toRead.append(entry);
             }
-            // minDurationMs <= 0: ingest everything (manual scans). For the
-            // personal-folder auto-scan, skip audio shorter than the limit.
-            if (minDurationMs > 0 && song.duration <= minDurationMs) {
-                continue;
+
+            // Extract tags in parallel: TagLib parsing is CPU-bound and each
+            // read() builds its own TagLib::FileRef (MetadataReader holds no
+            // state), so the work shards cleanly across cores. Use a dedicated
+            // pool rather than the global one: this lambda already runs on a
+            // global-pool thread, and blockingMapped() on that same pool would
+            // deadlock on a single-core machine (its only thread is the one
+            // blocked here, waiting for the map tasks it just queued).
+            QThreadPool pool;
+            pool.setMaxThreadCount(qMax(1, QThread::idealThreadCount()));
+
+            const QList<Scanner::FileEntry> readList = toRead.toList();
+            const QList<Song> read = QtConcurrent::blockingMapped<QList<Song>>(
+                &pool, readList.cbegin(), readList.cend(),
+                [](const Scanner::FileEntry &entry) {
+                    MetadataReader reader; // one per call: no shared state
+                    Song song = reader.read(entry.path);
+                    song.mtimeMs = entry.mtimeMs;
+                    song.size = entry.size;
+                    return song;
+                });
+
+            QList<Song> songs;
+            songs.reserve(read.size());
+            for (const Song &song : read) {
+                if (song.path.isEmpty()) {
+                    continue;
+                }
+                // minDurationMs <= 0: ingest everything (manual scans). For the
+                // personal-folder auto-scan, skip audio shorter than the limit.
+                if (minDurationMs > 0 && song.duration <= minDurationMs) {
+                    continue;
+                }
+                songs.append(song);
             }
-            songs.append(song);
-        }
-        return songs;
-    }));
+            return songs;
+        }));
 }
 
 // Runs on the main thread (delivered by the event loop).
@@ -151,15 +176,16 @@ void LibraryController::handleScanFinished()
 {
     const QList<Song> found = m_scanWatcher.result();
     if (!found.isEmpty()) {
-        // One transaction for the whole batch: in autocommit every addSong()
+        // One transaction for the whole batch: in autocommit every upsert
         // statement would be its own fsync (~6 statements per song).
         if (!m_db.beginTransaction())
             qWarning() << "LibraryController: failed to start scan transaction";
         for (const Song &song : found) {
-            // addSong() needs a non-const Song& (it stores the generated id);
-            // duplicate paths are silently rejected.
+            // upsertSong() needs a non-const Song& (it stores the row id):
+            // new paths are inserted, existing ones update only their
+            // tag-derived columns (user data is preserved).
             Song mutableSong = song;
-            m_db.addSong(mutableSong);
+            m_db.upsertSong(mutableSong);
         }
         if (!m_db.commitTransaction())
             qWarning() << "LibraryController: failed to commit scan transaction";

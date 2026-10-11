@@ -56,10 +56,10 @@ bool Scanner::isSupportedAudioFile(const QString &filePath)
     return kSupportedExtensionSet.contains(QFileInfo(filePath).suffix().toLower());
 }
 
-QVector<QString> Scanner::scan(const QString &dirPath,
-                               const QStringList &ignoredPaths) const
+QVector<Scanner::FileEntry> Scanner::scanEntries(const QString &dirPath,
+                                                 const QStringList &ignoredPaths) const
 {
-    QVector<QString> found;
+    QVector<FileEntry> found;
     if (isIgnoredEntry(dirPath, ignoredPaths))
         return found;
 
@@ -79,12 +79,30 @@ QVector<QString> Scanner::scan(const QString &dirPath,
         // QDir::NoSymLinks already filtered symlinks out of the iteration,
         // so every remaining entry is a real file or directory. Reuse the
         // iterator's cached QFileInfo instead of building a fresh one (which
-        // would stat the entry again) just to tell the two apart.
-        if (it.fileInfo().isDir())
-            found += scan(entry, ignoredPaths);
-        else if (isSupportedAudioFile(entry))
-            found.append(entry);
+        // would stat the entry again) both to tell the two apart and to read
+        // the file's mtime/size.
+        const QFileInfo info = it.fileInfo();
+        if (info.isDir()) {
+            found += scanEntries(entry, ignoredPaths);
+        } else if (isSupportedAudioFile(entry)) {
+            FileEntry file;
+            file.path = entry;
+            file.mtimeMs = info.lastModified().toMSecsSinceEpoch();
+            file.size = info.size();
+            found.append(file);
+        }
     }
 
     return found;
+}
+
+QVector<QString> Scanner::scan(const QString &dirPath,
+                               const QStringList &ignoredPaths) const
+{
+    const QVector<FileEntry> entries = scanEntries(dirPath, ignoredPaths);
+    QVector<QString> paths;
+    paths.reserve(entries.size());
+    for (const FileEntry &entry : entries)
+        paths.append(entry.path);
+    return paths;
 }

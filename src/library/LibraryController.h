@@ -55,9 +55,9 @@ public slots:
      * @brief Automatically scan the personal folder in the background.
      *
      * Used on first launch. Only audio longer than 30 seconds is ingested
-     * (short clips, notification sounds, etc. are skipped); paths already
-     * in the database are rejected by addSong(). When @p directory is
-     * empty, the user's home folder is used.
+     * (short clips, notification sounds, etc. are skipped); files whose
+     * stored mtime and size are unchanged are not re-read. When @p directory
+     * is empty, the user's home folder is used.
      */
     void scanPersonalMusic(const QString &directory = QString());
     void refresh();

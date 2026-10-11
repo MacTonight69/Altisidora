@@ -5,6 +5,8 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
+#include <QHash>
+#include <QPair>
 
 #include "../models/Song.h"
 #include "../models/Artist.h"
@@ -40,6 +42,16 @@ public:
 
     // Songs
     bool addSong(Song &song);
+    // Insert a new song or, when its path already exists, refresh the
+    // tag-derived columns (title, artist/album/genre, year, track/disc,
+    // duration, artwork, mtime, size) without ever touching the user data
+    // (date_added, last_played, play_count, favorite). song.id is set to the
+    // resulting row id. This is the rescan path: it replaces addSong()'s
+    // per-song duplicate SELECT.
+    bool upsertSong(Song &song);
+    // path -> {mtimeMs, size} for every stored song, used to skip re-reading
+    // tags for files that have not changed since the last scan.
+    QHash<QString, QPair<qint64, qint64>> songFileStats() const;
     bool removeSong(qint64 id);
     Song getSong(qint64 id) const;
     QList<Song> getAllSongs() const;

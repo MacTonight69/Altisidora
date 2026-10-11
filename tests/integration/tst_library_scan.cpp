@@ -30,10 +30,12 @@ private slots:
     void testFullScanWorkflow();
     void testPersistenceAcrossRestart();
     void testPersonalScanFilterAndDedupe();
+    void testRescanOnlyProcessesChangedFiles();
 
 private:
     void removeDatabaseFiles();
     bool waitForScanFinished(LibraryController *controller);
+    QVariantMap songByPath(LibraryController *controller, const QString &path) const;
 
     QTemporaryDir m_tempDir;
 };
@@ -130,6 +132,18 @@ bool tst_library_scan::waitForScanFinished(LibraryController *controller)
     return finishedSpy.wait(10000);
 }
 
+QVariantMap tst_library_scan::songByPath(LibraryController *controller,
+                                         const QString &path) const
+{
+    const QVector<QVariant> songs = controller->songs();
+    for (const QVariant &entry : songs) {
+        const QVariantMap map = entry.toMap();
+        if (map.value(QStringLiteral("path")).toString() == path)
+            return map;
+    }
+    return {};
+}
+
 void tst_library_scan::testPersonalScanFilterAndDedupe()
 {
     removeDatabaseFiles();
@@ -162,6 +176,69 @@ void tst_library_scan::testPersonalScanFilterAndDedupe()
     controller.scan(dir);
     QVERIFY(waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
+}
+
+void tst_library_scan::testRescanOnlyProcessesChangedFiles()
+{
+    removeDatabaseFiles();
+
+    const QString dir = m_tempDir.filePath(QStringLiteral("rescan_music"));
+    QDir().mkpath(dir);
+
+    // Real MPEG files with known, different durations: rewriting a file with
+    // a different frame count changes both its size and its duration.
+    const QString changedPath = dir + QStringLiteral("/changed.mp3");
+    const QString stablePath = dir + QStringLiteral("/stable.mp3");
+    QVERIFY(TestHelpers::createMpegAudioFile(changedPath, 400)); // ~10.4 s
+    QVERIFY(TestHelpers::createMpegAudioFile(stablePath, 800));  // ~20.9 s
+
+    LibraryController controller;
+
+    // First scan: both files are new and get ingested.
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+
+    const QVariantMap changedBefore = songByPath(&controller, changedPath);
+    QVERIFY(!changedBefore.isEmpty());
+    const qint64 durationBefore =
+        changedBefore.value(QStringLiteral("duration")).toLongLong();
+    QVERIFY(durationBefore > 0);
+
+    // Rescan with nothing changed: no new rows, no duplicates.
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+
+    // Rewrite one file (different frame count => different size/duration and
+    // a fresh mtime). The rescan must re-read only that file and refresh its
+    // metadata; the unchanged file is left alone.
+    QVERIFY(TestHelpers::createMpegAudioFile(changedPath, 1200)); // ~31.3 s
+
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+
+    const QVariantMap changedAfter = songByPath(&controller, changedPath);
+    QVERIFY(!changedAfter.isEmpty());
+    const qint64 durationAfter =
+        changedAfter.value(QStringLiteral("duration")).toLongLong();
+    QVERIFY(durationAfter != durationBefore);
+    QVERIFY(durationAfter > durationBefore);
+
+    // Exactly one row per path: the rescan neither duplicated nor dropped any.
+    QVERIFY(!songByPath(&controller, stablePath).isEmpty());
+    int changedRows = 0;
+    int stableRows = 0;
+    for (const QVariant &entry : controller.songs()) {
+        const QString path = entry.toMap().value(QStringLiteral("path")).toString();
+        if (path == changedPath)
+            ++changedRows;
+        if (path == stablePath)
+            ++stableRows;
+    }
+    QCOMPARE(changedRows, 1);
+    QCOMPARE(stableRows, 1);
 }
 
 QTEST_MAIN(tst_library_scan)
