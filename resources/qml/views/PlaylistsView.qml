@@ -283,12 +283,12 @@ Rectangle {
 
                     delegate: Rectangle {
                         id: plRow
-                        required property var modelData
                         width: playlistList.width
                         height: 48
                         radius: 6
 
-                        property bool isSelected: playlistsView.selectedPlaylistId === modelData.id
+                        // model.<prop> proxies the playlist map (JS array model).
+                        property bool isSelected: playlistsView.selectedPlaylistId === model.id
                         property bool renaming: false
 
                         color: isSelected ? Theme.rowActive
@@ -299,7 +299,7 @@ Rectangle {
 
                         function startRename() {
                             renaming = true
-                            renameField.text = modelData.name
+                            renameField.text = model.name
                             renameField.forceActiveFocus()
                             renameField.selectAll()
                         }
@@ -308,7 +308,7 @@ Rectangle {
                             id: plMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            onClicked: playlistsView.selectedPlaylistId = modelData.id
+                            onClicked: playlistsView.selectedPlaylistId = model.id
                             onDoubleClicked: plRow.startRename()
                         }
 
@@ -327,7 +327,7 @@ Rectangle {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: modelData.name
+                                    text: model.name
                                     color: plRow.isSelected ? Theme.accent : Theme.textPrimary
                                     font.family: Theme.fontFamily
                                     font.pixelSize: 13 * Theme.fontScale
@@ -336,8 +336,8 @@ Rectangle {
                                 }
                                 Text {
                                     Layout.fillWidth: true
-                                    text: modelData.songCount + (modelData.songCount === 1
-                                                                  ? qsTr(" song") : qsTr(" songs"))
+                                    text: model.songCount + (model.songCount === 1
+                                                              ? qsTr(" song") : qsTr(" songs"))
                                     color: Theme.textMuted
                                     font.family: Theme.fontFamily
                                     font.pixelSize: 11 * Theme.fontScale
@@ -366,7 +366,7 @@ Rectangle {
                                 onAccepted: {
                                     var name = text.trim()
                                     if (name.length > 0)
-                                        Playlists.renamePlaylist(modelData.id, name)
+                                        Playlists.renamePlaylist(model.id, name)
                                     plRow.renaming = false
                                 }
                                 Keys.onEscapePressed: function (event) {
@@ -423,7 +423,7 @@ Rectangle {
                                 onClicked: {
                                     if (plRow.isSelected)
                                         playlistsView.selectedPlaylistId = -1
-                                    Playlists.deletePlaylist(modelData.id)
+                                    Playlists.deletePlaylist(model.id)
                                 }
                             }
                         }
@@ -599,18 +599,17 @@ Rectangle {
                     delegate: Rectangle {
                         id: plSongRow
                         required property int index
-                        required property var modelData
                         width: playlistSongsList.width
                         height: 44
                         radius: 6
 
-                        property var song: modelData
+                        // model.<prop> proxies the song map (JS array model).
                         property bool isCurrent: Player.currentSong !== undefined
                                                  && Player.currentSong !== null
                                                  && Player.currentSong.id !== undefined
-                                                 && Player.currentSong.id === song.id
+                                                 && Player.currentSong.id === model.id
                         property bool isSelected: playlistsView.selectedSongCount > 0
-                                                  && playlistsView.selectedSongIds.has(song.id)
+                                                  && playlistsView.selectedSongIds.has(model.id)
 
                         color: isSelected ? Theme.selection
                                : isCurrent ? Theme.rowActive
@@ -629,10 +628,10 @@ Rectangle {
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: function (mouse) {
                                 if (mouse.button === Qt.RightButton) {
-                                    playlistsView.onPlaylistRowRightClicked(plSongRow.index, plSongRow.song.id)
+                                    playlistsView.onPlaylistRowRightClicked(plSongRow.index, model.id)
                                     return
                                 }
-                                playlistsView.onPlaylistRowClicked(plSongRow.index, plSongRow.song.id, mouse.modifiers)
+                                playlistsView.onPlaylistRowClicked(plSongRow.index, model.id, mouse.modifiers)
                             }
                         }
 
@@ -644,7 +643,7 @@ Rectangle {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: plSongRow.song.title ? plSongRow.song.title : qsTr("Unknown title")
+                                text: model.title ? model.title : qsTr("Unknown title")
                                 color: plSongRow.isSelected ? Theme.selectionText : Theme.textPrimary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 13 * Theme.fontScale
@@ -652,7 +651,7 @@ Rectangle {
                             }
                             Text {
                                 Layout.preferredWidth: 150
-                                text: plSongRow.song.artist ? plSongRow.song.artist : ""
+                                text: model.artist ? model.artist : ""
                                 color: plSongRow.isSelected ? Theme.selectionTextMuted : Theme.textSecondary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 12 * Theme.fontScale
@@ -661,7 +660,7 @@ Rectangle {
                             Text {
                                 Layout.preferredWidth: 44
                                 horizontalAlignment: Text.AlignRight
-                                text: playlistsView.formatDuration(plSongRow.song.duration)
+                                text: playlistsView.formatDuration(model.duration)
                                 color: plSongRow.isSelected ? Theme.selectionTextMuted : Theme.textMuted
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 12 * Theme.fontScale
@@ -687,7 +686,7 @@ Rectangle {
                                     color: removeFromPlaylist.hovered ? Theme.dangerBg : "transparent"
                                 }
                                 onClicked: {
-                                    Playlists.removeSong(playlistsView.selectedPlaylistId, plSongRow.song.id)
+                                    Playlists.removeSong(playlistsView.selectedPlaylistId, model.id)
                                 }
                             }
                         }
