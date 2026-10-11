@@ -120,6 +120,13 @@ void TestModels::testSongListModel()
 
     model.setSongs(songs);
     QCOMPARE(model.rowCount(), 2);
+    QCOMPARE(model.count(), 2);
+
+    // toVariantList() is the queue-building path: one map per stored song.
+    const QVariantList variants = model.toVariantList();
+    QCOMPARE(variants.size(), 2);
+    QCOMPARE(variants.at(0).toMap().value(QStringLiteral("id")).toInt(), 1);
+    QCOMPARE(variants.at(1).toMap().value(QStringLiteral("title")).toString(), s2.title);
 
     // Role access matches the QML-facing map names.
     const QModelIndex top = model.index(0);

@@ -55,11 +55,17 @@ QHash<int, QByteArray> SongListModel::roleNames() const
     };
 }
 
+int SongListModel::count() const
+{
+    return m_songs.size();
+}
+
 void SongListModel::setSongs(const QVector<Song> &songs)
 {
     beginResetModel();
     m_songs = songs;
     endResetModel();
+    emit countChanged();
 }
 
 QVariantMap SongListModel::songData(int row) const
@@ -76,4 +82,14 @@ int SongListModel::rowOfId(int id) const
             return i;
     }
     return -1;
+}
+
+QVariantList SongListModel::toVariantList() const
+{
+    QVariantList list;
+    list.reserve(m_songs.size());
+    for (const Song &song : m_songs) {
+        list.append(song.toVariantMap());
+    }
+    return list;
 }

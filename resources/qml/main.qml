@@ -55,7 +55,6 @@ ApplicationWindow {
     // ---- state ----
     property int currentNav: 0
     property string searchQuery: ""
-    property var filteredSongs: null // null => show the whole library
     property var filteredAlbums: null
     property var filteredArtists: null
     property bool scanning: false
@@ -126,8 +125,9 @@ ApplicationWindow {
     }
 
     // Per-section search: match album titles (Albums) and artist names
-    // (Artists), both case-insensitive substring matches. Songs go through
-    // Library.search(). The current section is never changed by searching.
+    // (Artists), both case-insensitive substring matches. Songs are filtered
+    // by the controller via setSearch(). The current section is never changed
+    // by searching.
     function filterAlbums(query) {
         var q = query.toLowerCase()
         var out = []
@@ -155,13 +155,14 @@ ApplicationWindow {
     }
 
     function applySearch(query) {
+        // The song list filters through the controller's search model; the
+        // albums/artists sections keep their JS substring filters.
+        Library.setSearch(query)
         if (query.length === 0) {
-            root.filteredSongs = null
             root.filteredAlbums = null
             root.filteredArtists = null
             return
         }
-        root.filteredSongs = Library.search(query)
         root.filteredAlbums = root.filterAlbums(query)
         root.filteredArtists = root.filterArtists(query)
     }
@@ -211,7 +212,7 @@ ApplicationWindow {
     }
 
     // Debounce search: a keystroke only (re)schedules the re-filter, which
-    // then runs Library.search() + the album/artist JS filters once the
+    // then runs Library.setSearch() + the album/artist JS filters once the
     // user pauses for 200 ms instead of on every keystroke.
     Timer {
         id: searchDebounce
@@ -526,10 +527,11 @@ ApplicationWindow {
     Component {
         id: songsComponent
         SongsView {
-            // Search path keeps the filtered JS array; the full library
-            // renders through the role-based SongListModel instead.
-            songs: root.filteredSongs !== null ? root.filteredSongs : Library.songs
-            songsModel: root.filteredSongs !== null ? null : Library.songsModel
+            // Both the full library and the active search render through a
+            // role-based SongListModel; QML only switches which model feeds
+            // the list (the array stays as the fallback for drill-downs).
+            songs: Library.songs
+            songsModel: Library.searchActive ? Library.searchModel : Library.songsModel
         }
     }
 

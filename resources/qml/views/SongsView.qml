@@ -24,6 +24,16 @@ Rectangle {
     // when an album/artist has no visible songs).
     property string emptyHint: ""
 
+    // ---- model/array access helpers ----
+    // The list is driven either by a role-based SongListModel (the full
+    // library or the active search) or by a plain QVariant array (album and
+    // artist drill-downs). These accessors let every function below work with
+    // both paths without re-wrapping every row into a QVariantMap just to
+    // read a field.
+    function songCount() { return songsModel ? songsModel.count : songs.length }
+    function songAt(i) { return songsModel ? songsModel.songData(i) : songs[i] }
+    function songsArray() { return songsModel ? songsModel.toVariantList() : songs }
+
     // ---- selection state ----
     property var selectedIds: new Set()
     property int selectedCount: 0
@@ -37,9 +47,10 @@ Rectangle {
     }
 
     function findSongById(id) {
-        for (var i = 0; i < songs.length; ++i) {
-            if (songs[i] && songs[i].id !== undefined && songs[i].id === id)
-                return songs[i]
+        for (var i = 0; i < songCount(); ++i) {
+            var song = songAt(i)
+            if (song && song.id !== undefined && song.id === id)
+                return song
         }
         return null
     }
@@ -60,10 +71,10 @@ Rectangle {
 
     function selectRange(fromIndex, toIndex) {
         var lo = Math.min(fromIndex, toIndex)
-        var hi = Math.min(Math.max(fromIndex, toIndex), songs.length - 1)
+        var hi = Math.min(Math.max(fromIndex, toIndex), songCount() - 1)
         clearSelection()
         for (var i = lo; i <= hi; ++i) {
-            var song = songs[i]
+            var song = songAt(i)
             if (song && song.id !== undefined)
                 selectedIds.add(song.id)
         }
@@ -71,7 +82,7 @@ Rectangle {
     }
 
     function selectAll() {
-        selectRange(0, songs.length - 1)
+        selectRange(0, songCount() - 1)
     }
 
     function onRowClicked(index, id, modifiers) {
@@ -110,21 +121,21 @@ Rectangle {
     }
 
     function playSong(index) {
-        var song = songs[index]
+        var song = songAt(index)
         if (!song)
             return
         // The visible list is the navigation context for next/previous.
-        Player.setQueue(songs)
+        Player.setQueue(songsArray())
         Player.loadSong(song)
         Player.play()
     }
 
     // Play the whole visible list from the first song (in list order).
     function playAllFromStart() {
-        if (songsView.songs.length === 0)
+        if (songCount() === 0)
             return
-        Player.setQueue(songsView.songs)
-        Player.loadSong(songsView.songs[0])
+        Player.setQueue(songsArray())
+        Player.loadSong(songAt(0))
         Player.play()
     }
 
@@ -132,9 +143,9 @@ Rectangle {
     // a copy: the list itself (and its selection) is never reordered, and
     // next()/previous() afterwards navigate the shuffled order.
     function playAllShuffled() {
-        if (songsView.songs.length === 0)
+        if (songCount() === 0)
             return
-        var copy = Utils.shuffle(songsView.songs)
+        var copy = Utils.shuffle(songsArray())
         Player.setQueue(copy)
         Player.loadSong(copy[0])
         Player.play()
@@ -224,7 +235,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 30
             Layout.topMargin: 2
-            canPlay: songsView.songs.length > 0
+            canPlay: songsView.songCount() > 0
             onPlayFromStart: songsView.playAllFromStart()
             onPlayShuffled: songsView.playAllShuffled()
         }
@@ -478,7 +489,7 @@ Rectangle {
     // ---- empty state ----
     Text {
         anchors.centerIn: parent
-        visible: songsView.songs.length === 0
+        visible: songsView.songCount() === 0
         text: songsView.emptyHint.length > 0
               ? songsView.emptyHint
               : Library.songs.length === 0

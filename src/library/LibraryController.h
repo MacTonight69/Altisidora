@@ -29,6 +29,13 @@ class LibraryController : public QObject
     // (delegates then read roles instead of QVariantMap re-wrapping). The
     // pointer is stable for the controller's lifetime: CONSTANT.
     Q_PROPERTY(SongListModel* songsModel READ songsModel CONSTANT)
+    // Render model for the filtered Songs list while a search is active. The
+    // rows are the same Song snapshots the full model holds, so delegates
+    // read roles instead of a per-result QVariantMap array.
+    Q_PROPERTY(SongListModel* searchModel READ searchModel CONSTANT)
+    // True while the search model holds the active query's results. QML
+    // switches the song list between songsModel and searchModel with it.
+    Q_PROPERTY(bool searchActive READ searchActive NOTIFY searchChanged)
 
 public:
     explicit LibraryController(QObject *parent = nullptr);
@@ -37,6 +44,18 @@ public:
     QVector<QVariant> albums() const;
     QVector<QVariant> artists() const;
     SongListModel *songsModel() const;
+    SongListModel *searchModel() const;
+    bool searchActive() const;
+
+    /**
+     * @brief Filter the Songs list by @p query and refresh the search model.
+     *
+     * An empty query clears the search model and reports the library as
+     * unfiltered (searchActive() becomes false); any other query rebuilds the
+     * rows from searchSongs(). Runs on the main thread: the database
+     * connection is main-thread only.
+     */
+    Q_INVOKABLE void setSearch(const QString &query);
 
 public slots:
     /**
@@ -124,6 +143,8 @@ signals:
     void scanStarted();
     void scanFinished();
     void libraryChanged();
+    // searchActive() changed (or the search results were rebuilt).
+    void searchChanged();
 
 private slots:
     void handleScanFinished();
@@ -138,6 +159,12 @@ private:
     // Role-based render model over the same m_songs snapshot (see
     // songsModel()). Kept in sync by refresh()/handleScanFinished().
     SongListModel m_songsModel;
+
+    // Role-based render model over the current search results (see
+    // searchModel()). Rebuilt by setSearch() and cleared when the query is
+    // empty; m_searchActive mirrors whether it currently holds a query.
+    SongListModel m_searchModel;
+    bool m_searchActive = false;
 
     // QML-facing views of the library (QVariant wrappers). Built once per
     // library change instead of on every property read; QVector is

@@ -28,6 +28,7 @@ private slots:
     void testScanIgnoresUnsupportedFiles();
     void testRescanDoesNotDuplicate();
     void testSearch();
+    void testSearchModelReflectsQuery();
     void testScanSignals();
     void testIgnorePathHidesSong();
     void testIgnoreFolderHidesChildren();
@@ -164,6 +165,59 @@ void tst_library::testSearch()
 
     // A query matching nothing must return an empty list
     QVERIFY(m_controller->search(QStringLiteral("zzz_no_such_song")).isEmpty());
+}
+
+void tst_library::testSearchModelReflectsQuery()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 4);
+
+    SongListModel *searchModel = m_controller->searchModel();
+    SongListModel *songsModel = m_controller->songsModel();
+    QVERIFY(searchModel);
+    QVERIFY(songsModel);
+    QCOMPARE(songsModel->count(), 4);
+    const int firstFullId = songsModel->songData(0).value("id").toInt();
+
+    // An empty query clears the search model and reports "not searching".
+    m_controller->setSearch(QString());
+    QVERIFY(!m_controller->searchActive());
+    QCOMPARE(searchModel->count(), 0);
+
+    // A matching query fills the search model with the matching rows.
+    m_controller->setSearch(QStringLiteral("track01"));
+    QVERIFY(m_controller->searchActive());
+    QCOMPARE(searchModel->count(), 1);
+    const QVariantMap match = searchModel->songData(0);
+    QVERIFY(match.value("path").toString().contains(QStringLiteral("track01")));
+
+    // The single search row must carry the same id and title as the matching
+    // row in the full-library model (titles fall back to the file name for
+    // the tag-less test files).
+    int expectedRow = -1;
+    for (int i = 0; i < songsModel->count(); ++i) {
+        if (songsModel->songData(i).value("path").toString()
+                .contains(QStringLiteral("track01"))) {
+            expectedRow = i;
+            break;
+        }
+    }
+    QVERIFY(expectedRow >= 0);
+    const QVariantMap expected = songsModel->songData(expectedRow);
+    QCOMPARE(match.value("id").toInt(), expected.value("id").toInt());
+    QCOMPARE(match.value("title").toString(), expected.value("title").toString());
+    QVERIFY(!match.value("title").toString().isEmpty());
+
+    // A query matching nothing leaves the search active but empty.
+    m_controller->setSearch(QStringLiteral("zzz_no_such_song"));
+    QVERIFY(m_controller->searchActive());
+    QCOMPARE(searchModel->count(), 0);
+
+    // Searching never touches the full-library model.
+    QCOMPARE(songsModel->count(), 4);
+    QCOMPARE(songsModel->songData(0).value("id").toInt(), firstFullId);
 }
 
 void tst_library::testScanSignals()
