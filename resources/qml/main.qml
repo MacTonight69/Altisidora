@@ -261,7 +261,7 @@ ApplicationWindow {
 
             // ================= sidebar =================
             Rectangle {
-                Layout.preferredWidth: 210
+                Layout.preferredWidth: Theme.sidebarWidth
                 Layout.fillHeight: true
                 color: Theme.bgAlt
 

@@ -24,6 +24,13 @@ QtObject {
     // larger effective typography by setting fontScale (e.g. 1.2).
     property real fontScale: 1.0
 
+    // Width of the left navigation sidebar, in logical pixels. Opt-in per
+    // theme: a theme with much larger type (e.g. Maya at fontScale 1.9)
+    // widens the sidebar so the nav labels and the "Scan library" button
+    // still fit. Like fontScale, apply() always assigns it (falling back to
+    // the standard 210) so it never sticks across a theme switch.
+    property real sidebarWidth: 210
+
     // Fired at the end of apply(), once every role (font included) is in
     // place. main.cpp listens and mirrors the typeface into the application
     // font (QGuiApplication::setFont) for Qt-owned surfaces like dialogs.
@@ -80,13 +87,15 @@ QtObject {
         themeName = t.name
         fontFamily = t.fontFamily !== undefined ? t.fontFamily : ""
         fontScale = t.fontScale !== undefined ? t.fontScale : 1.0
+        sidebarWidth = t.sidebarWidth !== undefined ? t.sidebarWidth : 210
 
         // Base colour roles: copied straight from the palette in one place.
-        // The palette also carries name/fontFamily/fontScale (handled just
-        // above), so those keys are skipped. Every theme defines every base
-        // role, so this leaves none undefined.
+        // The palette also carries name/fontFamily/fontScale/sidebarWidth
+        // (handled just above), so those keys are skipped. Every theme
+        // defines every base role, so this leaves none undefined.
         for (var key in t) {
-            if (key === "name" || key === "fontFamily" || key === "fontScale")
+            if (key === "name" || key === "fontFamily" || key === "fontScale"
+                    || key === "sidebarWidth")
                 continue
             theme[key] = t[key]
         }

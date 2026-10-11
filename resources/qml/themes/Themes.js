@@ -74,6 +74,9 @@ var themes = {
     "Maya": {
         name: "Maya",
         fontScale: 1.9,
+        // Wide typeface + 1.9 scale need a wider sidebar than the default
+        // 210px so the nav labels ("4  Playlists") and "Scan library" fit.
+        sidebarWidth: 260,
         fontFamily: "against myself",
         bg: "#141414",
         bgAlt: "#0a0a0a",

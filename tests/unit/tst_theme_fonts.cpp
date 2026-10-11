@@ -41,6 +41,7 @@ private slots:
     void testScaleDropsBackOnMimy();
     void testRuntimeThemeSwitchChain();
     void testVacuiUsesSystemFontFamily();
+    void testSidebarWidthPerTheme();
 
 private:
     void applyTheme(const QString &name);
@@ -202,6 +203,23 @@ void tst_theme_fonts::testVacuiUsesSystemFontFamily()
     QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Vacui"));
     QCOMPARE(m_theme->property("fontFamily").toString(), QStringLiteral("Liberation Serif"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
+}
+
+void tst_theme_fonts::testSidebarWidthPerTheme()
+{
+    // Themes that do not override it keep the standard sidebar width.
+    applyTheme(QStringLiteral("Mimy"));
+    QCOMPARE(m_theme->property("sidebarWidth").toDouble(), 210.0);
+
+    // Maya opts into a wider sidebar so its 1.9-scaled nav labels fit.
+    applyTheme(QStringLiteral("Maya"));
+    QVERIFY2(m_theme->property("sidebarWidth").toDouble() > 210.0,
+             "Maya must widen the sidebar for its larger typeface");
+
+    // Switching away must restore the default: apply() always assigns the
+    // role, so the previous theme's width must not stick.
+    applyTheme(QStringLiteral("Mimy"));
+    QCOMPARE(m_theme->property("sidebarWidth").toDouble(), 210.0);
 }
 
 void tst_theme_fonts::testRuntimeThemeSwitchChain()
