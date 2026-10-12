@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 
 ## Summary
 
@@ -11,19 +11,20 @@ the controllers are in place. All tests pass.
 - **Build:** working (CMake + Qt 6.12 + TagLib 2.3)
 - **Tests:** 12/12 test suites passing (100%)
 - **Status of functionality:** scan → browse → search → play works end to end
-  with a real music folder.
+  with a real music folder; tags (title/artist/album/year/artwork) can be
+  edited individually or in batch and survive rescans.
 
 ## Modules
 
 | Module | Path | Status | Notes |
 |---|---|---|---|
 | Models | `src/models/` | Implemented | Song, Artist, Album, Playlist (plain structs + QVariantMap conversion) |
-| Database | `src/database/` | Implemented | `DatabaseManager`: SQLite, prepared statements, schema version table, CRUD. Songs are normalized (artist/album/genre rows resolved on insert); reads JOIN names back and artist/album/genre/playlist queries return `songCount` |
+| Database | `src/database/` | Implemented | `DatabaseManager`: SQLite, prepared statements, schema version table, CRUD. Songs are normalized (artist/album/genre rows resolved on insert); reads JOIN names back and artist/album/genre/playlist queries return `songCount`. Schema v4 adds an `edited` flag: `upsertSong()` CASE-guards the tag-derived columns so a rescan refreshes the file fingerprint (`mtime`/`size`) without clobbering user edits. Tag-update paths: `updateSong`/`updateSongs` (atomic batch), `renameArtist`/`renameAlbum` (collision-refusing), `setArtwork` (content-hash cache) |
 | Audio | `src/audio/` | Implemented | `PlayerController` wrapping a libmpv session (10-band EQ, repeat-one); `load(url)` for raw URLs and `loadSong(map)` to keep library metadata for the UI |
 | System Integration | `src/mpris/` | Implemented | `MprisPlayer`: MPRIS v2 (`org.mpris.MediaPlayer2.altisidora`) over Qt DBus, registered in `src/main.cpp` |
-| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, re-decodes Shift-JIS mojibake in mislabeled Latin-1 tags, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh) |
+| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, re-decodes Shift-JIS mojibake in mislabeled Latin-1 tags, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh + QML-facing tag mutators) |
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
-| GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (click / Ctrl / Shift / Ctrl+A) with batch add to playlist |
+| GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (click / Ctrl / Shift / Ctrl+A) with batch add to playlist. Tag editing: a per-row actions menu ("Edit tags…") edits title/artist/album/year plus artwork, the selection bar batch-reassigns album or artist (field-level only), and the album/artist drill-down header renames the collection |
 | Tests | `tests/` | Implemented | 10 unit + 2 integration suites, all passing; see below |
 | Packaging | root | Initial | `PKGBUILD`, `.desktop` |
 
