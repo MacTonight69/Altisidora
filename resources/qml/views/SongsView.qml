@@ -232,6 +232,45 @@ Rectangle {
         songsView.clearSelection()
     }
 
+    // ---- tag editing (shared EditSongDialog) ----
+
+    // Open the shared edit dialog on one song (row menu -> "Edit tags…").
+    function editSong(id) {
+        var song = findSongById(id)
+        if (!song)
+            return
+        editSongDialog.mode = "single"
+        editSongDialog.songMap = song
+        editSongDialog.batchIds = []
+        editSongDialog.open()
+    }
+
+    // Open the shared edit dialog in a batch mode: reassigning ONE field
+    // (album or artist) across the whole selection. The dialog builds
+    // minimal {id, field} maps, which is what structurally prevents a
+    // batch edit from equalizing any other column.
+    function startBatchEdit(field) {
+        if (songsView.selectedCount === 0)
+            return
+        editSongDialog.mode = field
+        editSongDialog.songMap = ({})
+        editSongDialog.batchIds = Array.from(songsView.selectedIds)
+        editSongDialog.open()
+    }
+
+    // Open the per-row actions menu at the right-click position. The
+    // delegate only calls this after the right click has SELECTED the row
+    // (a right click on a selected row keeps the documented toggle-off
+    // behaviour and deselects without any menu), so the row's model is
+    // the menu's target.
+    function openRowMenu(row, x, y) {
+        if (!row || row.model === undefined || row.model.id === undefined)
+            return
+        rowMenu.songId = row.model.id
+        var pos = row.mapToItem(songsView, x, y)
+        rowMenu.popup(pos.x, pos.y)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
@@ -334,6 +373,16 @@ Rectangle {
             }
 
             ThemedButton {
+                text: qsTr("Set album…")
+                onClicked: songsView.startBatchEdit("album")
+            }
+
+            ThemedButton {
+                text: qsTr("Set artist…")
+                onClicked: songsView.startBatchEdit("artist")
+            }
+
+            ThemedButton {
                 text: qsTr("Hide")
                 onClicked: songsView.hideSelected()
             }
@@ -409,6 +458,12 @@ Rectangle {
                     onClicked: function (mouse) {
                         if (mouse.button === Qt.RightButton) {
                             songsView.onRowRightClicked(songRow.index, model.id)
+                            // Right-clicking an unselected row selects it
+                            // and opens the song actions menu; right-
+                            // clicking a selected row keeps the documented
+                            // toggle-off behaviour (deselect, no menu).
+                            if (songsView.selectedIds.has(model.id))
+                                songsView.openRowMenu(songRow, mouse.x, mouse.y)
                             return
                         }
                         songsView.onRowClicked(songRow.index, model.id, mouse.modifiers)
@@ -543,6 +598,34 @@ Rectangle {
         }
     }
 
+    // ---- per-row actions (right click that selects the row) ----
+    // Sibling of addToMenu, not a submenu: items live directly in this
+    // menu, never inside addToMenu's Instantiator (whose index-based
+    // insert/remove is only stable for the playlist entries it manages).
+    Menu {
+        id: rowMenu
+
+        property int songId: -1
+
+        MenuItem {
+            font.family: Theme.fontFamily
+            text: qsTr("Edit tags…")
+            onTriggered: songsView.editSong(rowMenu.songId)
+        }
+
+        MenuItem {
+            font.family: Theme.fontFamily
+            text: qsTr("Add to playlist…")
+            onTriggered: {
+                // Same flow as the row's "+" button: a single-song add
+                // that targets only this row.
+                songsView.addFromSelection = false
+                songsView.targetSongIds = [rowMenu.songId]
+                addToMenu.popup()
+            }
+        }
+    }
+
     // ---- name prompt for "New playlist…" ----
     Dialog {
         id: newPlaylistDialog
@@ -628,5 +711,14 @@ Rectangle {
         }
 
         onAccepted: songsView.applyDelete(true)
+    }
+
+    // ---- shared tag editor (single song + batch album/artist) ----
+    // A successful edit can move songs out of the visible list (search
+    // filter, drill-down), so the selection is dropped; the dialog itself
+    // only reports success via editApplied and never touches selection.
+    EditSongDialog {
+        id: editSongDialog
+        onEditApplied: songsView.clearSelection()
     }
 }
