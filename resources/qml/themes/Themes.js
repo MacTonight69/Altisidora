@@ -6,14 +6,14 @@
 .pragma library
 
 var order = [
-    "Mimy",
-    "Coco",
-    "Anarchism",
-    "Maya",
-    "Comunism",
-    "Good Technic",
     "Vacui",
+    "Mimy",
     "Kawai",
+    "Coco",
+    "Maya",
+    "Good Technic",
+    "Comunism",
+    "Anarchism",
     "Onyx"
 ]
 
@@ -105,8 +105,6 @@ var themes = {
     // typeface (bundled for Mimy, so it is already registered).
     "Maya": {
         name: "Maya",
-        fontScale: 1.9,
-        sidebarWidth: 260,
         fontFamily: "Baskervville",
         bg: "#141414",
         bgAlt: "#0a0a0a",
