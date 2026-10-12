@@ -86,6 +86,7 @@ void tst_theme_fonts::testThemeDataScaleRule()
     // Per-theme opt-in typography scale; every other theme stays at 1.0.
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
+        {QStringLiteral("Anarchism"), 1.9},
         {QStringLiteral("Maya"), 1.9},
         {QStringLiteral("Onyx"), 1.4},
     };
@@ -118,6 +119,7 @@ void tst_theme_fonts::testApplyAssignsFontScale()
     // Same per-theme contract: each opt-in theme applies its own scale.
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
+        {QStringLiteral("Anarchism"), 1.9},
         {QStringLiteral("Maya"), 1.9},
         {QStringLiteral("Onyx"), 1.4},
     };

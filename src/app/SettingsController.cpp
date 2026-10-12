@@ -81,9 +81,13 @@ void SettingsController::load()
     m_deleteFilesFromDisk = m_settings.value("deleteFilesFromDisk", true).toBool();
 
     // Theme renames: keep users on their already-selected theme after an
-    // upgrade instead of silently falling back to the default.
+    // upgrade instead of silently falling back to the default. "Maya" is
+    // deliberately NOT migrated: it still names a theme (now the
+    // Baskervville variant of the old palette), so remapping it would make
+    // that theme impossible to select. Only the dead "Anarchy" key moves,
+    // and it moves to the renamed palette.
     if (m_theme == QLatin1String("Desertic"))
         m_theme = QStringLiteral("Coco");
     else if (m_theme == QLatin1String("Anarchy"))
-        m_theme = QStringLiteral("Maya");
+        m_theme = QStringLiteral("Anarchism");
 }

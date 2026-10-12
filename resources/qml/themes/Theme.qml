@@ -25,7 +25,7 @@ QtObject {
     property real fontScale: 1.0
 
     // Width of the left navigation sidebar, in logical pixels. Opt-in per
-    // theme: a theme with much larger type (e.g. Maya at fontScale 1.9)
+    // theme: a theme with much larger type (e.g. Anarchism at fontScale 1.9)
     // widens the sidebar so the nav labels and the "Scan library" button
     // still fit. Like fontScale, apply() always assigns it (falling back to
     // the standard 210) so it never sticks across a theme switch.

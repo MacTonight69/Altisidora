@@ -8,6 +8,7 @@
 var order = [
     "Mimy",
     "Coco",
+    "Anarchism",
     "Maya",
     "Comunism",
     "Good Technic",
@@ -71,13 +72,42 @@ var themes = {
     },
 
     // Red and black, like the colours of anarchism.
-    "Maya": {
-        name: "Maya",
+    "Anarchism": {
+        name: "Anarchism",
         fontScale: 1.9,
         // Wide typeface + 1.9 scale need a wider sidebar than the default
         // 210px so the nav labels ("4  Playlists") and "Scan library" fit.
         sidebarWidth: 260,
         fontFamily: "against myself",
+        bg: "#141414",
+        bgAlt: "#0a0a0a",
+        viewBg: "#161616",
+        field: "#0d0d0d",
+        border: "#333333",
+        textPrimary: "#e8e8e8",
+        textSecondary: "#a8a8a8",
+        textMuted: "#6f6f6f",
+        accent: "#e02020",
+        accentAlt: "#d9d9d9",
+        accentText: "#ffffff",
+        selection: "#4d1111",
+        selectionBorder: "#e02020",
+        selectionText: "#ff9a9a",
+        selectionTextMuted: "#d58a8a",
+        danger: "#ff5c5c",
+        dangerBg: "#2a1010",
+        fieldSelection: "#5c1414",
+        fieldSelectedText: "#ffffff",
+        success: "#4fc44f"
+    },
+
+    // The same red-and-black palette as Anarchism, with the Baskervville
+    // typeface (bundled for Mimy, so it is already registered).
+    "Maya": {
+        name: "Maya",
+        fontScale: 1.9,
+        sidebarWidth: 260,
+        fontFamily: "Baskervville",
         bg: "#141414",
         bgAlt: "#0a0a0a",
         viewBg: "#161616",
