@@ -92,39 +92,41 @@ Rectangle {
         selectRange(0, songCount() - 1)
     }
 
-    function onRowClicked(index, id, modifiers) {
+    // Left click plays the song and nothing else: selection is entirely
+    // right-click driven (see onRowRightClicked).
+    function onRowClicked(index) {
+        playSong(index)
+    }
+
+    // Selection lives on the right button: a plain right click selects this
+    // song (replacing the selection), Ctrl+right click toggles it, and
+    // Shift+right click extends the range from the anchor. A plain right
+    // click on an already-selected song deselects it (toggle off). Returns
+    // true only for a plain right click that selected the row, which is the
+    // case that opens the per-row actions menu.
+    function onRowRightClicked(index, id, modifiers) {
         var ctrl = (modifiers & Qt.ControlModifier) !== 0
         var shift = (modifiers & Qt.ShiftModifier) !== 0
         if (ctrl) {
             toggle(id)
-            return
+            return false
         }
         if (shift && selectionAnchor >= 0) {
             selectRange(selectionAnchor, index)
-            return
+            return false
         }
-        // Plain left click only plays: it never changes the selection on its
-        // own, but re-anchors Shift+click ranges. Selection happens with
-        // right click, Ctrl+left click, or Shift+left click.
-        selectionAnchor = index
-        playSong(index)
-    }
-
-    // Right click only selects this song (replacing the selection); it
-    // never starts playback. A right click on an already-selected song
-    // deselects it (toggle off).
-    function onRowRightClicked(index, id) {
         if (selectedIds.has(id)) {
             selectedIds.delete(id)
             selectedCount = selectedIds.size
             if (selectedCount === 0)
                 selectionAnchor = -1
-            return
+            return false
         }
         clearSelection()
         selectedIds.add(id)
         selectedCount = 1
         selectionAnchor = index
+        return true
     }
 
     function playSong(index) {
@@ -259,10 +261,11 @@ Rectangle {
     }
 
     // Open the per-row actions menu at the right-click position. The
-    // delegate only calls this after the right click has SELECTED the row
-    // (a right click on a selected row keeps the documented toggle-off
-    // behaviour and deselects without any menu), so the row's model is
-    // the menu's target.
+    // delegate calls this only after a plain right click selected the row
+    // (Ctrl/Shift right clicks adjust the selection without a menu, and a
+    // plain right click on a selected row keeps the documented toggle-off
+    // behaviour and deselects without any menu), so the row's model is the
+    // menu's target.
     function openRowMenu(row, x, y) {
         if (!row || row.model === undefined || row.model.id === undefined)
             return
@@ -453,20 +456,21 @@ Rectangle {
                     id: songMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    // Left = play, right = select, Ctrl/Shift+left = multi.
+                    // Left = play; right = select, with Ctrl to toggle and
+                    // Shift to extend the range.
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: function (mouse) {
                         if (mouse.button === Qt.RightButton) {
-                            songsView.onRowRightClicked(songRow.index, model.id)
-                            // Right-clicking an unselected row selects it
-                            // and opens the song actions menu; right-
-                            // clicking a selected row keeps the documented
-                            // toggle-off behaviour (deselect, no menu).
-                            if (songsView.selectedIds.has(model.id))
+                            // A plain right click selects the row and opens
+                            // the song actions menu; Ctrl/Shift+right click
+                            // only adjust the selection, and a plain right
+                            // click on a selected row toggles it off.
+                            if (songsView.onRowRightClicked(songRow.index, model.id,
+                                                            mouse.modifiers))
                                 songsView.openRowMenu(songRow, mouse.x, mouse.y)
                             return
                         }
-                        songsView.onRowClicked(songRow.index, model.id, mouse.modifiers)
+                        songsView.onRowClicked(songRow.index)
                     }
                 }
 

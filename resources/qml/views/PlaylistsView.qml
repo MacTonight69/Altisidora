@@ -105,7 +105,23 @@ Rectangle {
         selectSongRange(0, playlistSongs.length - 1)
     }
 
-    function onPlaylistRowClicked(index, id, modifiers) {
+    // Left click plays the song with this playlist as the navigation
+    // context and nothing else: selection is entirely right-click driven
+    // (see onPlaylistRowRightClicked).
+    function onPlaylistRowClicked(index) {
+        var song = playlistSongs[index]
+        if (song) {
+            Player.setQueue(playlistSongs)
+            Player.loadSong(song)
+            Player.play()
+        }
+    }
+
+    // Selection lives on the right button: a plain right click replaces the
+    // selection with this song (or drops it if it was already selected),
+    // Ctrl+right click toggles, and Shift+right click extends the range from
+    // the anchor. Nothing here starts playback.
+    function onPlaylistRowRightClicked(index, id, modifiers) {
         var ctrl = (modifiers & Qt.ControlModifier) !== 0
         var shift = (modifiers & Qt.ShiftModifier) !== 0
         if (ctrl) {
@@ -116,20 +132,6 @@ Rectangle {
             selectSongRange(songSelectionAnchor, index)
             return
         }
-        // Plain left click plays the song with this playlist as the
-        // navigation context; it re-anchors Shift+click ranges.
-        songSelectionAnchor = index
-        var song = playlistSongs[index]
-        if (song) {
-            Player.setQueue(playlistSongs)
-            Player.loadSong(song)
-            Player.play()
-        }
-    }
-
-    // Right click replaces the selection with this song (or drops it if it
-    // was already selected); it never starts playback.
-    function onPlaylistRowRightClicked(index, id) {
         if (selectedSongIds.has(id)) {
             selectedSongIds.delete(id)
             selectedSongCount = selectedSongIds.size
@@ -626,14 +628,16 @@ Rectangle {
                             id: plSongMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            // Left = play, right = select, Ctrl/Shift+left = multi.
+                            // Left = play; right = select, with Ctrl to
+                            // toggle and Shift to extend the range.
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: function (mouse) {
                                 if (mouse.button === Qt.RightButton) {
-                                    playlistsView.onPlaylistRowRightClicked(plSongRow.index, model.id)
+                                    playlistsView.onPlaylistRowRightClicked(
+                                        plSongRow.index, model.id, mouse.modifiers)
                                     return
                                 }
-                                playlistsView.onPlaylistRowClicked(plSongRow.index, model.id, mouse.modifiers)
+                                playlistsView.onPlaylistRowClicked(plSongRow.index)
                             }
                         }
 
