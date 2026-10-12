@@ -90,8 +90,21 @@ Test isolation:
   must invoke `refresh()` (done once in `src/main.cpp`; QML does not call it).
 - Migrations: there is no standalone migration runner; `DatabaseManager`
   applies versioned in-place migrations in `createTables()` (v2 file-stat
-  columns, v3 artwork backfill) and records the version in the
-  `schema_version` table.
+  columns, v3 artwork backfill, v4 `edited` flag) and records the version in
+  the `schema_version` table. The v4 migration is purely additive and was
+  verified against a copy of a real 498-song library (byte-identical data
+  before/after).
+- Tag editing: an edited row is protected from rescans by the `edited` flag
+  (`upsertSong()` CASE-guards every tag-derived column), so user edits survive
+  a rescan even when the file on disk still carries the old tags; `mtime` and
+  `size` always refresh so the rescan never loops.
+- Tag editing, single-song artwork: the save path is not atomic.
+  `Library.updateSong` commits the metadata first and `Library.setArtwork`
+  runs after it; if the artwork write fails, the metadata is already
+  persisted while the dialog reports a failure and stays open.
+- Tag editing, now-playing staleness: editing the currently playing song
+  updates the library but the now-playing bar keeps the pre-edit metadata
+  until the player reloads the song (needs a C++ refresh API; out of scope).
 - Continuous integration (GitHub Actions) was removed and is not present in the
   repo; validate changes by running `ctest` headless locally. The PKGBUILD
   builds and packages correctly on CachyOS (verified end-to-end: makepkg,
