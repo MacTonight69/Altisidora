@@ -8,6 +8,17 @@
 #include "../../src/library/LibraryController.h"
 #include "../TestHelpers.h"
 
+namespace {
+
+// Minimal valid 1x1 red PNG (the same test picture tst_library_scan
+// uses): small enough to inline, real enough for the artwork cache's
+// magic-byte sniff.
+const char kRedPngHex[] =
+    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
+    "0000000c4944415478da63f8cfc0000003010100f70341430000000049454e44ae426082";
+
+} // namespace
+
 /**
  * @brief Tests for LibraryController
  *
@@ -37,10 +48,25 @@ private slots:
     void testRemoveSongsDeletesFile();
     void testRemoveSongsIgnoresFile();
 
+    // ---- Tag editing (Option D) ----
+    void testUpdateSongEmitsLibraryChangedOnce();
+    void testUpdateSongRejectsBadInput();
+    void testUpdateSongsBatchEmitsOnce();
+    void testUpdateSongsAcceptsPartialMaps();
+    void testRenameArtistEmitsOnceAndCachesFollow();
+    void testRenameAlbumEmitsOnceAndCachesFollow();
+    void testSetArtworkEmitsOnceAndCachesFile();
+
 private:
     void removeDatabaseFiles();
     void clearTempDir();
     bool waitForScanFinished();
+    // Insert a bare song row on the controller's shared connection so a
+    // test can edit without scanning. Returns 0 on failure (QVERIFY
+    // cannot appear in a function with a return value).
+    qint64 insertSongRow(const QString &path, const QString &title);
+    // Row of the given song id in the full-library render model, or -1.
+    int rowOfId(qint64 id) const;
 
     LibraryController *m_controller = nullptr;
     QTemporaryDir m_tempDir;
@@ -373,6 +399,298 @@ void tst_library::testRemoveSongsIgnoresFile()
     m_controller->scan(m_tempDir.path());
     QVERIFY(waitForScanFinished());
     QCOMPARE(m_controller->songCount(), 1);
+}
+
+qint64 tst_library::insertSongRow(const QString &path, const QString &title)
+{
+    QSqlQuery query;
+    query.prepare(QStringLiteral("INSERT INTO songs (path, title) VALUES (?, ?)"));
+    query.addBindValue(path);
+    query.addBindValue(title);
+    if (!query.exec()) {
+        return 0;
+    }
+    return query.lastInsertId().toLongLong();
+}
+
+int tst_library::rowOfId(qint64 id) const
+{
+    SongListModel *model = m_controller->songsModel();
+    for (int row = 0; row < model->count(); ++row) {
+        if (model->songData(row).value(QStringLiteral("id")).toLongLong() == id) {
+            return row;
+        }
+    }
+    return -1;
+}
+
+// A successful edit fires libraryChanged exactly once, and both the
+// render model and the QML-facing songs() cache reflect the new values.
+void tst_library::testUpdateSongEmitsLibraryChangedOnce()
+{
+    const qint64 id = insertSongRow(QStringLiteral("/music/tagged/t11.mp3"),
+                                    QStringLiteral("Original Title 11"));
+    QVERIFY(id > 0);
+    m_controller->refresh();
+    QCOMPARE(m_controller->songCount(), 1);
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(changedSpy.isValid());
+
+    QVariantMap map;
+    map[QStringLiteral("id")] = id;
+    map[QStringLiteral("title")] = QStringLiteral("Edited Title 11");
+    map[QStringLiteral("artist")] = QStringLiteral("Edited Artist 11");
+    map[QStringLiteral("album")] = QStringLiteral("Edited Album 11");
+    QVERIFY(m_controller->updateSong(map));
+
+    QCOMPARE(changedSpy.count(), 1);
+
+    // The render model row shows the new values...
+    const int row = rowOfId(id);
+    QVERIFY(row >= 0);
+    const QVariantMap modelRow = m_controller->songsModel()->songData(row);
+    QCOMPARE(modelRow.value(QStringLiteral("title")).toString(),
+             QStringLiteral("Edited Title 11"));
+    QCOMPARE(modelRow.value(QStringLiteral("artist")).toString(),
+             QStringLiteral("Edited Artist 11"));
+    QCOMPARE(modelRow.value(QStringLiteral("album")).toString(),
+             QStringLiteral("Edited Album 11"));
+
+    // ...and so does the songs() cache QML binds to.
+    const QVector<QVariant> songs = m_controller->songs();
+    QCOMPARE(songs.size(), 1);
+    const QVariantMap song = songs.first().toMap();
+    QCOMPARE(song.value(QStringLiteral("title")).toString(),
+             QStringLiteral("Edited Title 11"));
+    QCOMPARE(song.value(QStringLiteral("artist")).toString(),
+             QStringLiteral("Edited Artist 11"));
+    QCOMPARE(song.value(QStringLiteral("album")).toString(),
+             QStringLiteral("Edited Album 11"));
+}
+
+// Bad input is refused with a false return, zero emissions and no change.
+void tst_library::testUpdateSongRejectsBadInput()
+{
+    const qint64 id = insertSongRow(QStringLiteral("/music/tagged/t12.mp3"),
+                                    QStringLiteral("Keep Me 12"));
+    QVERIFY(id > 0);
+    m_controller->refresh();
+    QCOMPARE(m_controller->songCount(), 1);
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(changedSpy.isValid());
+
+    // No id at all...
+    QVariantMap missingId;
+    missingId[QStringLiteral("title")] = QStringLiteral("Nope 12");
+    QVERIFY(!m_controller->updateSong(missingId));
+    // ...and an id no song carries.
+    QVariantMap unknownId;
+    unknownId[QStringLiteral("id")] = 999999;
+    unknownId[QStringLiteral("title")] = QStringLiteral("Nope 12");
+    QVERIFY(!m_controller->updateSong(unknownId));
+
+    QCOMPARE(changedSpy.count(), 0);
+    QCOMPARE(m_controller->songs().first().toMap()
+                 .value(QStringLiteral("title")).toString(),
+             QStringLiteral("Keep Me 12"));
+}
+
+// A full-map batch (what the selection bar sends) emits once and
+// reassigns only the chosen field; every other field of every row comes
+// back exactly as stored.
+void tst_library::testUpdateSongsBatchEmitsOnce()
+{
+    for (int i = 1; i <= 3; ++i) {
+        const qint64 id = insertSongRow(
+            QStringLiteral("/music/tagged/batch13_%1.mp3").arg(i),
+            QStringLiteral("Batch Title 13 %1").arg(i));
+        QVERIFY(id > 0);
+    }
+    m_controller->refresh();
+    QCOMPARE(m_controller->songCount(), 3);
+
+    const QVector<QVariant> before = m_controller->songs();
+    QVariantList batch;
+    for (const QVariant &entry : before) {
+        QVariantMap map = entry.toMap();
+        map[QStringLiteral("album")] = QStringLiteral("Batch Album 13");
+        batch.append(map);
+    }
+    QCOMPARE(batch.size(), 3);
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(m_controller->updateSongs(batch));
+    QCOMPARE(changedSpy.count(), 1);
+
+    const QVector<QVariant> after = m_controller->songs();
+    QCOMPARE(after.size(), 3);
+    for (int i = 0; i < after.size(); ++i) {
+        const QVariantMap song = after.at(i).toMap();
+        const QVariantMap original = before.at(i).toMap();
+        QCOMPARE(song.value(QStringLiteral("album")).toString(),
+                 QStringLiteral("Batch Album 13"));
+        QCOMPARE(song.value(QStringLiteral("title")).toString(),
+                 original.value(QStringLiteral("title")).toString());
+        QCOMPARE(song.value(QStringLiteral("id")).toLongLong(),
+                 original.value(QStringLiteral("id")).toLongLong());
+    }
+    QCOMPARE(m_controller->albums().size(), 1);
+}
+
+// Partial {id, album}-only maps reassign only the album: absent keys
+// keep their stored values (the overlay contract that makes a batch
+// edit a field-level reassignment, never an equalization).
+void tst_library::testUpdateSongsAcceptsPartialMaps()
+{
+    const qint64 first = insertSongRow(QStringLiteral("/music/tagged/partial14_a.mp3"),
+                                       QStringLiteral("Partial A 14"));
+    const qint64 second = insertSongRow(QStringLiteral("/music/tagged/partial14_b.mp3"),
+                                        QStringLiteral("Partial B 14"));
+    QVERIFY(first > 0);
+    QVERIFY(second > 0);
+    m_controller->refresh();
+    QCOMPARE(m_controller->songCount(), 2);
+
+    QVariantMap firstMap;
+    firstMap[QStringLiteral("id")] = first;
+    firstMap[QStringLiteral("album")] = QStringLiteral("Partial Album 14");
+    QVariantMap secondMap;
+    secondMap[QStringLiteral("id")] = second;
+    secondMap[QStringLiteral("album")] = QStringLiteral("Partial Album 14");
+    QVariantList batch;
+    batch.append(firstMap);
+    batch.append(secondMap);
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(m_controller->updateSongs(batch));
+    QCOMPARE(changedSpy.count(), 1);
+
+    const QVector<QVariant> songs = m_controller->songs();
+    QCOMPARE(songs.size(), 2);
+    for (const QVariant &entry : songs) {
+        const QVariantMap song = entry.toMap();
+        QCOMPARE(song.value(QStringLiteral("album")).toString(),
+                 QStringLiteral("Partial Album 14"));
+        const qint64 songId = song.value(QStringLiteral("id")).toLongLong();
+        const QString expectedTitle = songId == first
+            ? QStringLiteral("Partial A 14") : QStringLiteral("Partial B 14");
+        QCOMPARE(song.value(QStringLiteral("title")).toString(), expectedTitle);
+    }
+}
+
+void tst_library::testRenameArtistEmitsOnceAndCachesFollow()
+{
+    const qint64 first = insertSongRow(QStringLiteral("/music/tagged/ren15_a.mp3"),
+                                       QStringLiteral("Rename A 15"));
+    const qint64 second = insertSongRow(QStringLiteral("/music/tagged/ren15_b.mp3"),
+                                        QStringLiteral("Rename B 15"));
+    QVERIFY(first > 0);
+    QVERIFY(second > 0);
+
+    QVariantMap firstMap;
+    firstMap[QStringLiteral("id")] = first;
+    firstMap[QStringLiteral("artist")] = QStringLiteral("Old Artist 15");
+    QVariantMap secondMap;
+    secondMap[QStringLiteral("id")] = second;
+    secondMap[QStringLiteral("artist")] = QStringLiteral("Old Artist 15");
+    QVariantList batch;
+    batch.append(firstMap);
+    batch.append(secondMap);
+    QVERIFY(m_controller->updateSongs(batch));
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(m_controller->renameArtist(QStringLiteral("Old Artist 15"),
+                                       QStringLiteral("New Artist 15")));
+    QCOMPARE(changedSpy.count(), 1);
+
+    // The artists() cache shows the new name only.
+    const QVector<QVariant> artists = m_controller->artists();
+    QCOMPARE(artists.size(), 1);
+    const QVariantMap artist = artists.first().toMap();
+    QCOMPARE(artist.value(QStringLiteral("name")).toString(),
+             QStringLiteral("New Artist 15"));
+    QCOMPARE(artist.value(QStringLiteral("songCount")).toInt(), 2);
+
+    // Every song followed through the foreign key.
+    for (const QVariant &entry : m_controller->songs()) {
+        QCOMPARE(entry.toMap().value(QStringLiteral("artist")).toString(),
+                 QStringLiteral("New Artist 15"));
+    }
+}
+
+void tst_library::testRenameAlbumEmitsOnceAndCachesFollow()
+{
+    const qint64 id = insertSongRow(QStringLiteral("/music/tagged/album16.mp3"),
+                                    QStringLiteral("Album Song 16"));
+    QVERIFY(id > 0);
+    QVariantMap map;
+    map[QStringLiteral("id")] = id;
+    map[QStringLiteral("artist")] = QStringLiteral("Album Artist 16");
+    map[QStringLiteral("album")] = QStringLiteral("Old Album 16");
+    QVERIFY(m_controller->updateSong(map));
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(m_controller->renameAlbum(QStringLiteral("Old Album 16"),
+                                      QStringLiteral("Album Artist 16"),
+                                      QStringLiteral("New Album 16")));
+    QCOMPARE(changedSpy.count(), 1);
+
+    const QVector<QVariant> albums = m_controller->albums();
+    QCOMPARE(albums.size(), 1);
+    const QVariantMap album = albums.first().toMap();
+    QCOMPARE(album.value(QStringLiteral("title")).toString(),
+             QStringLiteral("New Album 16"));
+    QCOMPARE(album.value(QStringLiteral("artist")).toString(),
+             QStringLiteral("Album Artist 16"));
+    QCOMPARE(album.value(QStringLiteral("songCount")).toInt(), 1);
+
+    // The song row followed through the foreign key.
+    QCOMPARE(m_controller->songs().first().toMap()
+                 .value(QStringLiteral("album")).toString(),
+             QStringLiteral("New Album 16"));
+}
+
+void tst_library::testSetArtworkEmitsOnceAndCachesFile()
+{
+    const qint64 id = insertSongRow(QStringLiteral("/music/tagged/art17.mp3"),
+                                    QStringLiteral("Artwork Song 17"));
+    QVERIFY(id > 0);
+    QVariantMap map;
+    map[QStringLiteral("id")] = id;
+    map[QStringLiteral("artist")] = QStringLiteral("Artwork Artist 17");
+    map[QStringLiteral("album")] = QStringLiteral("Artwork Album 17");
+    QVERIFY(m_controller->updateSong(map));
+
+    // A real (tiny) PNG standing in for the user's picked cover.
+    const QString pickedPath = m_tempDir.filePath(QStringLiteral("picked_cover17.png"));
+    {
+        QFile picked(pickedPath);
+        QVERIFY(picked.open(QIODevice::WriteOnly));
+        QVERIFY(picked.write(QByteArray::fromHex(kRedPngHex)) > 0);
+        picked.close();
+    }
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(m_controller->setArtwork(static_cast<int>(id), pickedPath));
+    QCOMPARE(changedSpy.count(), 1);
+
+    const QVariantMap song = m_controller->songs().first().toMap();
+    const QString artwork = song.value(QStringLiteral("artwork")).toString();
+    QVERIFY(!artwork.isEmpty());
+    QVERIFY(QFile::exists(artwork));
+    // The image was copied into the app's content-hash artwork cache, not
+    // referenced in place.
+    const QString artworkDir = QStandardPaths::writableLocation(
+                                   QStandardPaths::AppDataLocation)
+                               + QStringLiteral("/artwork");
+    QVERIFY(artwork.startsWith(artworkDir + QLatin1Char('/')));
+    QVERIFY(artwork != pickedPath);
+
+    // The album rollup exposed the same cover, like at scan time.
+    QCOMPARE(m_controller->albums().first().toMap()
+                 .value(QStringLiteral("artwork")).toString(), artwork);
 }
 
 QTEST_MAIN(tst_library)

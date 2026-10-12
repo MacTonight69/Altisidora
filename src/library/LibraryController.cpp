@@ -306,6 +306,134 @@ void LibraryController::removeSongs(const QVariantList &ids, bool deleteFiles)
     refresh();
 }
 
+bool LibraryController::fillSongFromMap(const QVariantMap &map, Song *song) const
+{
+    const qint64 id = map.value(QStringLiteral("id")).toLongLong();
+    if (id <= 0) {
+        return false;
+    }
+    // Start from the stored row so the keys the map omits keep their
+    // current values — this is what makes a batch edit a field-level
+    // reassignment instead of an equalization of every field. A missing
+    // row returns the default Song (id 0), which the check below
+    // rejects.
+    *song = m_db.getSong(id);
+    if (song->id != id) {
+        return false;
+    }
+    if (map.contains(QStringLiteral("title")))
+        song->title = map.value(QStringLiteral("title")).toString();
+    if (map.contains(QStringLiteral("artist")))
+        song->artist = map.value(QStringLiteral("artist")).toString();
+    if (map.contains(QStringLiteral("album")))
+        song->album = map.value(QStringLiteral("album")).toString();
+    if (map.contains(QStringLiteral("genre")))
+        song->genre = map.value(QStringLiteral("genre")).toString();
+    if (map.contains(QStringLiteral("year")))
+        song->year = map.value(QStringLiteral("year")).toInt();
+    if (map.contains(QStringLiteral("duration")))
+        song->duration = map.value(QStringLiteral("duration")).toLongLong();
+    if (map.contains(QStringLiteral("artwork")))
+        song->artworkPath = map.value(QStringLiteral("artwork")).toString();
+    return true;
+}
+
+bool LibraryController::updateSong(const QVariantMap &songMap)
+{
+    Song song;
+    if (!fillSongFromMap(songMap, &song)) {
+        qWarning() << "LibraryController::updateSong: missing or unknown song id";
+        return false;
+    }
+    if (!m_db.updateSong(song)) {
+        qWarning() << "LibraryController::updateSong: database update failed for id"
+                   << song.id;
+        return false;
+    }
+    // refresh() is the single stale-flags + applySnapshot + libraryChanged
+    // sequence; it must not be duplicated here.
+    refresh();
+    return true;
+}
+
+bool LibraryController::updateSongs(const QVariantList &songMaps)
+{
+    if (songMaps.isEmpty()) {
+        qWarning() << "LibraryController::updateSongs: empty batch";
+        return false;
+    }
+    // Fill every song before touching the database so one invalid entry
+    // aborts the whole batch with no write at all (the database side is
+    // additionally atomic: one transaction per batch).
+    QList<Song> songs;
+    songs.reserve(songMaps.size());
+    for (const QVariant &entry : songMaps) {
+        Song song;
+        if (!fillSongFromMap(entry.toMap(), &song)) {
+            qWarning() << "LibraryController::updateSongs: missing or unknown song id in batch";
+            return false;
+        }
+        songs.append(song);
+    }
+    if (!m_db.updateSongs(songs)) {
+        qWarning() << "LibraryController::updateSongs: database update failed";
+        return false;
+    }
+    refresh();
+    return true;
+}
+
+bool LibraryController::renameArtist(const QString &from, const QString &to)
+{
+    if (from.isEmpty() || to.isEmpty()) {
+        qWarning() << "LibraryController::renameArtist: names must not be empty";
+        return false;
+    }
+    if (!m_db.renameArtist(from, to)) {
+        qWarning() << "LibraryController::renameArtist: refused or failed:" << from << "->" << to;
+        return false;
+    }
+    refresh();
+    return true;
+}
+
+bool LibraryController::renameAlbum(const QString &title, const QString &artist,
+                                    const QString &newTitle)
+{
+    if (title.isEmpty() || newTitle.isEmpty()) {
+        qWarning() << "LibraryController::renameAlbum: titles must not be empty";
+        return false;
+    }
+    if (!m_db.renameAlbum(title, artist, newTitle)) {
+        qWarning() << "LibraryController::renameAlbum: refused or failed:" << title << "->" << newTitle;
+        return false;
+    }
+    refresh();
+    return true;
+}
+
+bool LibraryController::setArtwork(int songId, const QString &imagePath)
+{
+    if (songId <= 0 || imagePath.isEmpty() || !QFileInfo::exists(imagePath)) {
+        qWarning() << "LibraryController::setArtwork: bad song id or image path";
+        return false;
+    }
+    // Cache the picked image with the scan-time pipeline first, so the
+    // stored path points at the app-managed cache file (content-hash
+    // deduped with extracted covers), never at the user's original.
+    const QString cachedPath = MetadataReader::cacheArtwork(imagePath);
+    if (cachedPath.isEmpty()) {
+        qWarning() << "LibraryController::setArtwork: failed to cache image" << imagePath;
+        return false;
+    }
+    if (!m_db.setArtwork(songId, cachedPath)) {
+        qWarning() << "LibraryController::setArtwork: database update failed for id" << songId;
+        return false;
+    }
+    refresh();
+    return true;
+}
+
 QStringList LibraryController::ignoredPaths() const
 {
     return m_db.ignoredPaths();

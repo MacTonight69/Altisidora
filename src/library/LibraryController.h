@@ -139,6 +139,22 @@ public:
      */
     void startScan(const QString &directory, qint64 minDurationMs);
 
+    // ---- Tag editing (Option D) ----
+    // Main-thread only (the DB connection is main-thread only); false +
+    // qWarning on bad input, never throw into QML; on success caches/model
+    // rebuild and libraryChanged() fires exactly once.
+    //
+    // The maps use the QML-facing keys of Song::toVariantMap() with
+    // overlay semantics: keys absent from the map keep their stored
+    // values, so a batch that reassigns only "album" never equalizes the
+    // other fields of the selected songs.
+    Q_INVOKABLE bool updateSong(const QVariantMap &songMap);
+    Q_INVOKABLE bool updateSongs(const QVariantList &songMaps);
+    Q_INVOKABLE bool renameArtist(const QString &from, const QString &to);
+    Q_INVOKABLE bool renameAlbum(const QString &title, const QString &artist,
+                                 const QString &newTitle);
+    Q_INVOKABLE bool setArtwork(int songId, const QString &imagePath);
+
 signals:
     void scanStarted();
     void scanFinished();
@@ -152,6 +168,11 @@ private slots:
 private:
     QVariantMap albumToVariant(const Album &album) const;
     QVariantMap artistToVariant(const Artist &artist) const;
+    // Fill *song from the stored row behind map["id"], then overwrite
+    // only the fields the map carries (overlay semantics: absent keys
+    // keep the stored values, explicit empty strings clear a field).
+    // False when the map has no usable id or the id is unknown.
+    bool fillSongFromMap(const QVariantMap &map, Song *song) const;
 
     DatabaseManager m_db;
     QVector<Song> m_songs;
