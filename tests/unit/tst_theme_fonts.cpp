@@ -40,6 +40,7 @@ private slots:
     void testBindingRerendersOnApply();
     void testScaleDropsBackOnMimy();
     void testRuntimeThemeSwitchChain();
+    void testStartupAppliesSavedTheme();
     void testVacuiUsesSystemFontFamily();
     void testSidebarWidthPerTheme();
 
@@ -297,6 +298,71 @@ void tst_theme_fonts::testRuntimeThemeSwitchChain()
         qunsetenv("XDG_CONFIG_HOME");
     else
         qputenv("XDG_CONFIG_HOME", oldXdg);
+}
+
+void tst_theme_fonts::testStartupAppliesSavedTheme()
+{
+    // Reproduces the closed-then-reopened app: a theme saved in the config
+    // must be the one applied from the first frame. Isolate QSettings the
+    // same way testRuntimeThemeSwitchChain does.
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QByteArray oldXdg = qgetenv("XDG_CONFIG_HOME");
+    qputenv("XDG_CONFIG_HOME", tempDir.path().toUtf8());
+
+    // A previous session that closed on Onyx.
+    {
+        QSettings seed(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"));
+        seed.setValue(QStringLiteral("theme"), QStringLiteral("Onyx"));
+        seed.sync();
+    }
+
+    // The app loads the saved theme into SettingsController at construction.
+    SettingsController settings;
+    QCOMPARE(settings.theme(), QStringLiteral("Onyx"));
+
+    m_engine->rootContext()->setContextProperty(QStringLiteral("AppSettings"), &settings);
+
+    // The exact wiring from resources/qml/main.qml, including the startup
+    // apply. Before the fix the handler only ran on later settingsChanged
+    // emissions, so the UI stayed on the Theme.qml default (Mimy) while the
+    // Settings combo showed the saved theme.
+    QQmlComponent wiring(m_engine);
+    wiring.setData(
+        QStringLiteral("import QtQuick\n"
+                       "Item {\n"
+                       "    id: root\n"
+                       "    function applyTheme(name) {\n"
+                       "        Theme.apply(name)\n"
+                       "        if (name !== AppSettings.theme)\n"
+                       "            AppSettings.theme = name\n"
+                       "        AppSettings.fontScale = Theme.fontScale\n"
+                       "    }\n"
+                       "    Connections {\n"
+                       "        target: AppSettings\n"
+                       "        function onSettingsChanged() {\n"
+                       "            root.applyTheme(AppSettings.theme)\n"
+                       "        }\n"
+                       "    }\n"
+                       "    Component.onCompleted: root.applyTheme(AppSettings.theme)\n"
+                       "}\n").toUtf8(),
+        QUrl());
+    QVERIFY2(wiring.status() == QQmlComponent::Ready,
+             qPrintable(wiring.errorString()));
+    QScopedPointer<QObject> root(wiring.create());
+    QVERIFY(root != nullptr);
+
+    // The saved theme (and its typography scale) must be live immediately.
+    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Onyx"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.4);
+
+    if (oldXdg.isEmpty())
+        qunsetenv("XDG_CONFIG_HOME");
+    else
+        qputenv("XDG_CONFIG_HOME", oldXdg);
+
+    // Leave the shared Theme object neutral for any code running after.
+    applyTheme(QStringLiteral("Mimy"));
 }
 
 QTEST_MAIN(tst_theme_fonts)

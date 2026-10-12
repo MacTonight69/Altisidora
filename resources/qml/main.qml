@@ -50,6 +50,12 @@ ApplicationWindow {
         AppSettings.fontScale = Theme.fontScale
     }
 
+    // Apply the saved theme once at startup. The Connections above only
+    // fires on later settings changes, so without this the first frame
+    // stayed on the Theme.qml default (Mimy) while Settings showed the
+    // saved theme — the reopened-on-Mimy bug.
+    Component.onCompleted: root.applyTheme(AppSettings.theme)
+
     // ---- state ----
     property int currentNav: 0
     property string searchQuery: ""
