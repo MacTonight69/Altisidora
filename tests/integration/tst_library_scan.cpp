@@ -2,6 +2,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSqlQuery>
 #include <QSignalSpy>
 
@@ -48,11 +49,16 @@ private slots:
     void testPersonalScanFilterAndDedupe();
     void testRescanOnlyProcessesChangedFiles();
     void testScanExtractsEmbeddedArtwork();
+    void testEditSurvivesRescan();
 
 private:
     void removeDatabaseFiles();
     bool waitForScanFinished(LibraryController *controller);
     QVariantMap songByPath(LibraryController *controller, const QString &path) const;
+    // Write ID3v2 title/artist/album tags to a real MPEG file (the
+    // file-rewrite half of the edit-vs-rescan story).
+    bool tagMpegFile(const QString &path, const QString &title,
+                     const QString &artist, const QString &album);
 
     QTemporaryDir m_tempDir;
 };
@@ -302,6 +308,137 @@ void tst_library_scan::testScanExtractsEmbeddedArtwork()
     QCOMPARE(albums.size(), 1);
     QCOMPARE(albums.first().toMap().value(QStringLiteral("artwork")).toString(),
              artwork);
+}
+
+bool tst_library_scan::tagMpegFile(const QString &path, const QString &title,
+                                   const QString &artist, const QString &album)
+{
+    TagLib::MPEG::File mf(path.toStdString().c_str());
+    if (!mf.isValid()) {
+        return false;
+    }
+    TagLib::ID3v2::Tag *tag = mf.ID3v2Tag(true);
+    tag->setTitle(TagLib::String(title.toStdString(), TagLib::String::UTF8));
+    tag->setArtist(TagLib::String(artist.toStdString(), TagLib::String::UTF8));
+    tag->setAlbum(TagLib::String(album.toStdString(), TagLib::String::UTF8));
+    return mf.save();
+}
+
+// The tag-editing headline: a user edit must survive rescans.
+//   (a) an unchanged file is fingerprint-skipped, so the edit trivially
+//       survives;
+//   (b) a file rewritten with DIFFERENT tags is re-read, but the CASE
+//       guard in upsertSong() keeps the edited row's curated columns,
+//       while an unedited control song takes its new file tags;
+//   (c) the rescan refreshed the fingerprint, so a third scan skips
+//       again — no permanent re-read loop (the v3 artwork lesson).
+void tst_library_scan::testEditSurvivesRescan()
+{
+    removeDatabaseFiles();
+
+    const QString dir = m_tempDir.filePath(QStringLiteral("edit_rescan"));
+    QDir().mkpath(dir);
+    const QString editedPath = dir + QStringLiteral("/edited.mp3");
+    const QString controlPath = dir + QStringLiteral("/control.mp3");
+    QVERIFY(TestHelpers::createMpegAudioFile(editedPath, 400));
+    QVERIFY(TestHelpers::createMpegAudioFile(controlPath, 400));
+
+    // Real tags before the first scan, so the library holds file-derived
+    // values the edit must override.
+    QVERIFY(tagMpegFile(editedPath, QStringLiteral("Scan Title"),
+                         QStringLiteral("Scan Artist"), QStringLiteral("Scan Album")));
+    QVERIFY(tagMpegFile(controlPath, QStringLiteral("Control Scan Title"),
+                         QStringLiteral("Control Artist"),
+                         QStringLiteral("Control Scan Album")));
+
+    LibraryController controller;
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+
+    const QVariantMap scannedEdited = songByPath(&controller, editedPath);
+    QVERIFY(!scannedEdited.isEmpty());
+    QCOMPARE(scannedEdited.value(QStringLiteral("title")).toString(),
+             QStringLiteral("Scan Title"));
+
+    // The user corrects one song's title and album (a field-level edit
+    // through the QML-facing API).
+    QVariantMap edit;
+    edit[QStringLiteral("id")] = scannedEdited.value(QStringLiteral("id"));
+    edit[QStringLiteral("title")] = QStringLiteral("Edited Title");
+    edit[QStringLiteral("album")] = QStringLiteral("Edited Album");
+    QVERIFY(controller.updateSong(edit));
+
+    // (a) Rescan with unchanged files: the fingerprint check skips them
+    // and the edit is intact.
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    {
+        const QVariantMap song = songByPath(&controller, editedPath);
+        QCOMPARE(song.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Edited Title"));
+        QCOMPARE(song.value(QStringLiteral("album")).toString(),
+                 QStringLiteral("Edited Album"));
+    }
+
+    // (b) Rewrite both files with different tags. The rescan re-reads
+    // them (fresh mtime/size), but the edited row keeps the user's
+    // values while the unedited control row takes its new file tags.
+    QVERIFY(tagMpegFile(editedPath, QStringLiteral("Retagged Title"),
+                         QStringLiteral("Scan Artist"),
+                         QStringLiteral("Retagged Album")));
+    QVERIFY(tagMpegFile(controlPath, QStringLiteral("Control Retagged Title"),
+                         QStringLiteral("Control Artist"),
+                         QStringLiteral("Control Retagged Album")));
+
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+
+    {
+        const QVariantMap editedSong = songByPath(&controller, editedPath);
+        QCOMPARE(editedSong.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Edited Title"));
+        QCOMPARE(editedSong.value(QStringLiteral("album")).toString(),
+                 QStringLiteral("Edited Album"));
+
+        const QVariantMap controlSong = songByPath(&controller, controlPath);
+        QCOMPARE(controlSong.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Control Retagged Title"));
+        QCOMPARE(controlSong.value(QStringLiteral("album")).toString(),
+                 QStringLiteral("Control Retagged Album"));
+    }
+
+    // The rescan refreshed the edited file's fingerprint even though its
+    // tag columns stayed frozen: the stored mtime/size match the file
+    // again, so the next scan skips it — no permanent re-read loop.
+    {
+        QSqlQuery query;
+        query.prepare(QStringLiteral("SELECT mtime, size FROM songs WHERE path = ?"));
+        query.addBindValue(editedPath);
+        QVERIFY(query.exec());
+        QVERIFY(query.next());
+        const QFileInfo info(editedPath);
+        QCOMPARE(query.value(0).toLongLong(),
+                 info.lastModified().toMSecsSinceEpoch());
+        QCOMPARE(query.value(1).toLongLong(), info.size());
+    }
+
+    // (c) Third scan, nothing changed: every value sits exactly where
+    // (b) left it.
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+    {
+        const QVariantMap editedSong = songByPath(&controller, editedPath);
+        QCOMPARE(editedSong.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Edited Title"));
+        QCOMPARE(editedSong.value(QStringLiteral("album")).toString(),
+                 QStringLiteral("Edited Album"));
+        const QVariantMap controlSong = songByPath(&controller, controlPath);
+        QCOMPARE(controlSong.value(QStringLiteral("title")).toString(),
+                 QStringLiteral("Control Retagged Title"));
+    }
 }
 
 QTEST_MAIN(tst_library_scan)
