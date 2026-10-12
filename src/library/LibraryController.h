@@ -151,9 +151,22 @@ public:
     Q_INVOKABLE bool updateSong(const QVariantMap &songMap);
     Q_INVOKABLE bool updateSongs(const QVariantList &songMaps);
     Q_INVOKABLE bool renameArtist(const QString &from, const QString &to);
-    Q_INVOKABLE bool renameAlbum(const QString &title, const QString &artist,
-                                 const QString &newTitle);
     Q_INVOKABLE bool setArtwork(int songId, const QString &imagePath);
+    // Album-scoped identity edit used by the album drill-down: rename this
+    // album and/or move it (and only it) to another artist. Title and artist
+    // are one atomic backend call, so a combined edit cannot be refused by
+    // an intermediate state that the final identity never has. The global
+    // artist rename lives in renameArtist(). Refused when
+    // title/newTitle/newArtist is empty, the identity is unchanged, the
+    // album is unknown, or (newTitle, newArtist) already exists.
+    Q_INVOKABLE bool setAlbumIdentity(const QString &title, const QString &artist,
+                                      const QString &newTitle,
+                                      const QString &newArtist);
+    // Album-scoped cover edit: point every song of the album at the picked
+    // image (validated and cached first, exactly like setArtwork()), or, with
+    // an empty imagePath, clear the cover. Refused for an unknown album.
+    Q_INVOKABLE bool setAlbumArtwork(const QString &title, const QString &artist,
+                                     const QString &imagePath);
 
 signals:
     void scanStarted();

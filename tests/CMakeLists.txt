@@ -28,6 +28,7 @@ set(UNIT_TESTS
     tst_settings
     tst_theme_fonts
     tst_mpris
+    tst_detail_view
 )
 
 # Integration tests
@@ -63,6 +64,16 @@ foreach(test_name ${UNIT_TESTS} ${INTEGRATION_TESTS})
         target_link_libraries(${test_name} PRIVATE Qt6::Qml Qt6::Quick)
         target_compile_definitions(${test_name} PRIVATE
             THEME_QML_DIR="${CMAKE_SOURCE_DIR}/resources/qml/themes"
+        )
+    endif()
+
+    # tst_detail_view loads the real drill-down view (which no other test
+    # ever instantiates) against the real Theme.
+    if(test_name STREQUAL "tst_detail_view")
+        target_link_libraries(${test_name} PRIVATE Qt6::Qml Qt6::Quick)
+        target_compile_definitions(${test_name} PRIVATE
+            THEME_QML_DIR="${CMAKE_SOURCE_DIR}/resources/qml/themes"
+            VIEWS_QML_DIR="${CMAKE_SOURCE_DIR}/resources/qml/views"
         )
     endif()
 

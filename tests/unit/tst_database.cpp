@@ -55,8 +55,11 @@ private slots:
     void testUpdateSongsAtomicRollback();
     void testUpsertSongKeepsEditedTagColumns();
     void testRenameArtistFollowsSongsAndRefusesCollision();
-    void testRenameAlbumFollowsSongsAndRefusesCollision();
+    void testSetAlbumIdentityFollowsSongsAndRefusesCollision();
     void testSetArtworkStoresPathAndFlagsRow();
+    void testSetAlbumIdentityMovesAlbumAndSongs();
+    void testSetAlbumIdentityHandlesACombinedTitleAndArtistChange();
+    void testSetAlbumArtworkCoversEverySongAndRollsUp();
 
 private:
     // Raw read of the edited flag. The Song struct deliberately does not
@@ -1345,7 +1348,7 @@ void TestDatabase::testRenameArtistFollowsSongsAndRefusesCollision()
                                QStringLiteral("Whatever")));
 }
 
-void TestDatabase::testRenameAlbumFollowsSongsAndRefusesCollision()
+void TestDatabase::testSetAlbumIdentityFollowsSongsAndRefusesCollision()
 {
     Song x;
     x.path = QStringLiteral("/music/album_x.mp3");
@@ -1370,22 +1373,25 @@ void TestDatabase::testRenameAlbumFollowsSongsAndRefusesCollision()
 
     // Refused: the artist already has an album titled "Target Album"
     // (no database constraint enforces this — the refusal is code only).
-    QVERIFY(!m_db.renameAlbum(QStringLiteral("Collision Album"),
-                               QStringLiteral("Album Artist"),
-                               QStringLiteral("Target Album")));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("Collision Album"),
+                                   QStringLiteral("Album Artist"),
+                                   QStringLiteral("Target Album"),
+                                   QStringLiteral("Album Artist")));
     QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Collision Album"),
                                    QStringLiteral("Album Artist")).size(), 1);
 
     // Identical names are refused outright.
-    QVERIFY(!m_db.renameAlbum(QStringLiteral("Collision Album"),
-                               QStringLiteral("Album Artist"),
-                               QStringLiteral("Collision Album")));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("Collision Album"),
+                                   QStringLiteral("Album Artist"),
+                                   QStringLiteral("Collision Album"),
+                                   QStringLiteral("Album Artist")));
 
     // Success: songs follow through album_id, the old title is gone and
     // the artwork column survives on the renamed row.
-    QVERIFY(m_db.renameAlbum(QStringLiteral("Collision Album"),
-                             QStringLiteral("Album Artist"),
-                             QStringLiteral("Renamed Album")));
+    QVERIFY(m_db.setAlbumIdentity(QStringLiteral("Collision Album"),
+                                  QStringLiteral("Album Artist"),
+                                  QStringLiteral("Renamed Album"),
+                                  QStringLiteral("Album Artist")));
     const QList<Song> followed = m_db.getSongsByAlbum(QStringLiteral("Renamed Album"),
                                                       QStringLiteral("Album Artist"));
     QCOMPARE(followed.size(), 1);
@@ -1404,9 +1410,10 @@ void TestDatabase::testRenameAlbumFollowsSongsAndRefusesCollision()
     }
 
     // An unknown album is refused.
-    QVERIFY(!m_db.renameAlbum(QStringLiteral("No Such Album"),
-                              QStringLiteral("Album Artist"),
-                              QStringLiteral("Whatever")));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("No Such Album"),
+                                   QStringLiteral("Album Artist"),
+                                   QStringLiteral("Whatever"),
+                                   QStringLiteral("Album Artist")));
 }
 
 void TestDatabase::testSetArtworkStoresPathAndFlagsRow()
@@ -1441,6 +1448,226 @@ void TestDatabase::testSetArtworkStoresPathAndFlagsRow()
 
     // Unknown id: refused.
     QVERIFY(!m_db.setArtwork(999999, QStringLiteral("/cache/none.png")));
+}
+
+void TestDatabase::testSetAlbumIdentityMovesAlbumAndSongs()
+{
+    Song a;
+    a.path = QStringLiteral("/music/move_a.mp3");
+    a.title = QStringLiteral("Move Song A");
+    a.artist = QStringLiteral("Old Owner");
+    a.album = QStringLiteral("Shared Title");
+    Song b;
+    b.path = QStringLiteral("/music/move_b.mp3");
+    b.title = QStringLiteral("Move Song B");
+    b.artist = QStringLiteral("Old Owner");
+    b.album = QStringLiteral("Shared Title");
+    // A sibling album of the old artist: the move must leave it alone.
+    Song keeper;
+    keeper.path = QStringLiteral("/music/move_keep.mp3");
+    keeper.title = QStringLiteral("Keeper Song");
+    keeper.artist = QStringLiteral("Old Owner");
+    keeper.album = QStringLiteral("Keeper Album");
+    QVERIFY(m_db.addSong(a));
+    QVERIFY(m_db.addSong(b));
+    QVERIFY(m_db.addSong(keeper));
+
+    // Refused: unchanged identity, empty target artist, empty title,
+    // unknown album.
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("Shared Title"),
+                                   QStringLiteral("Old Owner"),
+                                   QStringLiteral("Shared Title"),
+                                   QStringLiteral("Old Owner")));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("Shared Title"),
+                                   QStringLiteral("Old Owner"),
+                                   QStringLiteral("Shared Title"), QString()));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("Shared Title"),
+                                   QStringLiteral("Old Owner"), QString(),
+                                   QStringLiteral("New Owner")));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("No Such Album"),
+                                   QStringLiteral("Old Owner"),
+                                   QStringLiteral("No Such Album"),
+                                   QStringLiteral("New Owner")));
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Shared Title"),
+                                  QStringLiteral("Old Owner")).size(), 2);
+
+    QVERIFY(m_db.setAlbumIdentity(QStringLiteral("Shared Title"),
+                                  QStringLiteral("Old Owner"),
+                                  QStringLiteral("Shared Title"),
+                                  QStringLiteral("New Owner")));
+
+    // The album row and its songs move together: the drill-down resolves a
+    // song's artist from songs.artist_id while the album card reads
+    // albums.artist_id, so leaving the two apart would show a card with no
+    // songs under it.
+    const QList<Song> moved = m_db.getSongsByAlbum(QStringLiteral("Shared Title"),
+                                                   QStringLiteral("New Owner"));
+    QCOMPARE(moved.size(), 2);
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Shared Title"),
+                                  QStringLiteral("Old Owner")).size(), 0);
+    for (const Song &song : moved) {
+        QCOMPARE(song.artist, QStringLiteral("New Owner"));
+        QCOMPARE(editedFlag(song.id), 1); // the move survives a rescan
+    }
+    for (const Album &album : m_db.getAllAlbums()) {
+        if (album.title == QStringLiteral("Shared Title"))
+            QCOMPARE(album.artist, QStringLiteral("New Owner"));
+    }
+    // The sibling album of the old artist is untouched.
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Keeper Album"),
+                                  QStringLiteral("Old Owner")).size(), 1);
+
+    // Collision: the target artist already has an album with this title.
+    // No database constraint enforces this — the refusal is code only.
+    Song twin;
+    twin.path = QStringLiteral("/music/move_twin.mp3");
+    twin.title = QStringLiteral("Twin Song");
+    twin.artist = QStringLiteral("Other Owner");
+    twin.album = QStringLiteral("Shared Title");
+    QVERIFY(m_db.addSong(twin));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("Shared Title"),
+                                   QStringLiteral("New Owner"),
+                                   QStringLiteral("Shared Title"),
+                                   QStringLiteral("Other Owner")));
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Shared Title"),
+                                  QStringLiteral("New Owner")).size(), 2);
+
+    // Moving the old artist's last album away releases the orphan row.
+    QVERIFY(m_db.setAlbumIdentity(QStringLiteral("Keeper Album"),
+                                  QStringLiteral("Old Owner"),
+                                  QStringLiteral("Keeper Album"),
+                                  QStringLiteral("New Owner")));
+    for (const Artist &artist : m_db.getAllArtists()) {
+        QVERIFY(artist.name != QStringLiteral("Old Owner"));
+    }
+}
+
+void TestDatabase::testSetAlbumIdentityHandlesACombinedTitleAndArtistChange()
+{
+    // The trap this pins: the album being edited is "Best" of artist A, and
+    // the edit renames it to "Hits" while moving it to artist B. Both
+    // intermediate states are taken:
+    //   - title first  -> (Hits, A) collides with A's own "Hits";
+    //   - artist first -> (Best, B) collides with B's own "Best".
+    // The FINAL identity (Hits, B) is free, so the edit must be accepted.
+    // This is why the operation is one transaction with one collision check
+    // on the final identity instead of two sequential calls.
+    Song moved;
+    moved.path = QStringLiteral("/music/combined_best.mp3");
+    moved.title = QStringLiteral("Combined Song");
+    moved.artist = QStringLiteral("Combined A");
+    moved.album = QStringLiteral("Best");
+    Song aOwn;
+    aOwn.path = QStringLiteral("/music/combined_a_hits.mp3");
+    aOwn.title = QStringLiteral("A Own Hit");
+    aOwn.artist = QStringLiteral("Combined A");
+    aOwn.album = QStringLiteral("Hits");
+    Song bOwn;
+    bOwn.path = QStringLiteral("/music/combined_b_best.mp3");
+    bOwn.title = QStringLiteral("B Own Best");
+    bOwn.artist = QStringLiteral("Combined B");
+    bOwn.album = QStringLiteral("Best");
+    QVERIFY(m_db.addSong(moved));
+    QVERIFY(m_db.addSong(aOwn));
+    QVERIFY(m_db.addSong(bOwn));
+
+    QVERIFY(m_db.setAlbumIdentity(QStringLiteral("Best"),
+                                  QStringLiteral("Combined A"),
+                                  QStringLiteral("Hits"),
+                                  QStringLiteral("Combined B")));
+
+    // The edited album landed on the final identity, with its song.
+    const QList<Song> landed = m_db.getSongsByAlbum(QStringLiteral("Hits"),
+                                                    QStringLiteral("Combined B"));
+    QCOMPARE(landed.size(), 1);
+    QCOMPARE(landed.first().id, moved.id);
+    QCOMPARE(editedFlag(moved.id), 1);
+    // Both neighbours survived untouched: A keeps its own "Hits", B keeps
+    // its own "Best" (the method must not have merged with either).
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Hits"),
+                                  QStringLiteral("Combined A")).size(), 1);
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Best"),
+                                  QStringLiteral("Combined B")).size(), 1);
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Best"),
+                                  QStringLiteral("Combined A")).size(), 0);
+    // Every album row still carries its own artist.
+    for (const Album &album : m_db.getAllAlbums()) {
+        if (album.title == QStringLiteral("Hits")
+                && album.artist == QStringLiteral("Combined B")) {
+            QCOMPARE(album.songCount, 1);
+        }
+    }
+
+    // The final identity is still refused when it is genuinely taken: the
+    // same rename onto an artist that already owns a "Hits".
+    Song bHits;
+    bHits.path = QStringLiteral("/music/combined_b_hits.mp3");
+    bHits.title = QStringLiteral("B Own Hit");
+    bHits.artist = QStringLiteral("Combined B");
+    bHits.album = QStringLiteral("Hits");
+    QVERIFY(m_db.addSong(bHits));
+    QVERIFY(!m_db.setAlbumIdentity(QStringLiteral("Hits"),
+                                   QStringLiteral("Combined A"),
+                                   QStringLiteral("Hits"),
+                                   QStringLiteral("Combined B")));
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Hits"),
+                                  QStringLiteral("Combined A")).size(), 1);
+}
+
+void TestDatabase::testSetAlbumArtworkCoversEverySongAndRollsUp()
+{
+    Song a;
+    a.path = QStringLiteral("/music/cover_a.mp3");
+    a.title = QStringLiteral("Cover Song A");
+    a.artist = QStringLiteral("Cover Artist");
+    a.album = QStringLiteral("Cover Album");
+    Song b;
+    b.path = QStringLiteral("/music/cover_b.mp3");
+    b.title = QStringLiteral("Cover Song B");
+    b.artist = QStringLiteral("Cover Artist");
+    b.album = QStringLiteral("Cover Album");
+    // A sibling album: the cover edit must not leak into it.
+    Song other;
+    other.path = QStringLiteral("/music/cover_other.mp3");
+    other.title = QStringLiteral("Other Song");
+    other.artist = QStringLiteral("Cover Artist");
+    other.album = QStringLiteral("Other Album");
+    QVERIFY(m_db.addSong(a));
+    QVERIFY(m_db.addSong(b));
+    QVERIFY(m_db.addSong(other));
+
+    const QString picked = QStringLiteral("/cache/album_cover.png");
+    QVERIFY(m_db.setAlbumArtwork(QStringLiteral("Cover Album"),
+                                 QStringLiteral("Cover Artist"), picked));
+
+    // Every song of the album points at the cover and is flagged edited, so
+    // the choice survives a rescan exactly like setArtwork().
+    QCOMPARE(m_db.getSong(a.id).artworkPath, picked);
+    QCOMPARE(m_db.getSong(b.id).artworkPath, picked);
+    QCOMPARE(editedFlag(a.id), 1);
+    QCOMPARE(editedFlag(b.id), 1);
+    // The sibling album is untouched.
+    QCOMPARE(m_db.getSong(other.id).artworkPath, QString());
+    QCOMPARE(editedFlag(other.id), 0);
+
+    // The rollup puts the cover on the album card.
+    for (const Album &album : m_db.getAllAlbums()) {
+        if (album.title == QStringLiteral("Cover Album"))
+            QCOMPARE(album.artworkPath, picked);
+        else
+            QCOMPARE(album.artworkPath, QString());
+    }
+
+    // An empty path is the explicit "remove the cover" intent.
+    QVERIFY(m_db.setAlbumArtwork(QStringLiteral("Cover Album"),
+                                 QStringLiteral("Cover Artist"), QString()));
+    QCOMPARE(m_db.getSong(a.id).artworkPath, QString());
+    QCOMPARE(m_db.getSong(b.id).artworkPath, QString());
+
+    // Unknown album: refused.
+    QVERIFY(!m_db.setAlbumArtwork(QStringLiteral("No Such Album"),
+                                  QStringLiteral("Cover Artist"),
+                                  QStringLiteral("/cache/none.png")));
 }
 
 QTEST_MAIN(TestDatabase)

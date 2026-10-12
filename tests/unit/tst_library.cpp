@@ -54,8 +54,11 @@ private slots:
     void testUpdateSongsBatchEmitsOnce();
     void testUpdateSongsAcceptsPartialMaps();
     void testRenameArtistEmitsOnceAndCachesFollow();
-    void testRenameAlbumEmitsOnceAndCachesFollow();
+    void testSetAlbumIdentityEmitsOnceAndFollowsSongs();
     void testSetArtworkEmitsOnceAndCachesFile();
+    void testSetAlbumIdentityEmitsOnceAndMovesOnlyThisAlbum();
+    void testSetAlbumIdentityAcceptsACombinedTitleAndArtistChange();
+    void testSetAlbumArtworkEmitsOnceAndCoversEverySong();
 
 private:
     void removeDatabaseFiles();
@@ -620,7 +623,7 @@ void tst_library::testRenameArtistEmitsOnceAndCachesFollow()
     }
 }
 
-void tst_library::testRenameAlbumEmitsOnceAndCachesFollow()
+void tst_library::testSetAlbumIdentityEmitsOnceAndFollowsSongs()
 {
     const qint64 id = insertSongRow(QStringLiteral("/music/tagged/album16.mp3"),
                                     QStringLiteral("Album Song 16"));
@@ -632,9 +635,10 @@ void tst_library::testRenameAlbumEmitsOnceAndCachesFollow()
     QVERIFY(m_controller->updateSong(map));
 
     QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
-    QVERIFY(m_controller->renameAlbum(QStringLiteral("Old Album 16"),
-                                      QStringLiteral("Album Artist 16"),
-                                      QStringLiteral("New Album 16")));
+    QVERIFY(m_controller->setAlbumIdentity(QStringLiteral("Old Album 16"),
+                                           QStringLiteral("Album Artist 16"),
+                                           QStringLiteral("New Album 16"),
+                                           QStringLiteral("Album Artist 16")));
     QCOMPARE(changedSpy.count(), 1);
 
     const QVector<QVariant> albums = m_controller->albums();
@@ -691,6 +695,192 @@ void tst_library::testSetArtworkEmitsOnceAndCachesFile()
     // The album rollup exposed the same cover, like at scan time.
     QCOMPARE(m_controller->albums().first().toMap()
                  .value(QStringLiteral("artwork")).toString(), artwork);
+}
+
+void tst_library::testSetAlbumIdentityEmitsOnceAndMovesOnlyThisAlbum()
+{
+    // Two songs on the album being moved, one on a sibling album of the
+    // same artist: only the first album's tracks may follow.
+    const qint64 movedA = insertSongRow(QStringLiteral("/music/tagged/move18a.mp3"),
+                                        QStringLiteral("Move Song 18A"));
+    const qint64 movedB = insertSongRow(QStringLiteral("/music/tagged/move18b.mp3"),
+                                        QStringLiteral("Move Song 18B"));
+    const qint64 keeper = insertSongRow(QStringLiteral("/music/tagged/move18c.mp3"),
+                                        QStringLiteral("Keeper Song 18"));
+    QVERIFY(movedA > 0 && movedB > 0 && keeper > 0);
+    const QList<qint64> movedIds = {movedA, movedB};
+    for (const qint64 id : movedIds) {
+        QVariantMap map;
+        map[QStringLiteral("id")] = id;
+        map[QStringLiteral("artist")] = QStringLiteral("Old Owner 18");
+        map[QStringLiteral("album")] = QStringLiteral("Moved Album 18");
+        QVERIFY(m_controller->updateSong(map));
+    }
+    {
+        QVariantMap map;
+        map[QStringLiteral("id")] = keeper;
+        map[QStringLiteral("artist")] = QStringLiteral("Old Owner 18");
+        map[QStringLiteral("album")] = QStringLiteral("Keeper Album 18");
+        QVERIFY(m_controller->updateSong(map));
+    }
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    // Refused without emitting: unchanged identity, empty target artist,
+    // unknown album.
+    QVERIFY(!m_controller->setAlbumIdentity(QStringLiteral("Moved Album 18"),
+                                            QStringLiteral("Old Owner 18"),
+                                            QStringLiteral("Moved Album 18"),
+                                            QStringLiteral("Old Owner 18")));
+    QVERIFY(!m_controller->setAlbumIdentity(QStringLiteral("Moved Album 18"),
+                                            QStringLiteral("Old Owner 18"),
+                                            QStringLiteral("Moved Album 18"), QString()));
+    QVERIFY(!m_controller->setAlbumIdentity(QStringLiteral("No Such Album 18"),
+                                            QStringLiteral("Old Owner 18"),
+                                            QStringLiteral("No Such Album 18"),
+                                            QStringLiteral("New Owner 18")));
+    QCOMPARE(changedSpy.count(), 0);
+
+    QVERIFY(m_controller->setAlbumIdentity(QStringLiteral("Moved Album 18"),
+                                           QStringLiteral("Old Owner 18"),
+                                           QStringLiteral("Moved Album 18"),
+                                           QStringLiteral("New Owner 18")));
+    QCOMPARE(changedSpy.count(), 1);
+
+    // The albums cache moved the card to the new artist and left the
+    // sibling album under the old one.
+    bool sawMoved = false;
+    bool sawKeeper = false;
+    for (const QVariant &entry : m_controller->albums()) {
+        const QVariantMap album = entry.toMap();
+        if (album.value(QStringLiteral("title")).toString()
+                == QStringLiteral("Moved Album 18")) {
+            QCOMPARE(album.value(QStringLiteral("artist")).toString(),
+                     QStringLiteral("New Owner 18"));
+            QCOMPARE(album.value(QStringLiteral("songCount")).toInt(), 2);
+            sawMoved = true;
+        } else {
+            QCOMPARE(album.value(QStringLiteral("artist")).toString(),
+                     QStringLiteral("Old Owner 18"));
+            sawKeeper = true;
+        }
+    }
+    QVERIFY(sawMoved);
+    QVERIFY(sawKeeper);
+
+    // Every song followed through its own row (the drill-down resolves the
+    // artist from songs.artist_id).
+    for (const QVariant &entry : m_controller->songs()) {
+        const QVariantMap song = entry.toMap();
+        const bool onMovedAlbum =
+            song.value(QStringLiteral("album")).toString()
+            == QStringLiteral("Moved Album 18");
+        QCOMPARE(song.value(QStringLiteral("artist")).toString(),
+                 onMovedAlbum ? QStringLiteral("New Owner 18")
+                              : QStringLiteral("Old Owner 18"));
+    }
+}
+
+void tst_library::testSetAlbumIdentityAcceptsACombinedTitleAndArtistChange()
+{
+    // A combined edit must arrive at the backend as ONE call with the
+    // arguments in order — (title, artist) -> (newTitle, newArtist). The
+    // database regression test owns the full semantics; this one pins the
+    // controller passthrough (an argument-order slip would silently edit
+    // the wrong album) and the single refresh.
+    const qint64 id = insertSongRow(QStringLiteral("/music/tagged/combined19.mp3"),
+                                    QStringLiteral("Combined Song 19"));
+    QVERIFY(id > 0);
+    QVariantMap map;
+    map[QStringLiteral("id")] = id;
+    map[QStringLiteral("artist")] = QStringLiteral("Combined Artist 19");
+    map[QStringLiteral("album")] = QStringLiteral("Combined Album 19");
+    QVERIFY(m_controller->updateSong(map));
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(m_controller->setAlbumIdentity(QStringLiteral("Combined Album 19"),
+                                           QStringLiteral("Combined Artist 19"),
+                                           QStringLiteral("Renamed Album 19"),
+                                           QStringLiteral("New Artist 19")));
+    QCOMPARE(changedSpy.count(), 1);
+
+    const QVariantMap album = m_controller->albums().first().toMap();
+    QCOMPARE(album.value(QStringLiteral("title")).toString(),
+             QStringLiteral("Renamed Album 19"));
+    QCOMPARE(album.value(QStringLiteral("artist")).toString(),
+             QStringLiteral("New Artist 19"));
+    const QVariantMap song = m_controller->songs().first().toMap();
+    QCOMPARE(song.value(QStringLiteral("album")).toString(),
+             QStringLiteral("Renamed Album 19"));
+    QCOMPARE(song.value(QStringLiteral("artist")).toString(),
+             QStringLiteral("New Artist 19"));
+}
+
+void tst_library::testSetAlbumArtworkEmitsOnceAndCoversEverySong()
+{
+    const qint64 first = insertSongRow(QStringLiteral("/music/tagged/cover18a.mp3"),
+                                       QStringLiteral("Cover Song 18A"));
+    const qint64 second = insertSongRow(QStringLiteral("/music/tagged/cover18b.mp3"),
+                                        QStringLiteral("Cover Song 18B"));
+    QVERIFY(first > 0 && second > 0);
+    const QList<qint64> ids = {first, second};
+    for (const qint64 id : ids) {
+        QVariantMap map;
+        map[QStringLiteral("id")] = id;
+        map[QStringLiteral("artist")] = QStringLiteral("Cover Artist 18");
+        map[QStringLiteral("album")] = QStringLiteral("Cover Album 18");
+        QVERIFY(m_controller->updateSong(map));
+    }
+
+    // A real (tiny) PNG standing in for the user's picked cover.
+    const QString pickedPath = m_tempDir.filePath(QStringLiteral("album_cover18.png"));
+    {
+        QFile picked(pickedPath);
+        QVERIFY(picked.open(QIODevice::WriteOnly));
+        QVERIFY(picked.write(QByteArray::fromHex(kRedPngHex)) > 0);
+        picked.close();
+    }
+
+    QSignalSpy changedSpy(m_controller, &LibraryController::libraryChanged);
+    QVERIFY(m_controller->setAlbumArtwork(QStringLiteral("Cover Album 18"),
+                                          QStringLiteral("Cover Artist 18"),
+                                          pickedPath));
+    QCOMPARE(changedSpy.count(), 1);
+
+    // Every song of the album points at the same cached copy, never at the
+    // user's original file.
+    QString cached;
+    for (const QVariant &entry : m_controller->songs()) {
+        const QString artwork = entry.toMap()
+                                    .value(QStringLiteral("artwork")).toString();
+        QVERIFY(!artwork.isEmpty());
+        QVERIFY(QFile::exists(artwork));
+        QVERIFY(artwork != pickedPath);
+        if (cached.isEmpty())
+            cached = artwork;
+        else
+            QCOMPARE(artwork, cached);
+    }
+    // The album card shows the same cover.
+    QCOMPARE(m_controller->albums().first().toMap()
+                 .value(QStringLiteral("artwork")).toString(), cached);
+
+    // An empty path clears the cover for the album.
+    QVERIFY(m_controller->setAlbumArtwork(QStringLiteral("Cover Album 18"),
+                                          QStringLiteral("Cover Artist 18"),
+                                          QString()));
+    QCOMPARE(changedSpy.count(), 2);
+    for (const QVariant &entry : m_controller->songs()) {
+        QVERIFY(entry.toMap()
+                    .value(QStringLiteral("artwork")).toString().isEmpty());
+    }
+    QVERIFY(m_controller->albums().first().toMap()
+                .value(QStringLiteral("artwork")).toString().isEmpty());
+
+    // Unknown album: refused without touching the library.
+    QVERIFY(!m_controller->setAlbumArtwork(QStringLiteral("No Such Album 18"),
+                                           QStringLiteral("Cover Artist 18"),
+                                           pickedPath));
+    QCOMPARE(changedSpy.count(), 2);
 }
 
 QTEST_MAIN(tst_library)

@@ -397,15 +397,21 @@ bool LibraryController::renameArtist(const QString &from, const QString &to)
     return true;
 }
 
-bool LibraryController::renameAlbum(const QString &title, const QString &artist,
-                                    const QString &newTitle)
+bool LibraryController::setAlbumIdentity(const QString &title, const QString &artist,
+                                         const QString &newTitle,
+                                         const QString &newArtist)
 {
-    if (title.isEmpty() || newTitle.isEmpty()) {
-        qWarning() << "LibraryController::renameAlbum: titles must not be empty";
+    if (title.isEmpty() || newTitle.isEmpty() || newArtist.isEmpty()) {
+        qWarning() << "LibraryController::setAlbumIdentity: names must not be empty";
         return false;
     }
-    if (!m_db.renameAlbum(title, artist, newTitle)) {
-        qWarning() << "LibraryController::renameAlbum: refused or failed:" << title << "->" << newTitle;
+    if (title == newTitle && artist == newArtist) {
+        qWarning() << "LibraryController::setAlbumIdentity: unchanged identity";
+        return false;
+    }
+    if (!m_db.setAlbumIdentity(title, artist, newTitle, newArtist)) {
+        qWarning() << "LibraryController::setAlbumIdentity: refused or failed:"
+                   << title << "/" << artist << "->" << newTitle << "/" << newArtist;
         return false;
     }
     refresh();
@@ -428,6 +434,37 @@ bool LibraryController::setArtwork(int songId, const QString &imagePath)
     }
     if (!m_db.setArtwork(songId, cachedPath)) {
         qWarning() << "LibraryController::setArtwork: database update failed for id" << songId;
+        return false;
+    }
+    refresh();
+    return true;
+}
+
+bool LibraryController::setAlbumArtwork(const QString &title, const QString &artist,
+                                        const QString &imagePath)
+{
+    if (title.isEmpty()) {
+        qWarning() << "LibraryController::setAlbumArtwork: empty album title";
+        return false;
+    }
+    // A picked image goes through the scan-time cache first, so the album
+    // never references the user's original file in place; an empty path is
+    // the explicit "remove the cover" intent and skips the cache.
+    QString cachedPath;
+    if (!imagePath.isEmpty()) {
+        if (!QFileInfo::exists(imagePath)) {
+            qWarning() << "LibraryController::setAlbumArtwork: bad image path" << imagePath;
+            return false;
+        }
+        cachedPath = MetadataReader::cacheArtwork(imagePath);
+        if (cachedPath.isEmpty()) {
+            qWarning() << "LibraryController::setAlbumArtwork: failed to cache image"
+                       << imagePath;
+            return false;
+        }
+    }
+    if (!m_db.setAlbumArtwork(title, artist, cachedPath)) {
+        qWarning() << "LibraryController::setAlbumArtwork: database update failed";
         return false;
     }
     refresh();

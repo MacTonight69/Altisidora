@@ -3,6 +3,9 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
+
+import "../js/Utils.js" as Utils
 
 // Drill-down view opened when clicking an album (in Albums) or an artist
 // (in Artists). It shows that collection's songs as a playlist: the song
@@ -148,8 +151,8 @@ Rectangle {
                 font.pixelSize: 12 * Theme.fontScale
             }
 
-            // Rename this artist / album: rewrites every song in the
-            // collection after a confirmation dialog.
+            // Edit this collection after a confirmation dialog: an artist
+            // rename, or an album edit (title, artist and cover).
             ToolButton {
                 font.family: Theme.fontFamily
                 id: renameButton
@@ -158,7 +161,8 @@ Rectangle {
                 padding: 8
 
                 ToolTip.visible: renameButton.hovered
-                ToolTip.text: qsTr("Rename")
+                ToolTip.text: detail.filterType === "artist"
+                              ? qsTr("Rename") : qsTr("Edit")
                 ToolTip.delay: 400
 
                 contentItem: Text {
@@ -200,39 +204,70 @@ Rectangle {
         }
     }
 
-    // ---- inline rename (rewrites every song in this collection) ----
-    // No standardButtons: a refused rename (collision, failure) must keep
-    // the dialog open, which the stock Ok button's auto-close breaks.
+    // ---- inline edit (rewrites the collection's songs) ----
+    // No standardButtons: a refused edit (collision, failure) must keep the
+    // dialog open, which the stock Ok button's auto-close breaks.
+    //
+    // Artist collection: rename the artist globally (Library.renameArtist).
+    // Album collection: edit the album's title, artist and cover. The artist
+    // field moves ONLY this album (Library.setAlbumIdentity, one atomic call
+    // with the title so a combined edit cannot be refused by an intermediate
+    // state) — the global rename stays in the Artists section — and the
+    // cover applies to every song of the album (Library.setAlbumArtwork),
+    // the explicit "this album's artwork is X" intent.
     Dialog {
         id: renameDialog
         modal: true
         title: detail.filterType === "artist" ? qsTr("Rename artist")
-                                               : qsTr("Rename album")
+                                               : qsTr("Edit album")
+
+        // Transient album-edit state, reset on every open (onOpened below).
+        property string pickedArtwork: ""
+        property bool removeArtwork: false
+
+        // What the cover preview shows: a fresh pick wins over the stored
+        // cover and "Remove cover" suppresses both, so the preview follows
+        // the pending edit. detail.headerArtwork is the album rollup rule
+        // (the first artwork-bearing song in playback order).
+        readonly property string effectiveArtwork:
+            renameDialog.removeArtwork ? ""
+            : renameDialog.pickedArtwork !== "" ? renameDialog.pickedArtwork
+            : detail.headerArtwork
 
         onOpened: {
             renameError.text = ""
             renameField.text = detail.primaryKey
+            renameDialog.pickedArtwork = ""
+            renameDialog.removeArtwork = false
+            if (detail.filterType === "album")
+                albumArtistField.text = detail.secondaryKey
             renameField.forceActiveFocus()
         }
 
-        // A collision pre-check runs before the backend call because the
-        // backend only returns false (no reason). It is skipped when the
-        // typed name equals the current one, so a case-only rename is
-        // never blocked by finding the very collection being renamed.
-        function hasCollision(target) {
-            if (detail.filterType === "artist") {
-                var artists = Library.artists
-                for (var i = 0; i < artists.length; ++i) {
-                    if (artists[i].name === target)
-                        return true
-                }
-            } else {
-                var albums = Library.albums
-                for (var j = 0; j < albums.length; ++j) {
-                    if (albums[j].title === target
-                            && albums[j].artist === detail.secondaryKey)
-                        return true
-                }
+        // A collision pre-check runs before the backend calls because the
+        // backend only returns false (no reason). The album target compares
+        // BOTH names, so an edit that changes title and artist together
+        // cannot land on an identity that already exists, and the album
+        // being edited never counts as its own collision (that is what keeps
+        // a case-only rename working).
+        function hasArtistCollision(target) {
+            var artists = Library.artists
+            for (var i = 0; i < artists.length; ++i) {
+                if (artists[i].name === target)
+                    return true
+            }
+            return false
+        }
+
+        function hasAlbumCollision(targetTitle, targetArtist) {
+            if (targetTitle === detail.primaryKey
+                    && targetArtist === detail.secondaryKey)
+                return false
+            var albums = Library.albums
+            for (var j = 0; j < albums.length; ++j) {
+                if (albums[j].title === targetTitle
+                        && albums[j].artist === targetArtist)
+                    return true
             }
             return false
         }
@@ -242,35 +277,83 @@ Rectangle {
             var target = renameField.text.trim()
             if (target.length === 0)
                 return
-            // Unchanged name is a no-op, not a failure: the backend
-            // refuses from == to, which would otherwise surface a
-            // misleading "Could not rename" error.
-            if (target === from) {
+            renameError.text = ""
+
+            if (detail.filterType === "artist") {
+                // Unchanged name is a no-op, not a failure: the backend
+                // refuses from == to, which would otherwise surface a
+                // misleading "Could not rename" error.
+                if (target === from) {
+                    renameDialog.close()
+                    return
+                }
+                if (renameDialog.hasArtistCollision(target)) {
+                    renameError.text = qsTr("An artist with this name already exists.")
+                    return
+                }
+                // Move the stored key BEFORE the write: renameArtist emits
+                // libraryChanged synchronously (refresh() inside the call),
+                // and the onLibraryChanged reload() above resolves songs by
+                // this key while the call is still running. Resolving by the
+                // old name at that instant would empty the view. A refused
+                // rename writes nothing and emits nothing, so restoring the
+                // old key on failure is safe.
+                detail.primaryKey = target
+                if (!Library.renameArtist(from, target)) {
+                    detail.primaryKey = from
+                    renameError.text = qsTr("Could not rename. Try again.")
+                    return
+                }
                 renameDialog.close()
                 return
             }
-            renameError.text = ""
-            if (renameDialog.hasCollision(target)) {
-                renameError.text = detail.filterType === "artist"
-                        ? qsTr("An artist with this name already exists.")
-                        : qsTr("An album with this title already exists for this artist.")
+
+            // ---- album edit: title, artist and cover ----
+            var fromArtist = detail.secondaryKey
+            var newArtist = albumArtistField.text.trim()
+            if (newArtist !== fromArtist && newArtist.length === 0) {
+                renameError.text = qsTr("The artist cannot be empty.")
                 return
             }
-            // Move the stored key BEFORE the write: renameArtist and
-            // renameAlbum emit libraryChanged synchronously (refresh()
-            // inside the call), and the onLibraryChanged reload() above
-            // resolves songs by this key while the call is still
-            // running. Resolving by the old name at that instant would
-            // empty the view. A refused rename writes nothing and emits
-            // nothing, so restoring the old key on failure is safe.
-            detail.primaryKey = target
-            var ok = detail.filterType === "artist"
-                    ? Library.renameArtist(from, target)
-                    : Library.renameAlbum(from, detail.secondaryKey, target)
-            if (!ok) {
-                detail.primaryKey = from
-                renameError.text = qsTr("Could not rename. Try again.")
+            var titleChanged = target !== from
+            var artistChanged = newArtist !== fromArtist
+            var artworkChanged = renameDialog.removeArtwork
+                                 || renameDialog.pickedArtwork !== ""
+            if (!titleChanged && !artistChanged && !artworkChanged) {
+                renameDialog.close()
                 return
+            }
+            if (renameDialog.hasAlbumCollision(target, newArtist)) {
+                renameError.text = qsTr("An album with this title already exists for this artist.")
+                return
+            }
+            // Title and artist are ONE backend call: an edit that changes
+            // both must not be refused by an intermediate state that the
+            // final identity never has (see setAlbumIdentity). Move the
+            // stored keys BEFORE the write, so the synchronous refresh()
+            // inside the call (libraryChanged -> reload()) already resolves
+            // the album by the name the database has at that instant and
+            // the view never blanks out mid-edit. A refused call writes
+            // nothing, so restoring the keys on failure is safe.
+            if (titleChanged || artistChanged) {
+                detail.primaryKey = target
+                detail.secondaryKey = newArtist
+                if (!Library.setAlbumIdentity(from, fromArtist,
+                                              target, newArtist)) {
+                    detail.primaryKey = from
+                    detail.secondaryKey = fromArtist
+                    renameError.text = qsTr("Could not save the changes. Try again.")
+                    return
+                }
+            }
+            if (artworkChanged) {
+                var artPath = renameDialog.removeArtwork
+                        ? "" : renameDialog.pickedArtwork
+                if (!Library.setAlbumArtwork(detail.primaryKey,
+                                             detail.secondaryKey, artPath)) {
+                    renameError.text = qsTr("Could not save the artwork. Try again.")
+                    return
+                }
             }
             renameDialog.close()
         }
@@ -310,23 +393,87 @@ Rectangle {
                 }
             }
 
-            // The artist is fixed when renaming an album: renaming never
-            // moves the album to another artist.
+            // The album's artist is editable and moves THIS album only; the
+            // global rename stays in the Artists section.
             Text {
                 Layout.fillWidth: true
                 visible: detail.filterType === "album"
-                         && detail.secondaryKey.length > 0
-                text: qsTr("Artist: %1").arg(detail.secondaryKey)
-                color: Theme.textSecondary
+                text: qsTr("Artist:")
+                color: Theme.textPrimary
                 font.family: Theme.fontFamily
-                font.pixelSize: 12 * Theme.fontScale
-                elide: Text.ElideRight
+                font.pixelSize: 13 * Theme.fontScale
+            }
+
+            TextField {
+                id: albumArtistField
+                visible: detail.filterType === "album"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 34
+                font.family: Theme.fontFamily
+                font.pixelSize: 13 * Theme.fontScale
+                color: Theme.textPrimary
+                placeholderText: qsTr("Artist")
+                placeholderTextColor: Theme.textMuted
+                selectionColor: Theme.fieldSelection
+                selectedTextColor: Theme.fieldSelectedText
+                leftPadding: 10
+                rightPadding: 10
+                onAccepted: renameDialog.apply()
+                background: Rectangle {
+                    radius: 6
+                    color: Theme.field
+                    border.width: 1
+                    border.color: albumArtistField.activeFocus ? Theme.accent : Theme.border
+                }
+            }
+
+            // ---- album cover (applies to every song of the album) ----
+            RowLayout {
+                visible: detail.filterType === "album"
+                Layout.fillWidth: true
+                spacing: 8
+
+                Image {
+                    Layout.preferredWidth: 56
+                    Layout.preferredHeight: 56
+                    visible: status === Image.Ready
+                    source: renameDialog.effectiveArtwork !== ""
+                            ? "file://" + renameDialog.effectiveArtwork : ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: true
+                    sourceSize.width: 56
+                    sourceSize.height: 56
+                }
+
+                Button {
+                    font.family: Theme.fontFamily
+                    id: chooseAlbumArtworkButton
+                    focusPolicy: Qt.NoFocus
+                    text: qsTr("Choose cover…")
+                    onClicked: albumArtworkFileDialog.open()
+                }
+
+                Button {
+                    font.family: Theme.fontFamily
+                    id: removeAlbumArtworkButton
+                    focusPolicy: Qt.NoFocus
+                    visible: detail.headerArtwork !== ""
+                             || renameDialog.pickedArtwork !== ""
+                    text: qsTr("Remove cover")
+                    onClicked: {
+                        renameDialog.removeArtwork = true
+                        renameDialog.pickedArtwork = ""
+                    }
+                }
             }
 
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
-                text: qsTr("This renames %n song(s)", "", detail.modelSongs.length)
+                text: detail.filterType === "artist"
+                       ? qsTr("This renames %n song(s)", "", detail.modelSongs.length)
+                       : qsTr("Applies to %n song(s)", "", detail.modelSongs.length)
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: 11 * Theme.fontScale
@@ -365,6 +512,18 @@ Rectangle {
                     onClicked: renameDialog.apply()
                 }
             }
+        }
+    }
+
+    // ---- album cover picker (built-in QML dialog; native dialogs are
+    //      disabled app-wide in main.cpp) ----
+    FileDialog {
+        id: albumArtworkFileDialog
+        title: qsTr("Choose cover")
+        nameFilters: ["Image files (*.png *.jpg *.jpeg *.webp *.bmp)"]
+        onAccepted: {
+            renameDialog.pickedArtwork = Utils.urlToPath(selectedFile)
+            renameDialog.removeArtwork = false
         }
     }
 }

@@ -100,6 +100,51 @@ qint64 resolveAlbum(QSqlDatabase &db, const QString &title, qint64 artistId, int
 }
 
 /**
+ * Resolve an artist id by name without creating the row (-1 when the name is
+ * empty or unknown). The read-only counterpart of resolveNamedRow(), used
+ * where creating a stray artist on a refused edit would be wrong.
+ */
+qint64 artistIdFor(QSqlDatabase &db, const QString &name)
+{
+    if (name.isEmpty()) {
+        return -1;
+    }
+    QSqlQuery query(db);
+    query.prepare(QStringLiteral("SELECT id FROM artists WHERE name = :name"));
+    query.bindValue(":name", name);
+    if (query.exec() && query.next()) {
+        return query.value(0).toLongLong();
+    }
+    return -1;
+}
+
+/**
+ * Resolve the albums row for (title, artist) without creating it (-1 when it
+ * does not exist). An empty artist addresses the album with no artist
+ * (artist_id IS NULL), the same semantics as resolveAlbum().
+ */
+qint64 albumIdFor(QSqlDatabase &db, const QString &title, const QString &artist)
+{
+    if (title.isEmpty()) {
+        return -1;
+    }
+    const qint64 artistId = artistIdFor(db, artist);
+    if (!artist.isEmpty() && artistId <= 0) {
+        return -1; // no such artist -> no such album
+    }
+    const QVariant artistVar = artistId > 0 ? QVariant(artistId) : QVariant();
+    QSqlQuery find(db);
+    find.prepare(QStringLiteral(
+        "SELECT id FROM albums WHERE title = :title AND artist_id IS :artist"));
+    find.bindValue(":title", title);
+    find.bindValue(":artist", artistVar);
+    if (!find.exec() || !find.next()) {
+        return -1;
+    }
+    return find.value(0).toLongLong();
+}
+
+/**
  * @brief Whether the runtime SQLite supports INSERT ... RETURNING.
  *
  * RETURNING needs SQLite >= 3.35 (2021); older system libraries reject the
@@ -615,62 +660,127 @@ bool DatabaseManager::renameArtist(const QString &from, const QString &to)
     return query.numRowsAffected() == 1;
 }
 
-bool DatabaseManager::renameAlbum(const QString &title, const QString &artist,
-                                  const QString &newTitle)
+bool DatabaseManager::setAlbumIdentity(const QString &title, const QString &artist,
+                                       const QString &newTitle, const QString &newArtist)
 {
-    if (title.isEmpty() || newTitle.isEmpty() || title == newTitle) {
+    if (title.isEmpty() || newTitle.isEmpty() || newArtist.isEmpty()) {
         return false;
     }
-    // Read-only artist lookup. An empty artist addresses the album with no
-    // artist (artist_id IS NULL), the same semantics as resolveAlbum().
-    QVariant artistVar;
-    if (!artist.isEmpty()) {
-        QSqlQuery artistQuery(m_db);
-        artistQuery.prepare(QStringLiteral("SELECT id FROM artists WHERE name = :artist"));
-        artistQuery.bindValue(":artist", artist);
-        if (!artistQuery.exec() || !artistQuery.next()) {
-            return false; // no such artist -> no such album
-        }
-        artistVar = artistQuery.value(0);
+    // Read-only lookup: an empty artist addresses the album with no artist
+    // (artist_id IS NULL), the same semantics as resolveAlbum().
+    const qint64 albumId = albumIdFor(m_db, title, artist);
+    if (albumId <= 0) {
+        return false; // no such album (or no such artist)
     }
-    qint64 albumId = 0;
-    {
-        QSqlQuery find(m_db);
-        find.prepare(QStringLiteral(
-            "SELECT id FROM albums WHERE title = :title AND artist_id IS :artist"));
-        find.bindValue(":title", title);
-        find.bindValue(":artist", artistVar);
-        if (!find.exec() || !find.next()) {
-            return false; // no such album
-        }
-        albumId = find.value(0).toLongLong();
+    if (title == newTitle && artist == newArtist) {
+        return false; // unchanged identity
+    }
+    if (!beginTransaction()) {
+        qWarning() << "setAlbumIdentity: failed to start transaction";
+        return false;
+    }
+    // Resolve-or-create the target artist inside the transaction, so a
+    // refusal or a failed update below leaves no orphan artist row behind.
+    const qint64 newArtistId = resolveNamedRow(m_db, QStringLiteral("artists"), newArtist);
+    if (newArtistId <= 0) {
+        rollbackTransaction();
+        return false;
     }
     {
-        // No database constraint enforces uniqueness on (title,
-        // artist_id), so the collision check is code only: renaming onto
-        // an existing album of the same artist would merge the two.
+        // No database constraint enforces uniqueness on (title, artist_id),
+        // so the collision check is code only: landing on an existing album
+        // of the target artist would merge the two rows. The check is on the
+        // FINAL identity and excludes the edited row, so a case-only change
+        // of either name is never blocked by finding this very album.
         QSqlQuery clash(m_db);
         clash.prepare(QStringLiteral(
-            "SELECT 1 FROM albums WHERE title = :new AND artist_id IS :artist"));
-        clash.bindValue(":new", newTitle);
-        clash.bindValue(":artist", artistVar);
+            "SELECT 1 FROM albums WHERE title = :title AND artist_id = :artist "
+            "AND id != :id"));
+        clash.bindValue(":title", newTitle);
+        clash.bindValue(":artist", newArtistId);
+        clash.bindValue(":id", albumId);
         if (clash.exec() && clash.next()) {
-            qWarning() << "renameAlbum: the artist already has an album titled"
+            qWarning() << "setAlbumIdentity: the target artist already has an album titled"
                        << newTitle;
+            rollbackTransaction();
             return false;
         }
     }
-    QSqlQuery query(m_db);
-    query.prepare(QStringLiteral("UPDATE albums SET title = :new WHERE id = :id"));
-    query.bindValue(":new", newTitle);
-    query.bindValue(":id", albumId);
-    if (!query.exec()) {
-        qWarning() << "renameAlbum: update failed:" << query.lastError().text();
+    {
+        QSqlQuery album(m_db);
+        album.prepare(QStringLiteral(
+            "UPDATE albums SET title = :title, artist_id = :artist WHERE id = :id"));
+        album.bindValue(":title", newTitle);
+        album.bindValue(":artist", newArtistId);
+        album.bindValue(":id", albumId);
+        if (!album.exec() || album.numRowsAffected() != 1) {
+            qWarning() << "setAlbumIdentity: album update failed:"
+                       << album.lastError().text();
+            rollbackTransaction();
+            return false;
+        }
+    }
+    {
+        // The album's tracks follow the album row. Both sides must agree:
+        // the drill-down and the song rows resolve the artist from
+        // songs.artist_id (getSongsByAlbum filters on it and kSongSelect
+        // joins artists on s.artist_id), while the album card reads
+        // albums.artist_id — leaving them apart would show a card with no
+        // songs under it. edited = 1 keeps the change across a rescan,
+        // exactly like updateSong().
+        QSqlQuery songs(m_db);
+        songs.prepare(QStringLiteral(
+            "UPDATE songs SET artist_id = :artist, edited = 1 WHERE album_id = :id"));
+        songs.bindValue(":artist", newArtistId);
+        songs.bindValue(":id", albumId);
+        if (!songs.exec() || songs.numRowsAffected() == 0) {
+            // An album with no songs is not reachable from the UI
+            // (getAllAlbums only returns albums that have songs, via its
+            // HAVING clause), and moving one would be a silent no-op that
+            // cleanupOrphanEntities() then deletes: report the failure
+            // instead of a phantom success.
+            qWarning() << "setAlbumIdentity: song update failed:"
+                       << songs.lastError().text();
+            rollbackTransaction();
+            return false;
+        }
+    }
+    // Moving the last album of the old artist can orphan that artist row.
+    cleanupOrphanEntities();
+    return commitTransaction();
+}
+
+bool DatabaseManager::setAlbumArtwork(const QString &title, const QString &artist,
+                                      const QString &imagePath)
+{
+    const qint64 albumId = albumIdFor(m_db, title, artist);
+    if (albumId <= 0) {
+        return false; // no such album
+    }
+    if (!beginTransaction()) {
+        qWarning() << "setAlbumArtwork: failed to start transaction";
         return false;
     }
-    // The artwork column lives on the renamed row, so the album cover
-    // survives without any extra work.
-    return query.numRowsAffected() == 1;
+    QSqlQuery query(m_db);
+    // An empty path is the explicit "remove the cover" intent, the same shape
+    // a single-song removal uses (artwork_path = '').
+    query.prepare(QStringLiteral(
+        "UPDATE songs SET artwork_path = :path, edited = 1 WHERE album_id = :id"));
+    query.bindValue(":path", imagePath);
+    query.bindValue(":id", albumId);
+    if (!query.exec()) {
+        qWarning() << "setAlbumArtwork: update failed:" << query.lastError().text();
+        rollbackTransaction();
+        return false;
+    }
+    if (query.numRowsAffected() < 1) {
+        rollbackTransaction();
+        return false; // the album has no songs to point at the cover
+    }
+    // Album cards roll up from the song artwork in the same transaction,
+    // exactly like setArtwork().
+    refreshAlbumArtwork();
+    return commitTransaction();
 }
 
 bool DatabaseManager::setArtwork(qint64 songId, const QString &imagePath)

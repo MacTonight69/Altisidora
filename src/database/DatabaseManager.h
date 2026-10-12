@@ -74,19 +74,37 @@ public:
     // name already exists — merging two artists is a separate, explicit
     // feature. Also false when no artist carries the old name.
     bool renameArtist(const QString &from, const QString &to);
-    // Rename the album (title, artist) to newTitle; songs follow through
+    // Edit the identity of ONE album: rename (title, artist) to
+    // (newTitle, newArtist) in ONE transaction. Songs follow through
     // album_id and the album's artwork survives (it is a column of the
-    // renamed row). An empty artist addresses the album with no artist.
-    // Refused (false) on empty title/newTitle, identical names, an
-    // unknown album, or when (newTitle, artist) already exists (no
-    // database constraint enforces that uniqueness — code only).
-    bool renameAlbum(const QString &title, const QString &artist,
-                     const QString &newTitle);
+    // same row). An empty artist addresses the album with no artist.
+    //
+    // Title and artist move together on purpose. Applied as two separate
+    // steps, the intermediate state would have to be collision-free too:
+    // moving "Hits" from artist A to artist B while renaming it "Best" is
+    // legal even when A already owns a "Best", but a title-only step would
+    // see that sibling and refuse. The collision check therefore runs once,
+    // on the FINAL identity, excluding the row being edited so a case-only
+    // change of either name is never blocked by finding this very album.
+    // Refused (false) on an empty title/newTitle/newArtist, an unchanged
+    // identity, an unknown album, or when (newTitle, newArtist) already
+    // exists — no database constraint enforces that uniqueness, the
+    // refusal is code only.
+    bool setAlbumIdentity(const QString &title, const QString &artist,
+                          const QString &newTitle, const QString &newArtist);
     // Point a song at an already-cached artwork file and flag the row as
     // edited = 1 (see updateSong()). Returns false for an unknown id or
     // on SQL error. The album artwork rollup runs afterwards in the same
     // transaction, exactly like the scan commit path.
     bool setArtwork(qint64 songId, const QString &imagePath);
+    // Set the artwork of every song of the album (title, artist) in ONE
+    // transaction, then roll the cover up onto the album row. An empty
+    // imagePath is the explicit "remove the cover" intent, the same shape a
+    // single-song removal uses (artwork_path = ''). The path is expected to
+    // be an already-cached file, exactly like setArtwork(). Refused (false)
+    // for an unknown album or an album with no songs.
+    bool setAlbumArtwork(const QString &title, const QString &artist,
+                         const QString &imagePath);
     // path -> {mtimeMs, size} for every stored song, used to skip re-reading
     // tags for files that have not changed since the last scan.
     QHash<QString, QPair<qint64, qint64>> songFileStats() const;
