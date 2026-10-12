@@ -242,8 +242,15 @@ Rectangle {
             var target = renameField.text.trim()
             if (target.length === 0)
                 return
+            // Unchanged name is a no-op, not a failure: the backend
+            // refuses from == to, which would otherwise surface a
+            // misleading "Could not rename" error.
+            if (target === from) {
+                renameDialog.close()
+                return
+            }
             renameError.text = ""
-            if (target !== from && renameDialog.hasCollision(target)) {
+            if (renameDialog.hasCollision(target)) {
                 renameError.text = detail.filterType === "artist"
                         ? qsTr("An artist with this name already exists.")
                         : qsTr("An album with this title already exists for this artist.")
