@@ -149,7 +149,18 @@ ends quickly after the last file is read.
 
 **Commit.** `perf(database): commit scan inserts in one transaction`
 
-### A1b — Cache name→id lookups during the scan `[optional, follow-up]`
+### A1b — Cache name→id lookups during the scan `[evaluated twice: not worth it]`
+
+> **Measured verdict (2026-10-11, bench of the real pipeline at
+> /tmp/opencode/upsert-bench, 5000 songs / 200 artists / 400 albums / 20
+> genres):** the per-scan cache cuts the commit phase 45% (30 403 → 6 243
+> statements) but saves only ~250 ms per 5000 songs — invisible next to
+> TagLib I/O on real libraries — and a stale cache silently corrupts scans
+> (FK violations, 0 songs committed; reproduced in the bench). The
+> `INSERT OR IGNORE ... RETURNING` variant is a measured **pessimization**
+> (+18–22% commit time: SQLite builds ephemeral-table/trigger machinery per
+> prepared statement, and this code re-prepares per call; it also saves zero
+> statements on warm names). Do not retry this without new evidence.
 
 **Why.** Inside the transaction, repeated artists/albums still re-run
 `INSERT OR IGNORE` + `SELECT` on every song. Caching turns those into hash
