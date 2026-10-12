@@ -9,7 +9,7 @@
 | C | `SongListModel` + role-based delegates (C1–C4) | [x] done |
 | Backlog | Micro-optimizations (player emissions, MPRIS coalesce, static core lib, shared DB note) | [x] done (`perf/backlog-microopts`) |
 | D | Tag editing (individual + batch) | [x] done (`build/static-core-lib`) |
-| E | Final polish: theme rename (`Anarchism`) + new `Maya`; startup-theme bug; album edit adds artist + artwork | [~] in progress (`build/static-core-lib`) |
+| E | Final polish: theme rename (`Anarchism`) + new `Maya`; startup-theme bug; album edit adds artist + artwork | [x] done (`build/static-core-lib`) |
 
 Options A–D are implemented and verified (build exit 0, 0 warnings, `ctest`
 12/12, smoke OK). The commit chain lives in git (base `e2b7692` →
