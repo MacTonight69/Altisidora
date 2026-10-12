@@ -46,10 +46,37 @@ private slots:
     void testUpsertSongUpdatesMetadataButKeepsUserData();
     void testRefreshAlbumArtwork();
 
+    // ---- Tag editing (Option D) ----
+    void testSchemaMigrationAddsEditedFlag();
+    void testUpdateSongChangesTagsPreservesUserDataAndSetsEdited();
+    void testUpdateSongCreatesMissingArtistAndAlbumRows();
+    void testUpdateSongRejectsUnknownId();
+    void testUpdateSongsUpdatesAllRowsAndKeepsUntouchedFields();
+    void testUpdateSongsAtomicRollback();
+    void testUpsertSongKeepsEditedTagColumns();
+    void testRenameArtistFollowsSongsAndRefusesCollision();
+    void testRenameAlbumFollowsSongsAndRefusesCollision();
+    void testSetArtworkStoresPathAndFlagsRow();
+
 private:
+    // Raw read of the edited flag. The Song struct deliberately does not
+    // carry it (it is internal to the rescan policy), so tests peek at the
+    // column directly. Returns -1 when the row is missing.
+    int editedFlag(qint64 songId) const;
+
     DatabaseManager m_db;
     QTemporaryDir m_tempDir;
 };
+
+int TestDatabase::editedFlag(qint64 songId) const
+{
+    QSqlQuery query(QSqlDatabase::database());
+    query.prepare(QStringLiteral("SELECT edited FROM songs WHERE id = ?"));
+    query.addBindValue(songId);
+    if (!query.exec() || !query.next())
+        return -1;
+    return query.value(0).toInt();
+}
 
 void TestDatabase::init()
 {
@@ -660,12 +687,12 @@ void TestDatabase::testSchemaMigrationAddsFileStats()
     QCOMPARE(songs.first().playCount, 7);
     QVERIFY(songs.first().favorite);
 
-    // And the stored schema version is 3 (bumped by the artwork backfill
-    // migration), as a single row.
+    // And the stored schema version is 4 (the current schema, bumped by
+    // the edited-flag migration), as a single row.
     QSqlQuery versionQuery(QSqlDatabase::database());
     QVERIFY(versionQuery.exec(QStringLiteral("SELECT version FROM schema_version")));
     QVERIFY(versionQuery.next());
-    QCOMPARE(versionQuery.value(0).toInt(), 3);
+    QCOMPARE(versionQuery.value(0).toInt(), 4);
     QVERIFY(!versionQuery.next());
 }
 
@@ -887,6 +914,533 @@ void TestDatabase::testRefreshAlbumArtwork()
             QVERIFY(album.title == QStringLiteral("Album Y")
                     && album.artworkPath.isEmpty());
     }
+}
+
+// Schema v4 (tag editing): opening a v3 database adds the edited flag,
+// existing rows backfill to 0 (file tags win, the pre-edit behavior) and
+// the stored version becomes 4. Reopening is idempotent.
+void TestDatabase::testSchemaMigrationAddsEditedFlag()
+{
+    // Build a v3 database by hand: songs without edited, schema_version 3.
+    const QString v3Path = m_tempDir.filePath(QStringLiteral("v3.db"));
+    QFile::remove(v3Path);
+    {
+        const QString connName = QStringLiteral("v3_setup");
+        {
+            QSqlDatabase setup = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+            setup.setDatabaseName(v3Path);
+            QVERIFY(setup.open());
+            {
+                QSqlQuery q(setup);
+                QVERIFY(q.exec(QStringLiteral(
+                    "CREATE TABLE songs ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT UNIQUE NOT NULL, "
+                    "title TEXT, artist_id INTEGER, album_id INTEGER, genre_id INTEGER, "
+                    "year INTEGER, track_number INTEGER, disc_number INTEGER, "
+                    "duration INTEGER, artwork_path TEXT, mtime INTEGER, size INTEGER, "
+                    "date_added TEXT, last_played TEXT, play_count INTEGER DEFAULT 0, "
+                    "favorite INTEGER DEFAULT 0)")));
+                QVERIFY(q.exec(QStringLiteral(
+                    "INSERT INTO songs (path, title) "
+                    "VALUES ('/music/legacy.mp3', 'Legacy')")));
+                QVERIFY(q.exec(QStringLiteral("CREATE TABLE schema_version (version INTEGER)")));
+                QVERIFY(q.exec(QStringLiteral("INSERT INTO schema_version (version) VALUES (3)")));
+            }
+            setup.close();
+        }
+        QSqlDatabase::removeDatabase(connName);
+    }
+
+    // Reopen through DatabaseManager: createTables() migrates in place.
+    m_db.close();
+    DatabaseManager migrated;
+    QVERIFY(migrated.open(v3Path));
+
+    bool hasEdited = false;
+    {
+        QSqlQuery info(QSqlDatabase::database());
+        QVERIFY(info.exec(QStringLiteral("PRAGMA table_info(songs)")));
+        while (info.next()) {
+            hasEdited = hasEdited
+                || info.value(QStringLiteral("name")).toString() == QStringLiteral("edited");
+        }
+    }
+    QVERIFY(hasEdited);
+
+    // The legacy row is intact and backfilled to 0 (the file's tags win).
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral("SELECT title, edited FROM songs")));
+        QVERIFY(q.next());
+        QCOMPARE(q.value(0).toString(), QStringLiteral("Legacy"));
+        QCOMPARE(q.value(1).toInt(), 0);
+    }
+
+    // The stored schema version is 4, as a single row.
+    {
+        QSqlQuery versionQuery(QSqlDatabase::database());
+        QVERIFY(versionQuery.exec(QStringLiteral("SELECT version FROM schema_version")));
+        QVERIFY(versionQuery.next());
+        QCOMPARE(versionQuery.value(0).toInt(), 4);
+        QVERIFY(!versionQuery.next());
+    }
+
+    // Reopening (the migration is presence-checked) changes nothing.
+    migrated.close();
+    QVERIFY(migrated.open(v3Path));
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral("SELECT edited FROM songs")));
+        QVERIFY(q.next());
+        QCOMPARE(q.value(0).toInt(), 0);
+    }
+}
+
+// updateSong() changes the tag columns, flags the row edited and never
+// touches user data, track/disc numbers or the file fingerprint.
+void TestDatabase::testUpdateSongChangesTagsPreservesUserDataAndSetsEdited()
+{
+    Song song;
+    song.path = QStringLiteral("/music/edit.mp3");
+    song.title = QStringLiteral("Original Title");
+    song.artist = QStringLiteral("Artist A");
+    song.album = QStringLiteral("Album X");
+    song.genre = QStringLiteral("Rock");
+    song.year = 2001;
+    song.trackNumber = 3;
+    song.duration = 100000;
+    song.mtimeMs = 111;
+    song.size = 222;
+    QVERIFY(m_db.upsertSong(song));
+
+    // User data plus a track number the edit must never touch.
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral(
+            "UPDATE songs SET play_count = 9, favorite = 1, "
+            "last_played = '2021-06-07T08:09:10', "
+            "date_added = '2020-01-02T03:04:05' WHERE id = ") +
+            QString::number(song.id)));
+    }
+
+    Song corrected = m_db.getSong(song.id);
+    corrected.title = QStringLiteral("Fixed Title");
+    corrected.artist = QStringLiteral("Correct Artist");
+    corrected.album = QStringLiteral("Correct Album");
+    corrected.genre = QStringLiteral("Jazz");
+    corrected.year = 1999;
+    corrected.duration = 123456;
+    corrected.artworkPath = QStringLiteral("/cache/chosen.png");
+    QVERIFY(m_db.updateSong(corrected));
+
+    const Song stored = m_db.getSong(song.id);
+    QCOMPARE(stored.title, QStringLiteral("Fixed Title"));
+    QCOMPARE(stored.artist, QStringLiteral("Correct Artist"));
+    QCOMPARE(stored.album, QStringLiteral("Correct Album"));
+    QCOMPARE(stored.genre, QStringLiteral("Jazz"));
+    QCOMPARE(stored.year, 1999);
+    QCOMPARE(stored.duration, qint64(123456));
+    QCOMPARE(stored.artworkPath, QStringLiteral("/cache/chosen.png"));
+
+    // User data untouched.
+    QCOMPARE(stored.playCount, 9);
+    QVERIFY(stored.favorite);
+    QCOMPARE(stored.lastPlayed,
+             QDateTime::fromString(QStringLiteral("2021-06-07T08:09:10"), Qt::ISODate));
+    QCOMPARE(stored.dateAdded,
+             QDateTime::fromString(QStringLiteral("2020-01-02T03:04:05"), Qt::ISODate));
+
+    // Track number survives (not user-editable)...
+    QCOMPARE(stored.trackNumber, 3);
+    // ...the fingerprint survives too (the file did not change, so the
+    // next scan keeps skipping it)...
+    const auto stats = m_db.songFileStats();
+    QCOMPARE(stats.value(song.path).first, 111LL);
+    QCOMPARE(stats.value(song.path).second, 222LL);
+    // ...and the row is flagged as curated.
+    QCOMPARE(editedFlag(song.id), 1);
+}
+
+// Moving a song to brand-new artist/album names creates the entity rows;
+// the rows the move orphaned are cleaned up in the same transaction.
+void TestDatabase::testUpdateSongCreatesMissingArtistAndAlbumRows()
+{
+    Song song;
+    song.path = QStringLiteral("/music/move.mp3");
+    song.title = QStringLiteral("Mover");
+    song.artist = QStringLiteral("Old Artist");
+    song.album = QStringLiteral("Old Album");
+    song.genre = QStringLiteral("Old Genre");
+    QVERIFY(m_db.addSong(song));
+
+    Song corrected = m_db.getSong(song.id);
+    corrected.artist = QStringLiteral("Brand New Artist");
+    corrected.album = QStringLiteral("Brand New Album");
+    corrected.genre = QStringLiteral("Brand New Genre");
+    QVERIFY(m_db.updateSong(corrected));
+
+    const Song stored = m_db.getSong(song.id);
+    QCOMPARE(stored.artist, QStringLiteral("Brand New Artist"));
+    QCOMPARE(stored.album, QStringLiteral("Brand New Album"));
+    QCOMPARE(stored.genre, QStringLiteral("Brand New Genre"));
+
+    // Exactly one row per entity: the new names exist, the orphaned old
+    // ones were really deleted (not just hidden by the HAVING clause).
+    auto entityCount = [](const char *table) {
+        QSqlQuery q(QSqlDatabase::database());
+        q.exec(QStringLiteral("SELECT COUNT(*) FROM %1").arg(QString::fromLatin1(table)));
+        return q.next() ? q.value(0).toInt() : -1;
+    };
+    QCOMPARE(entityCount("artists"), 1);
+    QCOMPARE(entityCount("albums"), 1);
+    QCOMPARE(entityCount("genres"), 1);
+}
+
+// An unknown id is refused and leaves no trace: the name resolutions the
+// failed update performed are rolled back with the transaction.
+void TestDatabase::testUpdateSongRejectsUnknownId()
+{
+    Song song;
+    song.path = QStringLiteral("/music/kept.mp3");
+    song.title = QStringLiteral("Kept");
+    song.artist = QStringLiteral("Kept Artist");
+    song.album = QStringLiteral("Kept Album");
+    QVERIFY(m_db.addSong(song));
+
+    Song ghost;
+    ghost.id = 999999; // no such row
+    ghost.title = QStringLiteral("Ghost Title");
+    ghost.artist = QStringLiteral("Ghost Artist");
+    ghost.album = QStringLiteral("Ghost Album");
+    ghost.genre = QStringLiteral("Ghost Genre");
+    QVERIFY(!m_db.updateSong(ghost));
+
+    // Nothing changed: the song is untouched and the ghost's would-be
+    // entity rows are gone (the rollback worked).
+    QCOMPARE(m_db.getAllSongs().size(), 1);
+    QCOMPARE(m_db.getSong(song.id).title, QStringLiteral("Kept"));
+    QCOMPARE(m_db.getSong(song.id).artist, QStringLiteral("Kept Artist"));
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral("SELECT COUNT(*) FROM artists")));
+        QVERIFY(q.next());
+        QCOMPARE(q.value(0).toInt(), 1);
+        QVERIFY(q.exec(QStringLiteral("SELECT COUNT(*) FROM albums")));
+        QVERIFY(q.next());
+        QCOMPARE(q.value(0).toInt(), 1);
+        QVERIFY(q.exec(QStringLiteral("SELECT COUNT(*) FROM genres")));
+        QVERIFY(q.next());
+        QCOMPARE(q.value(0).toInt(), 0);
+    }
+}
+
+// A batch that reassigns only the album must leave every other field of
+// every row exactly as stored (the "no equalizing" rule) and flag all
+// rows edited.
+void TestDatabase::testUpdateSongsUpdatesAllRowsAndKeepsUntouchedFields()
+{
+    QList<qint64> ids;
+    for (int i = 1; i <= 3; ++i) {
+        Song song;
+        song.path = QStringLiteral("/music/batch%1.mp3").arg(i);
+        song.title = QStringLiteral("Batch Title %1").arg(i);
+        song.artist = QStringLiteral("Batch Artist");
+        song.album = QStringLiteral("Batch Album %1").arg(i);
+        song.trackNumber = i;
+        QVERIFY(m_db.addSong(song));
+        ids.append(song.id);
+    }
+
+    // Field-level reassignment: only the album changes, per song.
+    QList<Song> batch;
+    for (const qint64 id : ids) {
+        Song song = m_db.getSong(id);
+        song.album = QStringLiteral("Reassigned Album");
+        batch.append(song);
+    }
+    QVERIFY(m_db.updateSongs(batch));
+
+    for (int i = 0; i < ids.size(); ++i) {
+        const Song stored = m_db.getSong(ids.at(i));
+        QCOMPARE(stored.album, QStringLiteral("Reassigned Album"));
+        QCOMPARE(stored.title, QStringLiteral("Batch Title %1").arg(i + 1));
+        QCOMPARE(stored.artist, QStringLiteral("Batch Artist"));
+        QCOMPARE(stored.trackNumber, i + 1);
+        QCOMPARE(editedFlag(ids.at(i)), 1);
+    }
+    QCOMPARE(m_db.getAllAlbums().size(), 1);
+}
+
+// One bad row rolls the whole batch back: nothing is applied at all.
+void TestDatabase::testUpdateSongsAtomicRollback()
+{
+    QList<qint64> ids;
+    for (int i = 1; i <= 3; ++i) {
+        Song song;
+        song.path = QStringLiteral("/music/atomic%1.mp3").arg(i);
+        song.title = QStringLiteral("Atomic Title %1").arg(i);
+        song.artist = QStringLiteral("Atomic Artist");
+        song.album = QStringLiteral("Atomic Album %1").arg(i);
+        QVERIFY(m_db.addSong(song));
+        ids.append(song.id);
+    }
+
+    QList<Song> batch;
+    for (const qint64 id : ids) {
+        Song song = m_db.getSong(id);
+        song.album = QStringLiteral("Atomic Batch Album");
+        batch.append(song);
+    }
+    Song ghost;
+    ghost.id = 999999;
+    ghost.title = QStringLiteral("Ghost");
+    ghost.album = QStringLiteral("Atomic Batch Album");
+    batch.append(ghost);
+
+    QVERIFY(!m_db.updateSongs(batch));
+
+    // No row changed: titles, albums and the edited flag are all as they
+    // were before the failed batch.
+    for (int i = 0; i < ids.size(); ++i) {
+        const Song stored = m_db.getSong(ids.at(i));
+        QCOMPARE(stored.title, QStringLiteral("Atomic Title %1").arg(i + 1));
+        QCOMPARE(stored.album, QStringLiteral("Atomic Album %1").arg(i + 1));
+        QCOMPARE(editedFlag(ids.at(i)), 0);
+    }
+
+    // An empty batch is a refused no-op.
+    QVERIFY(!m_db.updateSongs({}));
+}
+
+// THE rescan policy pin: an edited row keeps its user-curated tag columns
+// through an upsert with different file tags, while mtime/size still
+// refresh (no permanent re-read loop) and an unedited control row in the
+// same database takes the file's new tags.
+void TestDatabase::testUpsertSongKeepsEditedTagColumns()
+{
+    Song edited;
+    edited.path = QStringLiteral("/music/edited.mp3");
+    edited.title = QStringLiteral("File Title");
+    edited.artist = QStringLiteral("File Artist");
+    edited.album = QStringLiteral("File Album");
+    edited.genre = QStringLiteral("Rock");
+    edited.year = 2001;
+    edited.duration = 1000;
+    edited.mtimeMs = 100;
+    edited.size = 200;
+    QVERIFY(m_db.upsertSong(edited));
+
+    Song control;
+    control.path = QStringLiteral("/music/control.mp3");
+    control.title = QStringLiteral("Control File Title");
+    control.artist = QStringLiteral("Control Artist");
+    control.album = QStringLiteral("Control File Album");
+    control.mtimeMs = 100;
+    control.size = 200;
+    QVERIFY(m_db.upsertSong(control));
+
+    // The user corrects the first song (this flags the row edited = 1).
+    Song user = m_db.getSong(edited.id);
+    user.title = QStringLiteral("Edited Title");
+    user.artist = QStringLiteral("Edited Artist");
+    user.album = QStringLiteral("Edited Album");
+    QVERIFY(m_db.updateSong(user));
+
+    // Play stats accumulated between the edit and the rescan must survive.
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral("UPDATE songs SET play_count = 5 WHERE id = ") +
+                        QString::number(edited.id)));
+    }
+
+    // "Rescan": both files show up with different tags and fresh
+    // fingerprints.
+    Song rescanEdited;
+    rescanEdited.path = edited.path;
+    rescanEdited.title = QStringLiteral("Changed File Title");
+    rescanEdited.artist = QStringLiteral("Changed File Artist");
+    rescanEdited.album = QStringLiteral("Changed File Album");
+    rescanEdited.genre = QStringLiteral("Pop");
+    rescanEdited.year = 2002;
+    rescanEdited.duration = 2000;
+    rescanEdited.mtimeMs = 300;
+    rescanEdited.size = 400;
+    QVERIFY(m_db.upsertSong(rescanEdited));
+
+    Song rescanControl;
+    rescanControl.path = control.path;
+    rescanControl.title = QStringLiteral("New Control Title");
+    rescanControl.artist = QStringLiteral("New Control Artist");
+    rescanControl.album = QStringLiteral("New Control Album");
+    rescanControl.mtimeMs = 300;
+    rescanControl.size = 400;
+    QVERIFY(m_db.upsertSong(rescanControl));
+
+    // The edited row kept every user-curated tag column...
+    const Song storedEdited = m_db.getSong(edited.id);
+    QCOMPARE(storedEdited.title, QStringLiteral("Edited Title"));
+    QCOMPARE(storedEdited.artist, QStringLiteral("Edited Artist"));
+    QCOMPARE(storedEdited.album, QStringLiteral("Edited Album"));
+    QCOMPARE(storedEdited.genre, QStringLiteral("Rock"));
+    QCOMPARE(storedEdited.year, 2001);
+    QCOMPARE(storedEdited.duration, qint64(1000));
+    // ...the user data survived as always...
+    QCOMPARE(storedEdited.playCount, 5);
+    // ...but the fingerprint DID refresh, so the next scan skips the file
+    // instead of re-reading it forever.
+    const auto stats = m_db.songFileStats();
+    QCOMPARE(stats.value(edited.path).first, 300LL);
+    QCOMPARE(stats.value(edited.path).second, 400LL);
+
+    // The unedited control row took its new file tags wholesale.
+    const Song storedControl = m_db.getSong(control.id);
+    QCOMPARE(storedControl.title, QStringLiteral("New Control Title"));
+    QCOMPARE(storedControl.artist, QStringLiteral("New Control Artist"));
+    QCOMPARE(storedControl.album, QStringLiteral("New Control Album"));
+    QCOMPARE(stats.value(control.path).first, 300LL);
+    QCOMPARE(stats.value(control.path).second, 400LL);
+}
+
+void TestDatabase::testRenameArtistFollowsSongsAndRefusesCollision()
+{
+    Song a;
+    a.path = QStringLiteral("/music/renamed_a.mp3");
+    a.title = QStringLiteral("Song A");
+    a.artist = QStringLiteral("Rename Artist A");
+    a.album = QStringLiteral("Rename Album A");
+    Song b;
+    b.path = QStringLiteral("/music/renamed_b.mp3");
+    b.title = QStringLiteral("Song B");
+    b.artist = QStringLiteral("Rename Artist B");
+    b.album = QStringLiteral("Rename Album B");
+    QVERIFY(m_db.addSong(a));
+    QVERIFY(m_db.addSong(b));
+
+    // Refused: the target name already exists (a merge, not a rename).
+    QVERIFY(!m_db.renameArtist(QStringLiteral("Rename Artist A"),
+                                QStringLiteral("Rename Artist B")));
+    QCOMPARE(m_db.getSongsByArtist(QStringLiteral("Rename Artist A")).size(), 1);
+
+    // Empty or identical names are refused outright.
+    QVERIFY(!m_db.renameArtist(QString(), QStringLiteral("X")));
+    QVERIFY(!m_db.renameArtist(QStringLiteral("X"), QString()));
+    QVERIFY(!m_db.renameArtist(QStringLiteral("Same Name"), QStringLiteral("Same Name")));
+
+    // Success: songs follow through artist_id and the old name is gone.
+    QVERIFY(m_db.renameArtist(QStringLiteral("Rename Artist A"),
+                               QStringLiteral("Rename Artist C")));
+    const QList<Song> followed = m_db.getSongsByArtist(QStringLiteral("Rename Artist C"));
+    QCOMPARE(followed.size(), 1);
+    QCOMPARE(followed.first().title, QStringLiteral("Song A"));
+    QCOMPARE(m_db.getSongsByArtist(QStringLiteral("Rename Artist A")).size(), 0);
+
+    const QList<Artist> artists = m_db.getAllArtists();
+    QCOMPARE(artists.size(), 2);
+    for (const Artist &artist : artists) {
+        QVERIFY(artist.name != QStringLiteral("Rename Artist A"));
+    }
+
+    // An unknown source name is refused too.
+    QVERIFY(!m_db.renameArtist(QStringLiteral("No Such Artist"),
+                               QStringLiteral("Whatever")));
+}
+
+void TestDatabase::testRenameAlbumFollowsSongsAndRefusesCollision()
+{
+    Song x;
+    x.path = QStringLiteral("/music/album_x.mp3");
+    x.title = QStringLiteral("Album Song X");
+    x.artist = QStringLiteral("Album Artist");
+    x.album = QStringLiteral("Collision Album");
+    Song y;
+    y.path = QStringLiteral("/music/album_y.mp3");
+    y.title = QStringLiteral("Album Song Y");
+    y.artist = QStringLiteral("Album Artist");
+    y.album = QStringLiteral("Target Album");
+    QVERIFY(m_db.addSong(x));
+    QVERIFY(m_db.addSong(y));
+
+    // Seed the album row with artwork that must survive the rename.
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral(
+            "UPDATE albums SET artwork_path = '/cache/album_cover.png' "
+            "WHERE title = 'Collision Album'")));
+    }
+
+    // Refused: the artist already has an album titled "Target Album"
+    // (no database constraint enforces this — the refusal is code only).
+    QVERIFY(!m_db.renameAlbum(QStringLiteral("Collision Album"),
+                               QStringLiteral("Album Artist"),
+                               QStringLiteral("Target Album")));
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Collision Album"),
+                                   QStringLiteral("Album Artist")).size(), 1);
+
+    // Identical names are refused outright.
+    QVERIFY(!m_db.renameAlbum(QStringLiteral("Collision Album"),
+                               QStringLiteral("Album Artist"),
+                               QStringLiteral("Collision Album")));
+
+    // Success: songs follow through album_id, the old title is gone and
+    // the artwork column survives on the renamed row.
+    QVERIFY(m_db.renameAlbum(QStringLiteral("Collision Album"),
+                             QStringLiteral("Album Artist"),
+                             QStringLiteral("Renamed Album")));
+    const QList<Song> followed = m_db.getSongsByAlbum(QStringLiteral("Renamed Album"),
+                                                      QStringLiteral("Album Artist"));
+    QCOMPARE(followed.size(), 1);
+    QCOMPARE(followed.first().title, QStringLiteral("Album Song X"));
+    QCOMPARE(m_db.getSongsByAlbum(QStringLiteral("Collision Album")).size(), 0);
+
+    const QList<Album> albums = m_db.getAllAlbums();
+    QCOMPARE(albums.size(), 2);
+    for (const Album &album : albums) {
+        if (album.title == QStringLiteral("Renamed Album")) {
+            QCOMPARE(album.artist, QStringLiteral("Album Artist"));
+            QCOMPARE(album.artworkPath, QStringLiteral("/cache/album_cover.png"));
+        } else {
+            QCOMPARE(album.title, QStringLiteral("Target Album"));
+        }
+    }
+
+    // An unknown album is refused.
+    QVERIFY(!m_db.renameAlbum(QStringLiteral("No Such Album"),
+                              QStringLiteral("Album Artist"),
+                              QStringLiteral("Whatever")));
+}
+
+void TestDatabase::testSetArtworkStoresPathAndFlagsRow()
+{
+    Song song;
+    song.path = QStringLiteral("/music/artwork_song.mp3");
+    song.title = QStringLiteral("Coverless");
+    song.artist = QStringLiteral("Artwork Artist");
+    song.album = QStringLiteral("Artwork Album");
+    QVERIFY(m_db.addSong(song));
+
+    {
+        QSqlQuery q(QSqlDatabase::database());
+        QVERIFY(q.exec(QStringLiteral("UPDATE songs SET play_count = 4, favorite = 1 "
+                                      "WHERE id = ") + QString::number(song.id)));
+    }
+
+    const QString picked = QStringLiteral("/cache/picked_cover.png");
+    QVERIFY(m_db.setArtwork(song.id, picked));
+
+    const Song stored = m_db.getSong(song.id);
+    QCOMPARE(stored.artworkPath, picked);
+    QCOMPARE(editedFlag(song.id), 1);
+    // User data preserved.
+    QCOMPARE(stored.playCount, 4);
+    QVERIFY(stored.favorite);
+
+    // The album rollup picked the new cover up, like at scan time.
+    const QList<Album> albums = m_db.getAllAlbums();
+    QCOMPARE(albums.size(), 1);
+    QCOMPARE(albums.first().artworkPath, picked);
+
+    // Unknown id: refused.
+    QVERIFY(!m_db.setArtwork(999999, QStringLiteral("/cache/none.png")));
 }
 
 QTEST_MAIN(TestDatabase)

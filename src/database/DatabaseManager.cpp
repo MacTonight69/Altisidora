@@ -251,6 +251,7 @@ bool DatabaseManager::createTables()
             "last_played TEXT, "
             "play_count INTEGER DEFAULT 0, "
             "favorite INTEGER DEFAULT 0, "
+            "edited INTEGER NOT NULL DEFAULT 0, "
             "FOREIGN KEY(artist_id) REFERENCES artists(id), "
             "FOREIGN KEY(album_id) REFERENCES albums(id), "
             "FOREIGN KEY(genre_id) REFERENCES genres(id))");
@@ -301,12 +302,13 @@ bool DatabaseManager::createTables()
     // so repeated opens do not accumulate rows (the old INSERT OR IGNORE had
     // no UNIQUE constraint and therefore inserted one row per launch).
     execute("DELETE FROM schema_version");
-    execute("INSERT INTO schema_version (version) VALUES (3)");
+    execute("INSERT INTO schema_version (version) VALUES (4)");
 
-    // Schema migration: an existing database predating v2 lacks mtime/size.
-    // PRAGMA table_info lists the current columns; ALTER TABLE ADD COLUMN is
-    // only issued for the ones missing, so this is idempotent on every open.
-    // Fresh databases already have both from the CREATE above.
+    // Schema migration: an existing database predating v2 lacks mtime/size
+    // (and one predating v4 lacks edited). PRAGMA table_info lists the
+    // current columns; ALTER TABLE ADD COLUMN is only issued for the ones
+    // missing, so this is idempotent on every open. Fresh databases
+    // already have all of them from the CREATE above.
     {
         QSet<QString> columns;
         QSqlQuery info(m_db);
@@ -318,6 +320,16 @@ bool DatabaseManager::createTables()
             execute(QStringLiteral("ALTER TABLE songs ADD COLUMN mtime INTEGER"));
         if (!columns.contains(QStringLiteral("size")))
             execute(QStringLiteral("ALTER TABLE songs ADD COLUMN size INTEGER"));
+        // Schema v4 (tag editing): rows the user has curated carry
+        // edited = 1 so upsertSong() (the rescan path) skips their
+        // tag-derived columns and only refreshes mtime/size. The non-null
+        // default is required by SQLite for ADD COLUMN; existing rows
+        // backfill to 0 (file tags win, the current behavior). Like the
+        // v2 columns above this is presence-checked, so it is idempotent
+        // on every open and fresh databases (which already have the
+        // column from the CREATE above) skip it.
+        if (!columns.contains(QStringLiteral("edited")))
+            execute(QStringLiteral("ALTER TABLE songs ADD COLUMN edited INTEGER NOT NULL DEFAULT 0"));
     }
 
     // Schema v3 (embedded artwork): rows written before artwork extraction
@@ -416,14 +428,27 @@ bool DatabaseManager::upsertSong(Song &song)
         ":date_added, :last_played, :play_count, :favorite) "
         // Refresh only the tag-derived columns on conflict. date_added,
         // last_played, play_count and favorite are intentionally absent so a
-        // rescan can never clobber the user's data.
+        // rescan can never clobber the user's data. Rows the user has curated
+        // (edited = 1, set by updateSong()/setArtwork()) keep their
+        // tag-derived columns too: every CASE keeps the stored value for an
+        // edited row and takes the file's (excluded) value otherwise, so the
+        // user's corrections survive rescans of a changed file. A plain
+        // WHERE edited = 0 on the DO UPDATE would be wrong: it would also
+        // skip the mtime/size refresh below, so an edited file would look
+        // "changed forever" and every scan would re-read it again (the
+        // permanent rescan loop documented with the v3 artwork backfill).
+        // mtime and size therefore always refresh.
         "ON CONFLICT(path) DO UPDATE SET "
-        "title=excluded.title, artist_id=excluded.artist_id, "
-        "album_id=excluded.album_id, genre_id=excluded.genre_id, "
-        "year=excluded.year, track_number=excluded.track_number, "
-        "disc_number=excluded.disc_number, duration=excluded.duration, "
-        "artwork_path=excluded.artwork_path, mtime=excluded.mtime, "
-        "size=excluded.size");
+        "title = CASE edited WHEN 1 THEN title ELSE excluded.title END, "
+        "artist_id = CASE edited WHEN 1 THEN artist_id ELSE excluded.artist_id END, "
+        "album_id = CASE edited WHEN 1 THEN album_id ELSE excluded.album_id END, "
+        "genre_id = CASE edited WHEN 1 THEN genre_id ELSE excluded.genre_id END, "
+        "year = CASE edited WHEN 1 THEN year ELSE excluded.year END, "
+        "track_number = CASE edited WHEN 1 THEN track_number ELSE excluded.track_number END, "
+        "disc_number = CASE edited WHEN 1 THEN disc_number ELSE excluded.disc_number END, "
+        "duration = CASE edited WHEN 1 THEN duration ELSE excluded.duration END, "
+        "artwork_path = CASE edited WHEN 1 THEN artwork_path ELSE excluded.artwork_path END, "
+        "mtime = excluded.mtime, size = excluded.size");
     if (useReturning) {
         sql += QStringLiteral(" RETURNING id");
     }
@@ -470,6 +495,213 @@ bool DatabaseManager::upsertSong(Song &song)
     return false;
 }
 
+bool DatabaseManager::updateSong(const Song &song)
+{
+    if (!beginTransaction()) {
+        qWarning() << "updateSong: failed to start transaction";
+        return false;
+    }
+    if (!updateSongRow(song)) {
+        rollbackTransaction();
+        return false;
+    }
+    // Album cards roll up from the freshly edited songs' artwork and the
+    // entity rows the edit may have orphaned are dropped, both in the
+    // same transaction (like the scan commit path).
+    refreshAlbumArtwork();
+    cleanupOrphanEntities();
+    return commitTransaction();
+}
+
+bool DatabaseManager::updateSongs(const QList<Song> &songs)
+{
+    if (songs.isEmpty()) {
+        return false;
+    }
+    if (!beginTransaction()) {
+        qWarning() << "updateSongs: failed to start transaction";
+        return false;
+    }
+    for (const Song &song : songs) {
+        if (!updateSongRow(song)) {
+            // One bad row rolls the whole batch back: a half-applied
+            // batch edit would leave the library inconsistent.
+            rollbackTransaction();
+            return false;
+        }
+    }
+    // The rollup and the cleanup are batch-wide concerns: run them once
+    // after the last row, not once per song.
+    refreshAlbumArtwork();
+    cleanupOrphanEntities();
+    return commitTransaction();
+}
+
+bool DatabaseManager::updateSongRow(const Song &song)
+{
+    const qint64 artistId = resolveNamedRow(m_db, QStringLiteral("artists"), song.artist);
+    const qint64 albumId = resolveAlbum(m_db, song.album, artistId, song.year);
+    const qint64 genreId = resolveNamedRow(m_db, QStringLiteral("genres"), song.genre);
+
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "UPDATE songs SET title = :title, artist_id = :artist_id, "
+        "album_id = :album_id, genre_id = :genre_id, year = :year, "
+        "duration = :duration, artwork_path = :artwork_path, edited = 1 "
+        "WHERE id = :id"));
+    query.bindValue(":title", song.title);
+    query.bindValue(":artist_id", artistId > 0 ? QVariant(artistId) : QVariant());
+    query.bindValue(":album_id", albumId > 0 ? QVariant(albumId) : QVariant());
+    query.bindValue(":genre_id", genreId > 0 ? QVariant(genreId) : QVariant());
+    query.bindValue(":year", song.year);
+    query.bindValue(":duration", song.duration);
+    query.bindValue(":artwork_path", song.artworkPath);
+    query.bindValue(":id", song.id);
+    if (!query.exec()) {
+        qWarning() << "Failed to update song:" << query.lastError().text();
+        return false;
+    }
+    // Zero affected rows means the id does not exist. track_number and
+    // disc_number are deliberately not written (not user-editable) and
+    // neither are mtime/size (the file did not change, so the next scan
+    // must keep fingerprint-skipping it).
+    return query.numRowsAffected() == 1;
+}
+
+void DatabaseManager::cleanupOrphanEntities()
+{
+    // Children first: albums.artist_id references artists, so with
+    // PRAGMA foreign_keys = ON an orphan artist referenced by a (soon to
+    // be deleted) orphan album cannot be removed while that album row
+    // still exists. Deleting albums first releases the reference and the
+    // artist cleanup actually succeeds. genres reference nothing beyond
+    // songs.
+    QSqlQuery cleanup(m_db);
+    cleanup.exec("DELETE FROM albums WHERE id NOT IN "
+                 "(SELECT DISTINCT album_id FROM songs WHERE album_id IS NOT NULL)");
+    cleanup.exec("DELETE FROM artists WHERE id NOT IN "
+                 "(SELECT DISTINCT artist_id FROM songs WHERE artist_id IS NOT NULL)");
+    cleanup.exec("DELETE FROM genres WHERE id NOT IN "
+                 "(SELECT DISTINCT genre_id FROM songs WHERE genre_id IS NOT NULL)");
+}
+
+bool DatabaseManager::renameArtist(const QString &from, const QString &to)
+{
+    if (from.isEmpty() || to.isEmpty() || from == to) {
+        return false;
+    }
+    {
+        // Renaming onto an existing artist would merge the two (a
+        // separate, explicit feature), so refuse up front. artists.name
+        // UNIQUE is the safety net; the single shared connection and the
+        // main-thread-only rule mean nothing can insert between the check
+        // and the UPDATE.
+        QSqlQuery check(m_db);
+        check.prepare(QStringLiteral("SELECT 1 FROM artists WHERE name = :to"));
+        check.bindValue(":to", to);
+        if (check.exec() && check.next()) {
+            qWarning() << "renameArtist: target name already exists:" << to;
+            return false;
+        }
+    }
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("UPDATE artists SET name = :to WHERE name = :from"));
+    query.bindValue(":to", to);
+    query.bindValue(":from", from);
+    if (!query.exec()) {
+        qWarning() << "renameArtist: update failed:" << query.lastError().text();
+        return false;
+    }
+    return query.numRowsAffected() == 1;
+}
+
+bool DatabaseManager::renameAlbum(const QString &title, const QString &artist,
+                                  const QString &newTitle)
+{
+    if (title.isEmpty() || newTitle.isEmpty() || title == newTitle) {
+        return false;
+    }
+    // Read-only artist lookup. An empty artist addresses the album with no
+    // artist (artist_id IS NULL), the same semantics as resolveAlbum().
+    QVariant artistVar;
+    if (!artist.isEmpty()) {
+        QSqlQuery artistQuery(m_db);
+        artistQuery.prepare(QStringLiteral("SELECT id FROM artists WHERE name = :artist"));
+        artistQuery.bindValue(":artist", artist);
+        if (!artistQuery.exec() || !artistQuery.next()) {
+            return false; // no such artist -> no such album
+        }
+        artistVar = artistQuery.value(0);
+    }
+    qint64 albumId = 0;
+    {
+        QSqlQuery find(m_db);
+        find.prepare(QStringLiteral(
+            "SELECT id FROM albums WHERE title = :title AND artist_id IS :artist"));
+        find.bindValue(":title", title);
+        find.bindValue(":artist", artistVar);
+        if (!find.exec() || !find.next()) {
+            return false; // no such album
+        }
+        albumId = find.value(0).toLongLong();
+    }
+    {
+        // No database constraint enforces uniqueness on (title,
+        // artist_id), so the collision check is code only: renaming onto
+        // an existing album of the same artist would merge the two.
+        QSqlQuery clash(m_db);
+        clash.prepare(QStringLiteral(
+            "SELECT 1 FROM albums WHERE title = :new AND artist_id IS :artist"));
+        clash.bindValue(":new", newTitle);
+        clash.bindValue(":artist", artistVar);
+        if (clash.exec() && clash.next()) {
+            qWarning() << "renameAlbum: the artist already has an album titled"
+                       << newTitle;
+            return false;
+        }
+    }
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("UPDATE albums SET title = :new WHERE id = :id"));
+    query.bindValue(":new", newTitle);
+    query.bindValue(":id", albumId);
+    if (!query.exec()) {
+        qWarning() << "renameAlbum: update failed:" << query.lastError().text();
+        return false;
+    }
+    // The artwork column lives on the renamed row, so the album cover
+    // survives without any extra work.
+    return query.numRowsAffected() == 1;
+}
+
+bool DatabaseManager::setArtwork(qint64 songId, const QString &imagePath)
+{
+    if (songId <= 0) {
+        return false;
+    }
+    if (!beginTransaction()) {
+        qWarning() << "setArtwork: failed to start transaction";
+        return false;
+    }
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "UPDATE songs SET artwork_path = :path, edited = 1 WHERE id = :id"));
+    query.bindValue(":path", imagePath);
+    query.bindValue(":id", songId);
+    if (!query.exec()) {
+        qWarning() << "setArtwork: update failed:" << query.lastError().text();
+        rollbackTransaction();
+        return false;
+    }
+    if (query.numRowsAffected() != 1) {
+        rollbackTransaction();
+        return false; // unknown id
+    }
+    // Album cards roll up from the song artwork in the same transaction,
+    // exactly like the scan commit path.
+    refreshAlbumArtwork();
+    return commitTransaction();
+}
+
 QHash<QString, QPair<qint64, qint64>> DatabaseManager::songFileStats() const
 {
     QHash<QString, QPair<qint64, qint64>> stats;
@@ -504,13 +736,7 @@ bool DatabaseManager::removeSong(qint64 id)
 
     // Drop artists/albums/genres that no longer have any songs (best-effort
     // cleanup; the views already hide orphans via HAVING song_count > 0).
-    QSqlQuery cleanup(m_db);
-    cleanup.exec("DELETE FROM artists WHERE id NOT IN "
-                 "(SELECT DISTINCT artist_id FROM songs WHERE artist_id IS NOT NULL)");
-    cleanup.exec("DELETE FROM albums WHERE id NOT IN "
-                 "(SELECT DISTINCT album_id FROM songs WHERE album_id IS NOT NULL)");
-    cleanup.exec("DELETE FROM genres WHERE id NOT IN "
-                 "(SELECT DISTINCT genre_id FROM songs WHERE genre_id IS NOT NULL)");
+    cleanupOrphanEntities();
 
     return true;
 }

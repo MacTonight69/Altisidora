@@ -9,6 +9,7 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QStandardPaths>
@@ -120,6 +121,68 @@ QString tagStringToQString(const TagLib::String &str)
         QString::fromUtf8(utf8.data(), static_cast<qsizetype>(utf8.size())));
 }
 
+// Extension for the declared MIME type (expected lower-case); empty when
+// the type is unknown or not an image.
+QString imageExtensionFromMime(const QString &mime)
+{
+    if (mime == "image/jpeg" || mime == "image/jpg") return "jpg";
+    if (mime == "image/png")  return "png";
+    if (mime == "image/webp") return "webp";
+    if (mime == "image/gif")  return "gif";
+    if (mime == "image/bmp")  return "bmp";
+    return {};
+}
+
+// Extension sniffed from the leading magic bytes; empty when they match
+// no known image format. Shared by the scan (fallback for tags that lie
+// about or omit the MIME type) and by cacheArtwork() (the only check a
+// user-picked file gets).
+QString imageExtensionFromMagicBytes(const QByteArray &raw)
+{
+    if (raw.size() >= 4 && (unsigned char)raw[0] == 0x89
+        && raw[1] == 'P' && raw[2] == 'N' && raw[3] == 'G') {
+        return "png";
+    }
+    if (raw.size() >= 3 && (unsigned char)raw[0] == 0xFF
+        && (unsigned char)raw[1] == 0xD8 && (unsigned char)raw[2] == 0xFF) {
+        return "jpg";
+    }
+    if (raw.startsWith("GIF87a") || raw.startsWith("GIF89a"))
+        return "gif";
+    if (raw.size() >= 2 && raw[1] == 'M' && raw[0] == 'B')
+        return "bmp";
+    if (raw.size() >= 12 && raw.startsWith("RIFF") && raw.mid(8, 4) == "WEBP")
+        return "webp";
+    return {};
+}
+
+// Writes image bytes into the artwork cache under a content-addressed
+// name: identical art across an album's tracks collides into ONE file,
+// and re-saving is idempotent. Shared by the scan-time extraction and by
+// cacheArtwork(), so hand-picked covers deduplicate with extracted ones.
+// Returns the absolute cache file path, or an empty string on failure.
+QString cacheArtworkBytes(const QByteArray &raw, const QString &ext)
+{
+    if (raw.isEmpty() || ext.isEmpty())
+        return {};
+
+    const QString cacheDir = QStandardPaths::writableLocation(
+                                 QStandardPaths::AppDataLocation) + "/artwork";
+    if (!QDir().mkpath(cacheDir))
+        return {};
+
+    const QString name = QString::fromLatin1(QCryptographicHash::hash(
+        raw, QCryptographicHash::Sha256).toHex().left(32)) + '.' + ext;
+    const QString outPath = cacheDir + '/' + name;
+    if (QFileInfo::exists(outPath))
+        return outPath;
+
+    QSaveFile f(outPath);
+    if (!f.open(QIODevice::WriteOnly) || f.write(raw) != raw.size() || !f.commit())
+        return {};
+    return outPath;
+}
+
 // Extracts the embedded front-cover picture (falls back to the first
 // picture found) and persists it under a content-hash name. Returns the
 // absolute cache file path, or an empty string when there is no artwork.
@@ -146,41 +209,43 @@ QString extractArtwork(const TagLib::FileRef &file)
         return {};
 
     // Extension from the declared MIME type, with magic-byte sniffing as
-    // the fallback (some tags lie or omit the MIME type).
-    QString mime = chosen->contains("mimeType")
-        ? tagStringToQString((*chosen)["mimeType"].toString()).toLower() : "";
-    QString ext;
-    if (mime == "image/jpeg" || mime == "image/jpg") ext = "jpg";
-    else if (mime == "image/png")  ext = "png";
-    else if (mime == "image/webp") ext = "webp";
-    else if (mime == "image/gif")  ext = "gif";
-    else if (mime == "image/bmp")  ext = "bmp";
-    else ext = (bytes.size() > 3 && (unsigned char)bytes[0] == 0x89) ? "png" : "jpg";
-
-    const QString cacheDir = QStandardPaths::writableLocation(
-                                 QStandardPaths::AppDataLocation) + "/artwork";
-    if (!QDir().mkpath(cacheDir))
-        return {};
-
-    // Content-addressed name: identical art across an album's tracks
-    // collides into ONE file, and re-extraction is idempotent.
+    // the fallback (some tags lie or omit the MIME type). A tag that
+    // claims to embed art but decodes to no known magic keeps the
+    // historical "jpg" default rather than dropping the picture.
     const QByteArray raw(bytes.data(), bytes.size());
-    const QString name = QString::fromLatin1(QCryptographicHash::hash(
-        raw, QCryptographicHash::Sha256).toHex().left(32)) + '.' + ext;
-    const QString outPath = cacheDir + '/' + name;
-    if (QFileInfo::exists(outPath))
-        return outPath;
+    QString ext = imageExtensionFromMime(chosen->contains("mimeType")
+        ? tagStringToQString((*chosen)["mimeType"].toString()).toLower() : QString());
+    if (ext.isEmpty())
+        ext = imageExtensionFromMagicBytes(raw);
+    if (ext.isEmpty())
+        ext = QStringLiteral("jpg");
 
-    QSaveFile f(outPath);
-    if (!f.open(QIODevice::WriteOnly) || f.write(raw) != raw.size() || !f.commit())
-        return {};
-    return outPath;
+    return cacheArtworkBytes(raw, ext);
 }
 
 } // namespace
 
 MetadataReader::MetadataReader()
 {
+}
+
+QString MetadataReader::cacheArtwork(const QString &imagePath)
+{
+    QFile file(imagePath);
+    if (imagePath.isEmpty() || !file.open(QIODevice::ReadOnly)) {
+        qWarning() << "cacheArtwork: cannot read" << imagePath;
+        return {};
+    }
+    const QByteArray raw = file.readAll();
+    // Strict magic-byte sniff: a user-picked file must be a real image.
+    // (The scan's "jpg" fallback would cache arbitrary bytes under a
+    // wrong extension instead of refusing.)
+    const QString ext = imageExtensionFromMagicBytes(raw);
+    if (ext.isEmpty()) {
+        qWarning() << "cacheArtwork: not a recognized image file:" << imagePath;
+        return {};
+    }
+    return cacheArtworkBytes(raw, ext);
 }
 
 Song MetadataReader::read(const QString &filePath) const
