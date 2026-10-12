@@ -21,7 +21,7 @@ the controllers are in place. All tests pass.
 | Database | `src/database/` | Implemented | `DatabaseManager`: SQLite, prepared statements, schema version table, CRUD. Songs are normalized (artist/album/genre rows resolved on insert); reads JOIN names back and artist/album/genre/playlist queries return `songCount` |
 | Audio | `src/audio/` | Implemented | `PlayerController` wrapping a libmpv session (10-band EQ, repeat-one); `load(url)` for raw URLs and `loadSong(map)` to keep library metadata for the UI |
 | System Integration | `src/mpris/` | Implemented | `MprisPlayer`: MPRIS v2 (`org.mpris.MediaPlayer2.altisidora`) over Qt DBus, registered in `src/main.cpp` |
-| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh) |
+| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, re-decodes Shift-JIS mojibake in mislabeled Latin-1 tags, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh) |
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
 | GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (click / Ctrl / Shift / Ctrl+A) with batch add to playlist |
 | Tests | `tests/` | Implemented | 10 unit + 2 integration suites, all passing; see below |
@@ -69,10 +69,17 @@ Test isolation:
 
 ## Known limitations
 
-- Tag text from files whose ID3 tags genuinely declare a legacy encoding
-  (e.g. Shift-JIS mislabeled as ISO-8859-1) is not normalized. UTF-8 and
-  UTF-16 ID3v2 tags are read correctly; a real Shift-JIS tag re-decode fallback
-  is not implemented yet.
+- Legacy-encoding tags: ID3v2 text mislabeled as ISO-8859-1 that actually
+  contains Shift-JIS bytes (a common legacy ripper bug for Japanese music)
+  is now re-decoded. When tag text carries the Shift-JIS lead-byte
+  signature — C1 controls U+0081-U+009F, which genuine Latin-1 accents
+  never contain — the reader recovers the original bytes, decodes them as
+  Shift-JIS, and accepts the result only if it contains full-width Japanese
+  and re-encodes back to the exact original bytes. Genuine Latin-1 text
+  (French/German/Spanish accents, CP1252 smart quotes) is never converted.
+  Residual limitations: mojibake composed only of E0-zone lead bytes
+  (rare kanji without any 0x81-0x9F lead byte) is not converted, and tags
+  in other legacy encodings (EUC-KR, Big5, KOI8-R) are not handled.
 - The playback queue is set from the visible list in the Songs, Playlists and
   album/artist drill-down views (double-click or "Play all" loads that list as
   the navigation context for `next()`/`previous()`).
