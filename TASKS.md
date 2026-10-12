@@ -9,15 +9,16 @@
 | C | `SongListModel` + role-based delegates (C1–C4) | [x] done |
 | Backlog | Micro-optimizations (player emissions, MPRIS coalesce, static core lib, shared DB note) | [x] done (`perf/backlog-microopts`) |
 | D | Tag editing (individual + batch) | [x] done (`build/static-core-lib`) |
+| E | Final polish: theme rename (`Anarchism`) + new `Maya`; startup-theme bug; album edit adds artist + artwork | [~] in progress (`build/static-core-lib`) |
 
-Everything above is implemented and verified (build exit 0, 0 warnings,
-`ctest` 12/12, smoke OK). The commit chain lives in git (base `e2b7692` →
+Options A–D are implemented and verified (build exit 0, 0 warnings, `ctest`
+12/12, smoke OK). The commit chain lives in git (base `e2b7692` →
 `build/static-core-lib`); the detailed step-by-step specs were removed once
-each option landed. **No open implementation work remains.** What is left is
-delivery and the optional follow-ups tracked in `docs/PROJECT_STATUS.md`
-(publishing `v0.1.0`; `mpris:artUrl`; artwork-cache GC; a player refresh API
-so the now-playing bar follows an edit; `hicolor-icon-theme` in the PKGBUILD
-depends).
+each option landed. **Open work is option E only**, tracked task-by-task in
+`odd/tasks/theme-and-album-edit.md`. What remains after E is delivery and the
+optional follow-ups tracked in `docs/PROJECT_STATUS.md` (publishing `v0.1.0`;
+`mpris:artUrl`; artwork-cache GC; a player refresh API so the now-playing bar
+follows an edit; `hicolor-icon-theme` in the PKGBUILD depends).
 
 ---
 
