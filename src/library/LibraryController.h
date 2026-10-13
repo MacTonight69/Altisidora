@@ -218,11 +218,20 @@ private:
     // False when the map has no usable id or the id is unknown.
     bool fillSongFromMap(const QVariantMap &map, Song *song) const;
 
+    // Stale flags + model diff + libraryChanged: the single sequence every
+    // path that changes m_songs must run (refresh(), handleScanFinished(),
+    // applyEditedSongs()).
+    void publishLibrarySnapshot();
+    // Reflect a tag edit in the in-memory snapshot without re-reading the
+    // whole table (getAllSongs()). Falls back to refresh() when the edit
+    // changed a title, because m_songs is ordered by title, path.
+    void applyEditedSongs(const QList<Song> &songs);
+
     DatabaseManager m_db;
     QVector<Song> m_songs;
 
     // Role-based render model over the same m_songs snapshot (see
-    // songsModel()). Kept in sync by refresh()/handleScanFinished().
+    // songsModel()). Kept in sync by publishLibrarySnapshot().
     SongListModel m_songsModel;
 
     // Role-based render model over the current search results (see
@@ -234,8 +243,7 @@ private:
     // QML-facing views of the library (QVariant wrappers). Built lazily per
     // property on first read after a library change; QVector is implicitly
     // shared, so returning them is cheap. Each flag is set in
-    // refresh()/handleScanFinished() (the only two paths that rebuild
-    // m_songs).
+    // publishLibrarySnapshot(), the single place that publishes m_songs.
     mutable QVector<QVariant> m_cachedSongs;
     mutable QVector<QVariant> m_cachedAlbums;
     mutable QVector<QVariant> m_cachedArtists;

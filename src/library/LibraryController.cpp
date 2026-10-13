@@ -297,23 +297,57 @@ void LibraryController::handleScanFinished()
     }
 
     m_songs = m_db.getAllSongs().toVector();
-    m_songsStale = true;
-    m_albumsStale = true;
-    m_artistsStale = true;
-    m_songsModel.applySnapshot(m_songs);
     m_scanRunning = false;
-    emit libraryChanged();
+    publishLibrarySnapshot();
     emit scanFinished(removed);
 }
 
 void LibraryController::refresh()
 {
     m_songs = m_db.getAllSongs().toVector();
+    publishLibrarySnapshot();
+}
+
+void LibraryController::publishLibrarySnapshot()
+{
     m_songsStale = true;
     m_albumsStale = true;
     m_artistsStale = true;
     m_songsModel.applySnapshot(m_songs);
     emit libraryChanged();
+}
+
+void LibraryController::applyEditedSongs(const QList<Song> &songs)
+{
+    QHash<qint64, int> rowById;
+    rowById.reserve(m_songs.size());
+    for (int i = 0; i < m_songs.size(); ++i) {
+        rowById.insert(m_songs.at(i).id, i);
+    }
+
+    // m_songs is ordered by title, path (getAllSongs). A title change moves
+    // the row, and reproducing SQLite's BINARY ordering in C++ would be
+    // fragile, so that rare case falls back to the full reload.
+    for (const Song &song : songs) {
+        const auto it = rowById.constFind(song.id);
+        if (it != rowById.constEnd()
+            && m_songs.at(it.value()).title != song.title) {
+            refresh();
+            return;
+        }
+    }
+
+    // `songs` are the rows as they now exist in the database (fillSongFromMap
+    // started from the stored row and overlaid the edited fields), so
+    // replacing the matching snapshot entries reproduces a full reload at a
+    // fraction of the cost.
+    for (const Song &song : songs) {
+        const auto it = rowById.constFind(song.id);
+        if (it != rowById.constEnd()) {
+            m_songs[it.value()] = song;
+        }
+    }
+    publishLibrarySnapshot();
 }
 
 void LibraryController::setSearch(const QString &query)
@@ -448,9 +482,9 @@ bool LibraryController::updateSong(const QVariantMap &songMap)
                    << song.id;
         return false;
     }
-    // refresh() is the single stale-flags + applySnapshot + libraryChanged
-    // sequence; it must not be duplicated here.
-    refresh();
+    // Patch the edited row into the in-memory snapshot instead of re-reading
+    // the whole library (getAllSongs()) for a single-song edit.
+    applyEditedSongs({song});
     return true;
 }
 
@@ -477,7 +511,7 @@ bool LibraryController::updateSongs(const QVariantList &songMaps)
         qWarning() << "LibraryController::updateSongs: database update failed";
         return false;
     }
-    refresh();
+    applyEditedSongs(songs);
     return true;
 }
 

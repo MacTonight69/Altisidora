@@ -54,6 +54,7 @@ private slots:
 
     // ---- Tag editing (Option D) ----
     void testUpdateSongEmitsLibraryChangedOnce();
+    void testUpdateSongPatchesSnapshotInPlace();
     void testUpdateSongRejectsBadInput();
     void testUpdateSongsBatchEmitsOnce();
     void testUpdateSongsAcceptsPartialMaps();
@@ -585,6 +586,44 @@ void tst_library::testUpdateSongEmitsLibraryChangedOnce()
              QStringLiteral("Edited Artist 11"));
     QCOMPARE(song.value(QStringLiteral("album")).toString(),
              QStringLiteral("Edited Album 11"));
+}
+
+// An edit that keeps the title (the m_songs order key) patches the snapshot
+// in place: same rows, same order, edited fields updated everywhere.
+void tst_library::testUpdateSongPatchesSnapshotInPlace()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 3);
+
+    const QVector<QVariant> before = m_controller->songs();
+    const QVariantMap target = before.at(1).toMap();
+    const qint64 id = target.value(QStringLiteral("id")).toLongLong();
+    const QString title = target.value(QStringLiteral("title")).toString();
+
+    QVariantMap edit;
+    edit[QStringLiteral("id")] = id;
+    edit[QStringLiteral("album")] = QStringLiteral("Patched Album");
+    QVERIFY(m_controller->updateSong(edit));
+
+    const QVector<QVariant> after = m_controller->songs();
+    QCOMPARE(after.size(), 3);
+
+    // Same ids in the same order: an in-place patch never reorders...
+    for (int i = 0; i < after.size(); ++i) {
+        QCOMPARE(after.at(i).toMap().value(QStringLiteral("id")).toLongLong(),
+                 before.at(i).toMap().value(QStringLiteral("id")).toLongLong());
+    }
+    // ...the edited row shows the new album and keeps its title...
+    const QVariantMap edited = after.at(1).toMap();
+    QCOMPARE(edited.value(QStringLiteral("album")).toString(),
+             QStringLiteral("Patched Album"));
+    QCOMPARE(edited.value(QStringLiteral("title")).toString(), title);
+    // ...and the render model agrees.
+    QCOMPARE(m_controller->songsModel()->songData(1)
+                 .value(QStringLiteral("album")).toString(),
+             QStringLiteral("Patched Album"));
 }
 
 // Bad input is refused with a false return, zero emissions and no change.
