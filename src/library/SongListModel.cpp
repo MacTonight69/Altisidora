@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include <QSet>
+
 SongListModel::SongListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -214,6 +216,26 @@ int SongListModel::rowOfId(int id) const
             return i;
     }
     return -1;
+}
+
+QStringList SongListModel::pathsForIds(const QVariantList &ids) const
+{
+    QStringList paths;
+    if (ids.isEmpty()) {
+        return paths;
+    }
+    QSet<qint64> wanted;
+    wanted.reserve(ids.size());
+    for (const QVariant &id : ids) {
+        wanted.insert(id.toLongLong());
+    }
+    paths.reserve(wanted.size());
+    for (const Song &song : m_songs) {
+        if (wanted.contains(song.id) && !song.path.isEmpty()) {
+            paths.append(song.path);
+        }
+    }
+    return paths;
 }
 
 QVariantList SongListModel::toVariantList() const

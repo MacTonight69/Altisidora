@@ -595,6 +595,19 @@ void LibraryController::unignorePath(const QString &path)
     }
 }
 
+void LibraryController::ignorePaths(const QStringList &paths)
+{
+    if (paths.isEmpty()) {
+        return;
+    }
+    // One insert batch and one refresh for the whole selection; the QML
+    // "hide selection" flow used to call ignorePath() once per song, which
+    // reloaded the whole library per song.
+    if (m_db.addIgnoredPaths(paths)) {
+        refresh();
+    }
+}
+
 QVariantMap LibraryController::albumToVariant(const Album &album) const
 {
     QVariantMap map;

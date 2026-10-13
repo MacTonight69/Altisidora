@@ -22,6 +22,7 @@ private slots:
     void testSongListModel();
     void testSongListModelIncremental();
     void testSongListModelSort();
+    void testSongListModelPathsForIds();
 
     void testAlbumDefaultValues();
 
@@ -167,6 +168,29 @@ void TestModels::testSongListModel()
     QCOMPARE(roles.value(SongListModel::FavoriteRole), QByteArray("favorite"));
     QCOMPARE(roles.value(SongListModel::PlayCountRole), QByteArray("playCount"));
     QCOMPARE(roles.value(SongListModel::LastPlayedRole), QByteArray("lastPlayed"));
+}
+
+void TestModels::testSongListModelPathsForIds()
+{
+    SongListModel model;
+    auto make = [](int id, const QString &path) {
+        Song song;
+        song.id = id;
+        song.path = path;
+        return song;
+    };
+    QVector<Song> songs;
+    songs << make(1, QStringLiteral("/music/one.flac"))
+          << make(2, QStringLiteral("/music/two.flac"))
+          << make(3, QString()); // no path: never yielded
+    model.setSongs(songs);
+
+    // Resolves the requested ids in row order; unknown ids are ignored.
+    QCOMPARE(model.pathsForIds(QVariantList{3, 1, 999}),
+             QStringList{QStringLiteral("/music/one.flac")});
+
+    // An empty request is an empty result.
+    QVERIFY(model.pathsForIds(QVariantList()).isEmpty());
 }
 
 void TestModels::testSongListModelIncremental()

@@ -50,6 +50,7 @@ private slots:
     void testRemoveSongsBatch();
     void testRemoveSongsBatchDeletesFiles();
     void testRemoveSongsBatchIgnoresUndeletableFile();
+    void testIgnorePathsBatchEmitsOnce();
 
     // ---- Tag editing (Option D) ----
     void testUpdateSongEmitsLibraryChangedOnce();
@@ -491,6 +492,31 @@ void tst_library::testRemoveSongsBatchIgnoresUndeletableFile()
 
     QCOMPARE(m_controller->songCount(), 1);
     QVERIFY(m_controller->ignoredPaths().contains(path));
+}
+
+void tst_library::testIgnorePathsBatchEmitsOnce()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 3);
+
+    const QVector<QVariant> songs = m_controller->songs();
+    QStringList paths;
+    for (int i = 0; i < 2; ++i) {
+        paths << songs.at(i).toMap().value(QStringLiteral("path")).toString();
+    }
+
+    QSignalSpy spy(m_controller, &LibraryController::libraryChanged);
+    m_controller->ignorePaths(paths);
+
+    // One refresh for the whole batch: ignorePath() would have reloaded the
+    // library (and emitted libraryChanged) once per path.
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(m_controller->songCount(), 1);
+    for (const QString &path : paths) {
+        QVERIFY(m_controller->ignoredPaths().contains(path));
+    }
 }
 
 qint64 tst_library::insertSongRow(const QString &path, const QString &title)

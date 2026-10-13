@@ -126,6 +126,15 @@ public slots:
     void ignorePath(const QString &path);
 
     /**
+     * @brief Hide several paths in one batch.
+     *
+     * Same effect as calling ignorePath() for each path, but the database
+     * writes and the library refresh happen once for the whole batch, so
+     * hiding a multi-selection is not O(N^2) in refreshes.
+     */
+    void ignorePaths(const QStringList &paths);
+
+    /**
      * @brief Stop hiding a previously ignored file or directory.
      */
     void unignorePath(const QString &path);

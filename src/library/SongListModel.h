@@ -2,6 +2,7 @@
 
 #include <QAbstractListModel>
 #include <QHash>
+#include <QStringList>
 #include <QVariantList>
 #include <QVector>
 
@@ -79,6 +80,11 @@ public:
     // queue) or a row lookup by song id.
     Q_INVOKABLE QVariantMap songData(int row) const;
     Q_INVOKABLE int rowOfId(int id) const;
+    // Paths of the rows whose id is in @p ids, in row order. Indexes the
+    // rows by id once, so it never builds a QVariantMap per scanned row the
+    // way calling songData() in a loop would. Used by the multi-select hide
+    // flow, which needs paths (not maps) for the whole selection.
+    Q_INVOKABLE QStringList pathsForIds(const QVariantList &ids) const;
 
     // Whole snapshot as a QVariantList of maps. Only used to build a playback
     // queue (Player.setQueue takes maps), never for rendering rows.

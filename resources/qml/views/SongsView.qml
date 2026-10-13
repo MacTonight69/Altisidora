@@ -62,6 +62,20 @@ Rectangle {
         return null
     }
 
+    // Paths of the given song ids. Model-backed: one pass over the rows, no
+    // QVariantMap per row (the array fallback scans the plain array).
+    function pathsForIds(ids) {
+        if (songsModel)
+            return songsModel.pathsForIds(ids)
+        var out = []
+        for (var i = 0; i < songs.length; ++i) {
+            var s = songs[i]
+            if (s && s.id !== undefined && ids.indexOf(s.id) >= 0 && s.path)
+                out.push(s.path)
+        }
+        return out
+    }
+
     function folderOf(path) {
         var p = String(path)
         var i = p.lastIndexOf("/")
@@ -202,16 +216,14 @@ Rectangle {
     }
 
     // Hide the selected songs: they stay on disk and in the database, they
-    // just disappear from the lists (restore them in Settings).
+    // just disappear from the lists (restore them in Settings). One batch
+    // hide and one refresh for the whole selection, not one per song.
     function hideSelected() {
         if (songsView.selectedCount === 0)
             return
-        var ids = Array.from(songsView.selectedIds)
-        for (var i = 0; i < ids.length; ++i) {
-            var s = songsView.findSongById(ids[i])
-            if (s && s.path)
-                Library.ignorePath(s.path)
-        }
+        var paths = songsView.pathsForIds(Array.from(songsView.selectedIds))
+        if (paths.length > 0)
+            Library.ignorePaths(paths)
         songsView.clearSelection()
     }
 
@@ -219,18 +231,18 @@ Rectangle {
     function hideSelectedFolders() {
         if (songsView.selectedCount === 0)
             return
-        var seen = new Set()
-        var ids = Array.from(songsView.selectedIds)
-        for (var i = 0; i < ids.length; ++i) {
-            var s = songsView.findSongById(ids[i])
-            if (s && s.path) {
-                var folder = songsView.folderOf(s.path)
-                if (folder && !seen.has(folder)) {
-                    seen.add(folder)
-                    Library.ignorePath(folder)
-                }
+        var paths = songsView.pathsForIds(Array.from(songsView.selectedIds))
+        var folders = []
+        var seen = {}
+        for (var i = 0; i < paths.length; ++i) {
+            var folder = songsView.folderOf(paths[i])
+            if (folder && !seen[folder]) {
+                seen[folder] = true
+                folders.push(folder)
             }
         }
+        if (folders.length > 0)
+            Library.ignorePaths(folders)
         songsView.clearSelection()
     }
 
