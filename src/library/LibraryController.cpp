@@ -267,9 +267,12 @@ void LibraryController::handleScanFinished()
     // Songs whose file disappeared go first: the upserts and the album
     // artwork rollup below then run on the final set of songs, so a cover
     // never rolls up from a row that is about to be dropped.
-    if (!result.missingIds.isEmpty()
-        && !m_db.removeSongs(result.missingIds)) {
-        qWarning() << "LibraryController: failed to remove missing songs";
+    int removed = 0;
+    if (!result.missingIds.isEmpty()) {
+        if (m_db.removeSongs(result.missingIds))
+            removed = result.missingIds.size();
+        else
+            qWarning() << "LibraryController: failed to remove missing songs";
     }
 
     const QList<Song> &found = result.songs;
@@ -300,7 +303,7 @@ void LibraryController::handleScanFinished()
     m_songsModel.applySnapshot(m_songs);
     m_scanRunning = false;
     emit libraryChanged();
-    emit scanFinished();
+    emit scanFinished(removed);
 }
 
 void LibraryController::refresh()

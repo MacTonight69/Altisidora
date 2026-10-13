@@ -246,8 +246,15 @@ ApplicationWindow {
         function onScanStarted() {
             root.scanning = true
         }
-        function onScanFinished() {
+        function onScanFinished(removedCount) {
             root.scanning = false
+            // The scan drops the songs whose file no longer exists; those
+            // rows are unrecoverable, so the removal is announced instead of
+            // happening silently. The count travels with the signal.
+            if (removedCount > 0) {
+                scanNotice.count = removedCount
+                scanNoticeTimer.restart()
+            }
         }
         function onLibraryChanged() {
             if (root.searchQuery.length > 0)
@@ -526,6 +533,45 @@ ApplicationWindow {
                 font.pixelSize: 12 * Theme.fontScale
             }
         }
+    }
+
+    // ================= scan reconciliation notice =================
+    // Bottom-centered, above the player bar. Shown only when a scan dropped
+    // songs (scanFinished(removedCount)); hides itself after the timer.
+    Rectangle {
+        id: scanNotice
+        z: 90
+        anchors.horizontalCenter: parent.horizontalCenter
+        // Above the player bar. The bar lives inside the root ColumnLayout,
+        // so it is a descendant, not a sibling: anchoring to its top would
+        // fail ("cannot anchor to an item that isn't a parent or sibling").
+        // Its height as a bottom margin keeps the notice clear of it.
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: playerControls.height + 14
+        visible: count > 0
+        width: noticeText.implicitWidth + 32
+        height: 34
+        radius: 6
+        color: Theme.bgAlt
+        border.width: 1
+        border.color: Theme.border
+
+        property int count: 0
+
+        Text {
+            id: noticeText
+            anchors.centerIn: parent
+            text: qsTr("%n song(s) removed: the file no longer exists", "", scanNotice.count)
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: 12 * Theme.fontScale
+        }
+    }
+
+    Timer {
+        id: scanNoticeTimer
+        interval: 6000
+        onTriggered: scanNotice.count = 0
     }
 
     // ================= view components =================

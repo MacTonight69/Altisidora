@@ -188,7 +188,11 @@ public:
 
 signals:
     void scanStarted();
-    void scanFinished();
+    // @param removedCount songs the scan dropped because their file is gone
+    //        (see ScanResult). Zero when the scan only ingested. The UI uses
+    //        it to report the removal instead of it happening silently; it is
+    //        0, not the candidate count, when the database refused the batch.
+    void scanFinished(int removedCount);
     void libraryChanged();
     // searchActive() changed (or the search results were rebuilt).
     void searchChanged();

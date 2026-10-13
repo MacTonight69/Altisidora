@@ -458,16 +458,30 @@ void tst_library_scan::testScanForgetsDeletedFiles()
     QCOMPARE(files.size(), 3);
 
     LibraryController controller;
+    // scanFinished() carries how many rows were dropped, so the UI can say
+    // it instead of the removal happening silently.
+    QSignalSpy removedSpy(&controller, &LibraryController::scanFinished);
+
     controller.scan(dir);
     QVERIFY(waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 3);
+    // First scan only ingests: nothing was dropped, and it says so.
+    QCOMPARE(removedSpy.count(), 1);
+    QCOMPARE(removedSpy.first().size(), 1);
+    QCOMPARE(removedSpy.first().at(0).toInt(), 0);
 
     // One file is removed outside the application.
     QVERIFY(QFile::remove(files.at(1)));
     QVERIFY(!QFile::exists(files.at(1)));
 
+    removedSpy.clear();
     controller.scan(dir);
     QVERIFY(waitForScanFinished(&controller));
+
+    // The scan reports exactly the one row it dropped.
+    QCOMPARE(removedSpy.count(), 1);
+    QCOMPARE(removedSpy.first().size(), 1);
+    QCOMPARE(removedSpy.first().at(0).toInt(), 1);
 
     // The row is gone, not merely filtered: the other two survive and no
     // query returns the deleted path any more.
@@ -537,6 +551,7 @@ void tst_library_scan::testScanKeepsSongsWhenTheirFolderIsGone()
     QCOMPARE(onVolume.size(), 2);
 
     LibraryController controller;
+    QSignalSpy removedSpy(&controller, &LibraryController::scanFinished);
     controller.scan(root);
     QVERIFY(waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 3);
@@ -544,9 +559,14 @@ void tst_library_scan::testScanKeepsSongsWhenTheirFolderIsGone()
     // The whole folder disappears, as if its volume were unmounted.
     QVERIFY(QDir(removable).removeRecursively());
 
+    removedSpy.clear();
     controller.scan(root);
     QVERIFY(waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 3);
+    // Kept, and the report says nothing was dropped: the count never claims a
+    // removal the guards refused.
+    QCOMPARE(removedSpy.first().size(), 1);
+    QCOMPARE(removedSpy.first().at(0).toInt(), 0);
     QVERIFY(!songByPath(&controller, onVolume.at(0)).isEmpty());
     QVERIFY(!songByPath(&controller, onVolume.at(1)).isEmpty());
 

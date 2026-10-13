@@ -68,7 +68,11 @@ and are notified through `libraryChanged()`.
 
 `scan(directory)` is asynchronous: the filesystem walk and metadata extraction
 run on a worker thread, results are committed on the main thread, and QML is
-notified through `scanStarted()`/`scanFinished()`/`libraryChanged()`.
+notified through `scanStarted()`/`scanFinished(removedCount)`/`libraryChanged()`.
+`scanFinished(removedCount)` also carries how many rows the scan dropped
+because their file is gone; QML reports that count in a transient notice, so
+the removal is never silent. The count is 0 when the database refused the
+removal batch.
 
 A scan is also a reconciliation: a song whose file no longer exists inside the
 scanned directory is dropped from the library (list and database). The removal
