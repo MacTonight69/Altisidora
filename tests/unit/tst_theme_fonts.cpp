@@ -43,6 +43,7 @@ private slots:
     void testStartupAppliesSavedTheme();
     void testVacuiUsesSystemFontFamily();
     void testSidebarWidthPerTheme();
+    void testMayaKeepsMimyMeasurements();
 
 private:
     void applyTheme(const QString &name);
@@ -233,6 +234,26 @@ void tst_theme_fonts::testSidebarWidthPerTheme()
     // role, so the previous theme's width must not stick.
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("sidebarWidth").toDouble(), 210.0);
+}
+
+void tst_theme_fonts::testMayaKeepsMimyMeasurements()
+{
+    // Owner decision: the Baskervville Maya keeps the same measurements as
+    // Mimy (the default 1.0 scale and 210px sidebar) instead of inheriting
+    // Anarchism's 1.9 / 260. Baskervville is not a wide face, so the
+    // red-and-black Maya needs no extra room even though it shares
+    // Anarchism's palette.
+    applyTheme(QStringLiteral("Mimy"));
+    const double fontScale = m_theme->property("fontScale").toDouble();
+    const double sidebarWidth = m_theme->property("sidebarWidth").toDouble();
+
+    applyTheme(QStringLiteral("Maya"));
+    QCOMPARE(m_theme->property("fontScale").toDouble(), fontScale);
+    QCOMPARE(m_theme->property("sidebarWidth").toDouble(), sidebarWidth);
+
+    // ...and both resolve to the documented defaults.
+    QCOMPARE(fontScale, 1.0);
+    QCOMPARE(sidebarWidth, 210.0);
 }
 
 void tst_theme_fonts::testRuntimeThemeSwitchChain()

@@ -27,15 +27,16 @@ Land the last round of UI polish before release:
 ## Constraints
 - The `Anarchism` palette must stay byte-identical to the old `Maya` (only the
   key/name change); the new `Maya` is the same palette with
-  `fontFamily: "Baskervville"`.
+  `fontFamily: "Baskervville"` and **Mimy's measurements** (the default 1.0
+  scale / 210px sidebar), not Anarchism's 1.9 / 260.
 - Theme migrations may not create a rename loop: `Maya` remains a valid theme
   name, so only the dead `Anarchy` key is migrated (to `Anarchism`).
 - Album editing must never equalize per-song data (titles/track numbers).
 
 ## Tasks
 - [x] T2 Rename theme `Maya` -> `Anarchism` in `Themes.js` (key, `name`, `order`).
-- [x] T3 Add the new `Maya` entry (same palette, `Baskervville`, scale 1.9,
-      sidebar 260) after `Anarchism`.
+- [x] T3 Add the new `Maya` entry (same palette, `Baskervville`, Mimy's
+      measurements: default scale 1.0 / 210 sidebar) after `Anarchism`.
 - [x] T4 Apply the saved theme at startup (`main.qml` `Component.onCompleted`).
 - [x] T5 Update `tst_theme_fonts` (add `Anarchism` to the scale maps; add a
       startup-apply regression test) and `SettingsController` (`Anarchy` ->
@@ -48,6 +49,12 @@ Land the last round of UI polish before release:
   `name` changed only); the new `Maya` is that same palette with
   `fontFamily: "Baskervville"`. `order` is now
   `Mimy, Coco, Anarchism, Maya, Comunism, ...`.
+  - **Owner decision (2026-10-13): Maya's measurements equal Mimy's.** The
+    option-E spec had given the new Maya `fontScale 1.9` / `sidebarWidth 260`
+    (copied from Anarchism); the owner ruled it should be "equal or similar to
+    Mimy's", i.e. the defaults 1.0 / 210. The implementation already matched
+    (Maya omits both keys), so this only realigns the spec and locks it with
+    `tst_theme_fonts::testMayaKeepsMimyMeasurements`.
 - T4: `main.qml` root gained
   `Component.onCompleted: root.applyTheme(AppSettings.theme)`. The existing
   `Connections` only fires on later `settingsChanged` emissions, which is why

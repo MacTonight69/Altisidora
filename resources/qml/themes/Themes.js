@@ -103,6 +103,11 @@ var themes = {
 
     // The same red-and-black palette as Anarchism, with the Baskervville
     // typeface (bundled for Mimy, so it is already registered).
+    //
+    // No fontScale/sidebarWidth: the measurements are deliberately the same
+    // as Mimy's (the 1.0 / 210 defaults). Baskervville is not a wide face, so
+    // unlike Anarchism (1.9 / 260) it needs no extra type size or sidebar
+    // room. Pinned by tst_theme_fonts::testMayaKeepsMimyMeasurements.
     "Maya": {
         name: "Maya",
         fontFamily: "Baskervville",
