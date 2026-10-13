@@ -628,6 +628,21 @@ Rectangle {
                 addToMenu.popup()
             }
         }
+
+        MenuSeparator { }
+
+        MenuItem {
+            font.family: Theme.fontFamily
+            text: qsTr("Delete…")
+            onTriggered: {
+                // The menu only opens after a plain right click selected the
+                // row (openRowMenu), so the selection is exactly this song.
+                // Reusing deleteSelected() keeps the Settings-driven
+                // disk-vs-library choice and its confirmation dialog identical
+                // to Ctrl+D.
+                songsView.deleteSelected()
+            }
+        }
     }
 
     // ---- name prompt for "New playlist…" ----
