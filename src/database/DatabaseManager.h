@@ -138,6 +138,8 @@ public:
      *        song, in disc/track order.
      *
      * Call inside the scan transaction; mirrors getSongsByAlbum() ordering.
+     * The tag-edit paths call the album-scoped refreshAlbumArtworkFor()
+     * instead, because they only touch a handful of albums.
      */
     void refreshAlbumArtwork();
 
@@ -163,14 +165,34 @@ public:
     QStringList ignoredPaths() const;
 
 private:
+    // Ids of the artist/album/genre rows a mutation touched, used to scope
+    // the post-mutation artwork rollup and orphan cleanup to what actually
+    // changed (the unscoped versions are O(albums) + O(songs) per mutation).
+    struct TouchedEntities {
+        QList<qint64> albumIds;
+        QList<qint64> artistIds;
+        QList<qint64> genreIds;
+    };
+
     bool execute(const QString &sql);
 
     // Transaction-free core of updateSong()/updateSongs(): SQLite has no
     // nested BEGIN, so the surrounding transaction lives in the callers.
-    bool updateSongRow(const Song &song);
-    // Best-effort deletion of artists/albums/genres that no longer have
-    // any songs (shared by removeSong() and the tag-edit paths).
-    void cleanupOrphanEntities();
+    // Appends the row's old and new entity ids to @p touched.
+    bool updateSongRow(const Song &song, TouchedEntities *touched);
+    // Entity ids referenced by the given songs, read before their rows are
+    // deleted so removeSongs() can scope its cleanup.
+    TouchedEntities entityIdsForSongs(const QList<qint64> &songIds) const;
+    // Roll album covers up for just the given albums (the full
+    // refreshAlbumArtwork() is O(albums) and ran on every tag edit).
+    void refreshAlbumArtworkFor(const QList<qint64> &albumIds);
+    // Best-effort deletion of artists/albums/genres that no longer have any
+    // songs, restricted to the entities @p touched can have orphaned.
+    void cleanupOrphanEntitiesFor(const TouchedEntities &touched);
+    // Deletes the rows of @p table whose id is in @p ids and that no song
+    // references through @p column anymore. Chunked for the variable limit.
+    void pruneOrphanEntities(const QString &table, const QString &column,
+                             const QList<qint64> &ids);
 
     QSqlDatabase m_db;
 };

@@ -56,6 +56,8 @@ private slots:
     void testUpdateSongRejectsUnknownId();
     void testUpdateSongsUpdatesAllRowsAndKeepsUntouchedFields();
     void testUpdateSongsAtomicRollback();
+    void testUpdateSongRerollsOldAndNewAlbumArtwork();
+    void testUpdateSongPrunesTheEntitiesItEmptied();
     void testUpsertSongKeepsEditedTagColumns();
     void testRenameArtistFollowsSongsAndRefusesCollision();
     void testSetAlbumIdentityFollowsSongsAndRefusesCollision();
@@ -1296,6 +1298,87 @@ void TestDatabase::testUpdateSongsAtomicRollback()
 
     // An empty batch is a refused no-op.
     QVERIFY(!m_db.updateSongs({}));
+}
+
+void TestDatabase::testUpdateSongRerollsOldAndNewAlbumArtwork()
+{
+    // Two tracks of the same album; the album cover comes from the first.
+    Song first;
+    first.path = QStringLiteral("/music/roll_a.mp3");
+    first.title = QStringLiteral("Roll A");
+    first.artist = QStringLiteral("Roller");
+    first.album = QStringLiteral("Roll Album");
+    first.trackNumber = 1;
+    first.artworkPath = QStringLiteral("/art/a.png");
+    Song second;
+    second.path = QStringLiteral("/music/roll_b.mp3");
+    second.title = QStringLiteral("Roll B");
+    second.artist = QStringLiteral("Roller");
+    second.album = QStringLiteral("Roll Album");
+    second.trackNumber = 2;
+    second.artworkPath = QStringLiteral("/art/b.png");
+    QVERIFY(m_db.addSong(first));
+    QVERIFY(m_db.addSong(second));
+    m_db.refreshAlbumArtwork();
+
+    const auto artworkOf = [this](const QString &title) {
+        for (const Album &album : m_db.getAllAlbums()) {
+            if (album.title == title)
+                return album.artworkPath;
+        }
+        return QString();
+    };
+    QCOMPARE(artworkOf(QStringLiteral("Roll Album")), QStringLiteral("/art/a.png"));
+
+    // Move the artwork-bearing track to a new album. Both the album it left
+    // and the album it joined must re-roll, which is why the scoped refresh
+    // tracks the row's OLD album id as well as its new one.
+    Song moved = m_db.getSong(first.id);
+    moved.album = QStringLiteral("Other Album");
+    moved.artworkPath = QStringLiteral("/art/c.png");
+    QVERIFY(m_db.updateSong(moved));
+
+    QCOMPARE(artworkOf(QStringLiteral("Roll Album")), QStringLiteral("/art/b.png"));
+    QCOMPARE(artworkOf(QStringLiteral("Other Album")), QStringLiteral("/art/c.png"));
+}
+
+void TestDatabase::testUpdateSongPrunesTheEntitiesItEmptied()
+{
+    Song song;
+    song.path = QStringLiteral("/music/solo.mp3");
+    song.title = QStringLiteral("Solo");
+    song.artist = QStringLiteral("Solo Artist");
+    song.album = QStringLiteral("Solo Album");
+    song.genre = QStringLiteral("Solo Genre");
+    QVERIFY(m_db.addSong(song));
+
+    // Reassign every entity: the three the row used to reference are left
+    // with no songs and must be pruned, exactly like the full sweep did.
+    Song moved = m_db.getSong(song.id);
+    moved.artist = QStringLiteral("New Artist");
+    moved.album = QStringLiteral("New Album");
+    moved.genre = QStringLiteral("New Genre");
+    QVERIFY(m_db.updateSong(moved));
+
+    const auto rowExists = [](const QString &table, const QString &name) {
+        QSqlQuery query(QSqlDatabase::database());
+        query.prepare(QStringLiteral(
+            "SELECT COUNT(*) FROM %1 WHERE name = ?").arg(table));
+        query.addBindValue(name);
+        return query.exec() && query.next() && query.value(0).toInt() > 0;
+    };
+    QVERIFY(!rowExists(QStringLiteral("artists"), QStringLiteral("Solo Artist")));
+    QVERIFY(!rowExists(QStringLiteral("genres"), QStringLiteral("Solo Genre")));
+
+    QSqlQuery albumCount(QSqlDatabase::database());
+    QVERIFY(albumCount.exec(QStringLiteral(
+        "SELECT COUNT(*) FROM albums WHERE title = 'Solo Album'")));
+    QVERIFY(albumCount.next());
+    QCOMPARE(albumCount.value(0).toInt(), 0);
+
+    // The new entities survive.
+    QVERIFY(rowExists(QStringLiteral("artists"), QStringLiteral("New Artist")));
+    QVERIFY(rowExists(QStringLiteral("genres"), QStringLiteral("New Genre")));
 }
 
 // THE rescan policy pin: an edited row keeps its user-curated tag columns

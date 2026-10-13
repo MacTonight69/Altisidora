@@ -169,6 +169,15 @@ bool sqliteSupportsReturning()
     return supported;
 }
 
+// Appends @p id to @p list when it is a real row id and not already present.
+// Used to build the (deduplicated) set of entity ids a mutation touched.
+void appendUniqueId(QList<qint64> *list, qint64 id)
+{
+    if (id > 0 && !list->contains(id)) {
+        list->append(id);
+    }
+}
+
 } // namespace
 
 DatabaseManager::DatabaseManager()
@@ -546,15 +555,17 @@ bool DatabaseManager::updateSong(const Song &song)
         qWarning() << "updateSong: failed to start transaction";
         return false;
     }
-    if (!updateSongRow(song)) {
+    TouchedEntities touched;
+    if (!updateSongRow(song, &touched)) {
         rollbackTransaction();
         return false;
     }
-    // Album cards roll up from the freshly edited songs' artwork and the
-    // entity rows the edit may have orphaned are dropped, both in the
-    // same transaction (like the scan commit path).
-    refreshAlbumArtwork();
-    cleanupOrphanEntities();
+    // Album cards roll up from the freshly edited song's artwork and the
+    // entity rows the edit may have orphaned are dropped, both in the same
+    // transaction (like the scan commit path) — scoped to the albums and
+    // entities this one edit actually touched.
+    refreshAlbumArtworkFor(touched.albumIds);
+    cleanupOrphanEntitiesFor(touched);
     return commitTransaction();
 }
 
@@ -567,8 +578,9 @@ bool DatabaseManager::updateSongs(const QList<Song> &songs)
         qWarning() << "updateSongs: failed to start transaction";
         return false;
     }
+    TouchedEntities touched;
     for (const Song &song : songs) {
-        if (!updateSongRow(song)) {
+        if (!updateSongRow(song, &touched)) {
             // One bad row rolls the whole batch back: a half-applied
             // batch edit would leave the library inconsistent.
             rollbackTransaction();
@@ -576,17 +588,37 @@ bool DatabaseManager::updateSongs(const QList<Song> &songs)
         }
     }
     // The rollup and the cleanup are batch-wide concerns: run them once
-    // after the last row, not once per song.
-    refreshAlbumArtwork();
-    cleanupOrphanEntities();
+    // after the last row, over the union of the albums/entities the batch
+    // touched.
+    refreshAlbumArtworkFor(touched.albumIds);
+    cleanupOrphanEntitiesFor(touched);
     return commitTransaction();
 }
 
-bool DatabaseManager::updateSongRow(const Song &song)
+bool DatabaseManager::updateSongRow(const Song &song, TouchedEntities *touched)
 {
     const qint64 artistId = resolveNamedRow(m_db, QStringLiteral("artists"), song.artist);
     const qint64 albumId = resolveAlbum(m_db, song.album, artistId, song.year);
     const qint64 genreId = resolveNamedRow(m_db, QStringLiteral("genres"), song.genre);
+
+    // Read the row's current entity ids so the caller can scope its artwork
+    // rollup and orphan cleanup to the albums/artists/genres this edit can
+    // have changed: moving a song off an album changes that album's cover
+    // too, so old and new ids are both needed.
+    qint64 oldArtistId = 0;
+    qint64 oldAlbumId = 0;
+    qint64 oldGenreId = 0;
+    {
+        QSqlQuery previous(m_db);
+        previous.prepare(QStringLiteral(
+            "SELECT artist_id, album_id, genre_id FROM songs WHERE id = ?"));
+        previous.addBindValue(song.id);
+        if (previous.exec() && previous.next()) {
+            oldArtistId = previous.value(0).toLongLong();
+            oldAlbumId = previous.value(1).toLongLong();
+            oldGenreId = previous.value(2).toLongLong();
+        }
+    }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
@@ -610,10 +642,21 @@ bool DatabaseManager::updateSongRow(const Song &song)
     // disc_number are deliberately not written (not user-editable) and
     // neither are mtime/size (the file did not change, so the next scan
     // must keep fingerprint-skipping it).
-    return query.numRowsAffected() == 1;
+    if (query.numRowsAffected() != 1) {
+        return false;
+    }
+    // The row changed: record its previous and new entities so the caller
+    // rolls up and cleans up exactly the affected ones.
+    appendUniqueId(&touched->artistIds, oldArtistId);
+    appendUniqueId(&touched->artistIds, artistId);
+    appendUniqueId(&touched->albumIds, oldAlbumId);
+    appendUniqueId(&touched->albumIds, albumId);
+    appendUniqueId(&touched->genreIds, oldGenreId);
+    appendUniqueId(&touched->genreIds, genreId);
+    return true;
 }
 
-void DatabaseManager::cleanupOrphanEntities()
+void DatabaseManager::cleanupOrphanEntitiesFor(const TouchedEntities &touched)
 {
     // Children first: albums.artist_id references artists, so with
     // PRAGMA foreign_keys = ON an orphan artist referenced by a (soon to
@@ -621,13 +664,82 @@ void DatabaseManager::cleanupOrphanEntities()
     // still exists. Deleting albums first releases the reference and the
     // artist cleanup actually succeeds. genres reference nothing beyond
     // songs.
-    QSqlQuery cleanup(m_db);
-    cleanup.exec("DELETE FROM albums WHERE id NOT IN "
-                 "(SELECT DISTINCT album_id FROM songs WHERE album_id IS NOT NULL)");
-    cleanup.exec("DELETE FROM artists WHERE id NOT IN "
-                 "(SELECT DISTINCT artist_id FROM songs WHERE artist_id IS NOT NULL)");
-    cleanup.exec("DELETE FROM genres WHERE id NOT IN "
-                 "(SELECT DISTINCT genre_id FROM songs WHERE genre_id IS NOT NULL)");
+    //
+    // Only the entities the mutation touched can have lost their last song,
+    // so pruning just those is equivalent to the full-library sweep while
+    // being O(touched) instead of O(library).
+    pruneOrphanEntities(QStringLiteral("albums"), QStringLiteral("album_id"),
+                        touched.albumIds);
+    pruneOrphanEntities(QStringLiteral("artists"), QStringLiteral("artist_id"),
+                        touched.artistIds);
+    pruneOrphanEntities(QStringLiteral("genres"), QStringLiteral("genre_id"),
+                        touched.genreIds);
+}
+
+void DatabaseManager::pruneOrphanEntities(const QString &table,
+                                          const QString &column,
+                                          const QList<qint64> &ids)
+{
+    if (ids.isEmpty()) {
+        return;
+    }
+    // Chunked like songPathsByIds(): SQLITE_MAX_VARIABLE_NUMBER has
+    // historically been 999. `table` and `column` are compile-time literals,
+    // never user input.
+    constexpr int kMaxIdsPerStatement = 500;
+    for (int start = 0; start < ids.size(); start += kMaxIdsPerStatement) {
+        const QList<qint64> chunk = ids.mid(start, kMaxIdsPerStatement);
+        QStringList placeholders;
+        placeholders.reserve(chunk.size());
+        for (int i = 0; i < chunk.size(); ++i) {
+            placeholders.append(QStringLiteral("?"));
+        }
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral(
+            "DELETE FROM %1 WHERE id IN (%2) AND NOT EXISTS "
+            "(SELECT 1 FROM songs WHERE songs.%3 = %1.id)")
+            .arg(table, placeholders.join(QLatin1Char(',')), column));
+        for (const qint64 id : chunk) {
+            query.addBindValue(id);
+        }
+        if (!query.exec()) {
+            qWarning() << "pruneOrphanEntities: delete failed:"
+                       << query.lastError().text();
+        }
+    }
+}
+
+DatabaseManager::TouchedEntities
+DatabaseManager::entityIdsForSongs(const QList<qint64> &songIds) const
+{
+    TouchedEntities touched;
+    if (songIds.isEmpty()) {
+        return touched;
+    }
+    constexpr int kMaxIdsPerStatement = 500;
+    for (int start = 0; start < songIds.size(); start += kMaxIdsPerStatement) {
+        const QList<qint64> chunk = songIds.mid(start, kMaxIdsPerStatement);
+        QStringList placeholders;
+        placeholders.reserve(chunk.size());
+        for (int i = 0; i < chunk.size(); ++i) {
+            placeholders.append(QStringLiteral("?"));
+        }
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral(
+            "SELECT artist_id, album_id, genre_id FROM songs WHERE id IN (%1)")
+            .arg(placeholders.join(QLatin1Char(','))));
+        for (const qint64 id : chunk) {
+            query.addBindValue(id);
+        }
+        if (query.exec()) {
+            while (query.next()) {
+                appendUniqueId(&touched.artistIds, query.value(0).toLongLong());
+                appendUniqueId(&touched.albumIds, query.value(1).toLongLong());
+                appendUniqueId(&touched.genreIds, query.value(2).toLongLong());
+            }
+        }
+    }
+    return touched;
 }
 
 bool DatabaseManager::renameArtist(const QString &from, const QString &to)
@@ -679,6 +791,17 @@ bool DatabaseManager::setAlbumIdentity(const QString &title, const QString &arti
         qWarning() << "setAlbumIdentity: failed to start transaction";
         return false;
     }
+    // The album's current artist may be orphaned once the album moves, so
+    // capture it before the UPDATE below rewrites the row.
+    TouchedEntities touched;
+    {
+        QSqlQuery previous(m_db);
+        previous.prepare(QStringLiteral("SELECT artist_id FROM albums WHERE id = ?"));
+        previous.addBindValue(albumId);
+        if (previous.exec() && previous.next()) {
+            appendUniqueId(&touched.artistIds, previous.value(0).toLongLong());
+        }
+    }
     // Resolve-or-create the target artist inside the transaction, so a
     // refusal or a failed update below leaves no orphan artist row behind.
     const qint64 newArtistId = resolveNamedRow(m_db, QStringLiteral("artists"), newArtist);
@@ -686,6 +809,7 @@ bool DatabaseManager::setAlbumIdentity(const QString &title, const QString &arti
         rollbackTransaction();
         return false;
     }
+    appendUniqueId(&touched.artistIds, newArtistId);
     {
         // No database constraint enforces uniqueness on (title, artist_id),
         // so the collision check is code only: landing on an existing album
@@ -746,7 +870,7 @@ bool DatabaseManager::setAlbumIdentity(const QString &title, const QString &arti
         }
     }
     // Moving the last album of the old artist can orphan that artist row.
-    cleanupOrphanEntities();
+    cleanupOrphanEntitiesFor(touched);
     return commitTransaction();
 }
 
@@ -778,8 +902,8 @@ bool DatabaseManager::setAlbumArtwork(const QString &title, const QString &artis
         return false; // the album has no songs to point at the cover
     }
     // Album cards roll up from the song artwork in the same transaction,
-    // exactly like setArtwork().
-    refreshAlbumArtwork();
+    // exactly like setArtwork(); only this album's cover can change.
+    refreshAlbumArtworkFor(QList<qint64>{albumId});
     return commitTransaction();
 }
 
@@ -807,8 +931,8 @@ bool DatabaseManager::setArtwork(qint64 songId, const QString &imagePath)
         return false; // unknown id
     }
     // Album cards roll up from the song artwork in the same transaction,
-    // exactly like the scan commit path.
-    refreshAlbumArtwork();
+    // exactly like the scan commit path; only this song's album can change.
+    refreshAlbumArtworkFor(entityIdsForSongs(QList<qint64>{songId}).albumIds);
     return commitTransaction();
 }
 
@@ -889,6 +1013,10 @@ bool DatabaseManager::removeSongs(const QList<qint64> &ids)
         return false;
     }
 
+    // Read the entities the doomed songs reference before their rows
+    // disappear, so the cleanup below only has to look at those.
+    const TouchedEntities touched = entityIdsForSongs(ids);
+
     // playlist_songs has no ON DELETE CASCADE and SQLite does not enforce
     // foreign keys by default, so each song's playlist rows must be removed
     // first to avoid orphaned references. The whole batch shares one
@@ -911,9 +1039,9 @@ bool DatabaseManager::removeSongs(const QList<qint64> &ids)
     }
 
     // Drop artists/albums/genres that no longer have any songs (best-effort
-    // cleanup, once for the whole batch; the views already hide orphans via
-    // HAVING song_count > 0).
-    cleanupOrphanEntities();
+    // cleanup, once for the whole batch, over just the affected entities;
+    // the views already hide orphans via HAVING song_count > 0).
+    cleanupOrphanEntitiesFor(touched);
 
     return commitTransaction();
 }
@@ -1071,6 +1199,39 @@ void DatabaseManager::refreshAlbumArtwork()
             "WHERE s.album_id = albums.id AND s.artwork_path IS NOT NULL "
             "AND s.artwork_path != '' "
             "ORDER BY s.disc_number, s.track_number, s.id LIMIT 1)");
+}
+
+void DatabaseManager::refreshAlbumArtworkFor(const QList<qint64> &albumIds)
+{
+    if (albumIds.isEmpty()) {
+        return;
+    }
+    // Same statement as refreshAlbumArtwork(), restricted to the albums the
+    // mutation touched. Chunked for SQLITE_MAX_VARIABLE_NUMBER.
+    constexpr int kMaxIdsPerStatement = 500;
+    for (int start = 0; start < albumIds.size(); start += kMaxIdsPerStatement) {
+        const QList<qint64> chunk = albumIds.mid(start, kMaxIdsPerStatement);
+        QStringList placeholders;
+        placeholders.reserve(chunk.size());
+        for (int i = 0; i < chunk.size(); ++i) {
+            placeholders.append(QStringLiteral("?"));
+        }
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral(
+            "UPDATE albums SET artwork_path = ("
+            "SELECT s.artwork_path FROM songs s "
+            "WHERE s.album_id = albums.id AND s.artwork_path IS NOT NULL "
+            "AND s.artwork_path != '' "
+            "ORDER BY s.disc_number, s.track_number, s.id LIMIT 1) "
+            "WHERE id IN (%1)").arg(placeholders.join(QLatin1Char(','))));
+        for (const qint64 id : chunk) {
+            query.addBindValue(id);
+        }
+        if (!query.exec()) {
+            qWarning() << "refreshAlbumArtworkFor: update failed:"
+                       << query.lastError().text();
+        }
+    }
 }
 
 bool DatabaseManager::addPlaylist(Playlist &playlist)
