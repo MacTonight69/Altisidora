@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 ## Summary
 
@@ -9,7 +9,7 @@ structure, build system, implementations, tests and a QML interface wired to
 the controllers are in place. All tests pass.
 
 - **Build:** working (CMake + Qt 6.12 + TagLib 2.3)
-- **Tests:** 12/12 test suites passing (100%)
+- **Tests:** 13/13 test suites passing (100%)
 - **Status of functionality:** scan → browse → search → play works end to end
   with a real music folder; tags (title/artist/album/year/artwork) can be
   edited individually or in batch and survive rescans.
@@ -25,7 +25,8 @@ the controllers are in place. All tests pass.
 | Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, re-decodes Shift-JIS mojibake in mislabeled Latin-1 tags, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh + QML-facing tag mutators). A scan also reconciles the library: songs whose file disappeared since the last scan are dropped from the list and the database, and `scanFinished(removedCount)` reports how many (see the pruning rules under Known limitations) |
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
 | GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (right-click selects, Ctrl/Shift+right-click extend, Ctrl+A selects all) with batch add to playlist. Tag editing: a per-row actions menu ("Edit tags…", "Add to playlist…", "Delete…") edits title/artist/album/year plus artwork, adds the song to a playlist, or deletes it through the same Settings-driven flow as Ctrl+D; the selection bar batch-reassigns album or artist (field-level only), and the album/artist drill-down header renames the collection. A scan that drops songs whose file no longer exists reports how many in a transient notice above the player bar |
-| Tests | `tests/` | Implemented | 10 unit + 2 integration suites, all passing; see below |
+| Themes | `resources/qml/themes/` | Implemented | `Theme.qml` is a context property (not a QML singleton) plus the `Themes.js` catalog; `Theme.apply()` re-assigns every role live so the whole UI restyles. A theme carries a palette, `fontFamily`, `fontScale` and `sidebarWidth`; `Coco`/`Onyx` opt into 1.4, `Anarchism` into 1.9 with a 260px sidebar, and every other theme — the Baskervville `Maya` included — uses the default 1.0/210. `SettingsController` persists the selection and migrates the dead `Anarchy` key to `Anarchism` |
+| Tests | `tests/` | Implemented | 11 unit + 2 integration suites, all passing; see below |
 | Packaging | root | Initial | `PKGBUILD`, `.desktop` |
 
 ## Public API
@@ -56,6 +57,7 @@ Run with `ctest --output-on-failure` from the build directory.
 | tst_settings | unit (real SettingsController) | Real tests |
 | tst_theme_fonts | unit (real SettingsController + bundled theme QML) | Real tests |
 | tst_mpris | unit (real MprisPlayer over a private D-Bus session) | Real tests |
+| tst_detail_view | unit (real album/artist drill-down view + bundled theme QML) | Real tests |
 | tst_library_scan | integration (real scan + persistence across restart) | Real tests |
 | tst_playback | integration (scan → library → `loadSong` data flow) | Actual audio playback needs a media backend, not exercised by the suite |
 

@@ -85,10 +85,15 @@ void tst_theme_fonts::settle()
 void tst_theme_fonts::testThemeDataScaleRule()
 {
     // Per-theme opt-in typography scale; every other theme stays at 1.0.
+    // Maya is NOT in this list: the Baskervville Maya added with the
+    // Maya->Anarchism rename uses the default scale, and the 1.9
+    // red-and-black palette lives under "Anarchism". (The option-E spec had
+    // given the new Maya 1.9 + a 260px sidebar; those two overrides were
+    // dropped in 96fadcf without updating this test, which is the divergence
+    // this map now pins.)
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
         {QStringLiteral("Anarchism"), 1.9},
-        {QStringLiteral("Maya"), 1.9},
         {QStringLiteral("Onyx"), 1.4},
     };
 
@@ -121,7 +126,6 @@ void tst_theme_fonts::testApplyAssignsFontScale()
     const QHash<QString, double> scales = {
         {QStringLiteral("Coco"), 1.4},
         {QStringLiteral("Anarchism"), 1.9},
-        {QStringLiteral("Maya"), 1.9},
         {QStringLiteral("Onyx"), 1.4},
     };
     const QList<QString> names = scales.keys();
@@ -193,7 +197,8 @@ void tst_theme_fonts::testBindingRerendersOnApply()
 
 void tst_theme_fonts::testScaleDropsBackOnMimy()
 {
-    applyTheme(QStringLiteral("Maya"));
+    // Anarchism is the widest-typeface theme that opts into 1.9.
+    applyTheme(QStringLiteral("Anarchism"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.9);
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
@@ -210,14 +215,19 @@ void tst_theme_fonts::testVacuiUsesSystemFontFamily()
 
 void tst_theme_fonts::testSidebarWidthPerTheme()
 {
-    // Themes that do not override it keep the standard sidebar width.
+    // Themes that do not override it keep the standard sidebar width, Maya
+    // (Baskervville) included: only the themes that opt into the larger type
+    // pay for a wider sidebar.
     applyTheme(QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("sidebarWidth").toDouble(), 210.0);
 
-    // Maya opts into a wider sidebar so its 1.9-scaled nav labels fit.
     applyTheme(QStringLiteral("Maya"));
+    QCOMPARE(m_theme->property("sidebarWidth").toDouble(), 210.0);
+
+    // Anarchism opts into a wider sidebar so its 1.9-scaled nav labels fit.
+    applyTheme(QStringLiteral("Anarchism"));
     QVERIFY2(m_theme->property("sidebarWidth").toDouble() > 210.0,
-             "Maya must widen the sidebar for its larger typeface");
+             "Anarchism must widen the sidebar for its larger typeface");
 
     // Switching away must restore the default: apply() always assigns the
     // role, so the previous theme's width must not stick.
@@ -273,18 +283,18 @@ void tst_theme_fonts::testRuntimeThemeSwitchChain()
 
     // Drive the same path the Settings combo uses: switching to a scaled
     // theme must re-apply the palette AND the typography scale, and persist
-    // both to the config. Maya carries the largest rhythm check: 1.9 in
+    // both to the config. Anarchism carries the largest rhythm check: 1.9 in
     // both the applied palette and the config.
-    settings.setTheme(QStringLiteral("Maya"));
-    QCOMPARE(settings.theme(), QStringLiteral("Maya"));
-    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Maya"));
+    settings.setTheme(QStringLiteral("Anarchism"));
+    QCOMPARE(settings.theme(), QStringLiteral("Anarchism"));
+    QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Anarchism"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.9);
     QCOMPARE(settings.fontScale(), 1.9);
 
     // Both values must be persisted to the config file.
     QSettings check(QStringLiteral("Altisidora"), QStringLiteral("Altisidora"));
     QCOMPARE(check.value(QStringLiteral("theme")).toString(),
-             QStringLiteral("Maya"));
+             QStringLiteral("Anarchism"));
     QCOMPARE(check.value(QStringLiteral("fontScale")).toDouble(), 1.9);
 
     // Switching back to a non-scaled theme drops the scale and persists it.
