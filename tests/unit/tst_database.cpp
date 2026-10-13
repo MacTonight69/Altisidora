@@ -27,6 +27,8 @@ private slots:
     void testRemoveSongCleansPlaylistReferences();
     void testRemoveSongCleansOrphanEntities();
     void testRemoveSongsBatch();
+    void testSongPathsByIds();
+    void testAddIgnoredPathsBatch();
     void testSearchSongs();
     void testSongsByAlbum();
     void testSongsByArtist();
@@ -240,6 +242,48 @@ void TestDatabase::testRemoveSongsBatch()
     // An empty batch is a no-op, never a wipe.
     QVERIFY(!m_db.removeSongs(QList<qint64>()));
     QCOMPARE(m_db.getAllSongs().size(), 1);
+}
+
+void TestDatabase::testSongPathsByIds()
+{
+    Song first;
+    first.path = QStringLiteral("/music/p1.mp3");
+    Song second;
+    second.path = QStringLiteral("/music/p2.mp3");
+    Song third;
+    third.path = QStringLiteral("/music/p3.mp3");
+    QVERIFY(m_db.addSong(first));
+    QVERIFY(m_db.addSong(second));
+    QVERIFY(m_db.addSong(third));
+
+    // Every known id resolves in one call; unknown ids are simply absent.
+    const QHash<qint64, QString> paths =
+        m_db.songPathsByIds(QList<qint64>{first.id, third.id, 999999});
+    QCOMPARE(paths.size(), 2);
+    QCOMPARE(paths.value(first.id), first.path);
+    QCOMPARE(paths.value(third.id), third.path);
+
+    // An empty selection never touches the database.
+    QVERIFY(m_db.songPathsByIds(QList<qint64>()).isEmpty());
+}
+
+void TestDatabase::testAddIgnoredPathsBatch()
+{
+    // Empty strings are skipped and the whole batch lands in one call.
+    QVERIFY(m_db.addIgnoredPaths(QStringList{QStringLiteral("/music/a.mp3"),
+                                             QStringLiteral("/music/b.mp3"),
+                                             QString()}));
+    QCOMPARE(m_db.ignoredPaths().size(), 2);
+    QVERIFY(m_db.ignoredPaths().contains(QStringLiteral("/music/a.mp3")));
+
+    // Re-adding an already-hidden path (INSERT OR IGNORE) is a no-op, not a
+    // duplicate row.
+    QVERIFY(m_db.addIgnoredPaths(QStringList{QStringLiteral("/music/a.mp3")}));
+    QCOMPARE(m_db.ignoredPaths().size(), 2);
+
+    // An empty batch is a successful no-op.
+    QVERIFY(m_db.addIgnoredPaths(QStringList()));
+    QCOMPARE(m_db.ignoredPaths().size(), 2);
 }
 
 void TestDatabase::testSearchSongs()

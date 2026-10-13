@@ -111,6 +111,11 @@ public:
     // id -> path for every stored song, used by the scan's pruning pass to
     // find the rows whose file no longer exists.
     QList<QPair<qint64, QString>> songIdsAndPaths() const;
+    // id -> path for the requested ids, resolved in one (or a few, when the
+    // selection exceeds SQLite's variable limit) queries. Ids that are not
+    // in the table are simply absent from the map. Used to resolve a
+    // delete/hide selection without one getSong() per id.
+    QHash<qint64, QString> songPathsByIds(const QList<qint64> &ids) const;
     bool removeSong(qint64 id);
     // Remove several songs in ONE transaction: their playlist references
     // first, then the rows, then a single orphan-entity cleanup. Used by the
@@ -149,6 +154,11 @@ public:
     // kept in the database but excluded from every song query, so it
     // disappears from the lists without being deleted from disk.
     bool addIgnoredPath(const QString &path, bool isDir = false);
+    // Insert several hidden paths in ONE transaction (see addIgnoredPath()).
+    // Empty strings are skipped; an empty (or all-empty) batch is a
+    // successful no-op. is_dir is left at 0 for every entry: it is
+    // informational only and never read (see createTables()).
+    bool addIgnoredPaths(const QStringList &paths);
     bool removeIgnoredPath(const QString &path);
     QStringList ignoredPaths() const;
 

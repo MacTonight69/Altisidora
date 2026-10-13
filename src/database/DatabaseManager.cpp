@@ -839,6 +839,42 @@ QList<QPair<qint64, QString>> DatabaseManager::songIdsAndPaths() const
     return rows;
 }
 
+QHash<qint64, QString> DatabaseManager::songPathsByIds(const QList<qint64> &ids) const
+{
+    QHash<qint64, QString> paths;
+    if (ids.isEmpty()) {
+        return paths;
+    }
+
+    // Chunked because SQLITE_MAX_VARIABLE_NUMBER has historically been 999
+    // and "select every song then delete" can exceed it. One statement per
+    // chunk, with as many placeholders as ids in that chunk.
+    constexpr int kMaxIdsPerStatement = 500;
+    for (int start = 0; start < ids.size(); start += kMaxIdsPerStatement) {
+        const QList<qint64> chunk = ids.mid(start, kMaxIdsPerStatement);
+
+        QStringList placeholders;
+        placeholders.reserve(chunk.size());
+        for (int i = 0; i < chunk.size(); ++i) {
+            placeholders.append(QStringLiteral("?"));
+        }
+
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral("SELECT id, path FROM songs WHERE id IN (%1)")
+                          .arg(placeholders.join(QLatin1Char(','))));
+        for (const qint64 id : chunk) {
+            query.addBindValue(id);
+        }
+        if (query.exec()) {
+            while (query.next()) {
+                paths.insert(query.value(0).toLongLong(),
+                             query.value(1).toString());
+            }
+        }
+    }
+    return paths;
+}
+
 bool DatabaseManager::removeSong(qint64 id)
 {
     return removeSongs(QList<qint64>{id});
@@ -1146,6 +1182,36 @@ bool DatabaseManager::addIgnoredPath(const QString &path, bool isDir)
     query.bindValue(":is_dir", isDir ? 1 : 0);
     query.bindValue(":date_added", QDateTime::currentDateTime().toString(Qt::ISODate));
     return query.exec();
+}
+
+bool DatabaseManager::addIgnoredPaths(const QStringList &paths)
+{
+    if (paths.isEmpty()) {
+        return true;
+    }
+    if (!beginTransaction()) {
+        return false;
+    }
+    QSqlQuery query(m_db);
+    query.prepare("INSERT OR IGNORE INTO ignored_paths (path, is_dir, date_added) "
+                  "VALUES (:path, :is_dir, :date_added)");
+    const QString now = QDateTime::currentDateTime().toString(Qt::ISODate);
+    for (const QString &path : paths) {
+        if (path.isEmpty()) {
+            continue;
+        }
+        query.bindValue(":path", path);
+        // File paths only: a whole-directory hide goes through
+        // addIgnoredPath() with isDir = true; is_dir is informational and
+        // never read.
+        query.bindValue(":is_dir", 0);
+        query.bindValue(":date_added", now);
+        if (!query.exec()) {
+            rollbackTransaction();
+            return false;
+        }
+    }
+    return commitTransaction();
 }
 
 bool DatabaseManager::removeIgnoredPath(const QString &path)

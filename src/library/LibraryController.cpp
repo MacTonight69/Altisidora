@@ -367,24 +367,40 @@ void LibraryController::removeSongs(const QVariantList &ids, bool deleteFiles)
     if (ids.isEmpty()) {
         return;
     }
+    QList<qint64> songIds;
+    songIds.reserve(ids.size());
     for (const QVariant &id : ids) {
-        const Song song = m_db.getSong(id.toLongLong());
-        if (!song.path.isEmpty()) {
-            if (deleteFiles) {
-                // Active mode: delete the audio file from disk. If the OS
-                // refuses (permissions, busy file...), register the path as
-                // ignored so a later scan cannot silently re-import it.
-                if (!QFile::remove(song.path)) {
-                    m_db.addIgnoredPath(song.path, false);
-                }
-            } else {
-                // Passive mode: keep the file on disk but make future scans
-                // skip it through the existing hidden-items mechanism.
-                m_db.addIgnoredPath(song.path, false);
-            }
-        }
-        m_db.removeSong(id.toLongLong());
+        songIds.append(id.toLongLong());
     }
+
+    // Resolve every path in ONE query and delete the whole selection in ONE
+    // transaction. The old per-id loop issued a getSong() and a removeSong()
+    // transaction — each with its own full orphan-entity cleanup — per song,
+    // which made a multi-selection O(N^2) in the database.
+    const QHash<qint64, QString> paths = m_db.songPathsByIds(songIds);
+    QStringList toIgnore;
+    for (const qint64 id : songIds) {
+        const QString path = paths.value(id);
+        if (path.isEmpty()) {
+            continue; // unknown id: nothing on disk to touch
+        }
+        if (deleteFiles) {
+            // Active mode: delete the audio file from disk. If the OS
+            // refuses (permissions, busy file...), register the path as
+            // ignored so a later scan cannot silently re-import it.
+            if (!QFile::remove(path)) {
+                toIgnore.append(path);
+            }
+        } else {
+            // Passive mode: keep the file on disk but make future scans
+            // skip it through the existing hidden-items mechanism.
+            toIgnore.append(path);
+        }
+    }
+    if (!toIgnore.isEmpty()) {
+        m_db.addIgnoredPaths(toIgnore);
+    }
+    m_db.removeSongs(songIds);
     refresh();
 }
 

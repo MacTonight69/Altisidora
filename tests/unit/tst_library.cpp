@@ -47,6 +47,9 @@ private slots:
     void testRescanSkipsIgnored();
     void testRemoveSongsDeletesFile();
     void testRemoveSongsIgnoresFile();
+    void testRemoveSongsBatch();
+    void testRemoveSongsBatchDeletesFiles();
+    void testRemoveSongsBatchIgnoresUndeletableFile();
 
     // ---- Tag editing (Option D) ----
     void testUpdateSongEmitsLibraryChangedOnce();
@@ -402,6 +405,92 @@ void tst_library::testRemoveSongsIgnoresFile()
     m_controller->scan(m_tempDir.path());
     QVERIFY(waitForScanFinished());
     QCOMPARE(m_controller->songCount(), 1);
+}
+
+void tst_library::testRemoveSongsBatch()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 3);
+
+    const QVector<QVariant> songs = m_controller->songs();
+    const QVariantMap a = songs.at(0).toMap();
+    const QVariantMap b = songs.at(1).toMap();
+    const QVariantMap keep = songs.at(2).toMap();
+    const QString pathA = a.value(QStringLiteral("path")).toString();
+    const QString pathB = b.value(QStringLiteral("path")).toString();
+
+    QSignalSpy spy(m_controller, &LibraryController::libraryChanged);
+
+    // Passive mode over a multi-selection: both files stay on disk, both
+    // paths are hidden, and the whole selection costs ONE refresh (not one
+    // per song).
+    QVariantList ids;
+    ids << a.value(QStringLiteral("id")) << b.value(QStringLiteral("id"));
+    m_controller->removeSongs(ids, false);
+
+    QVERIFY(QFile::exists(pathA));
+    QVERIFY(QFile::exists(pathB));
+    QCOMPARE(m_controller->songCount(), 1);
+    QVERIFY(m_controller->ignoredPaths().contains(pathA));
+    QVERIFY(m_controller->ignoredPaths().contains(pathB));
+    QCOMPARE(spy.count(), 1);
+
+    // The unselected song survived untouched.
+    QCOMPARE(m_controller->songs().first().toMap()
+                 .value(QStringLiteral("id")).toLongLong(),
+             keep.value(QStringLiteral("id")).toLongLong());
+}
+
+void tst_library::testRemoveSongsBatchDeletesFiles()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 3);
+
+    const QVector<QVariant> songs = m_controller->songs();
+    QVariantList ids;
+    QStringList paths;
+    for (int i = 0; i < 2; ++i) {
+        const QVariantMap song = songs.at(i).toMap();
+        ids << song.value(QStringLiteral("id"));
+        paths << song.value(QStringLiteral("path")).toString();
+    }
+
+    // Active mode: every file of the selection is gone from disk and no path
+    // is hidden, because the deletes succeeded.
+    m_controller->removeSongs(ids, true);
+
+    for (const QString &path : paths) {
+        QVERIFY(!QFile::exists(path));
+        QVERIFY(!m_controller->ignoredPaths().contains(path));
+    }
+    QCOMPARE(m_controller->songCount(), 1);
+}
+
+void tst_library::testRemoveSongsBatchIgnoresUndeletableFile()
+{
+    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+    QCOMPARE(m_controller->songCount(), 2);
+
+    const QVariantMap first = m_controller->songs().first().toMap();
+    const QString path = first.value(QStringLiteral("path")).toString();
+
+    // Make the active-mode delete fail by removing the file behind the
+    // app's back: QFile::remove() then returns false and the path must fall
+    // back to hidden so a rescan cannot re-import it.
+    QVERIFY(QFile::remove(path));
+
+    QVariantList ids;
+    ids << first.value(QStringLiteral("id"));
+    m_controller->removeSongs(ids, true);
+
+    QCOMPARE(m_controller->songCount(), 1);
+    QVERIFY(m_controller->ignoredPaths().contains(path));
 }
 
 qint64 tst_library::insertSongRow(const QString &path, const QString &title)
