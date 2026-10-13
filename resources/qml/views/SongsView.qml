@@ -180,11 +180,11 @@ Rectangle {
         return Utils.formatDuration(ms)
     }
 
-    // Delete the selected songs. In active mode (the default) the audio
-    // files are removed from disk too, so a confirmation dialog runs first;
-    // in passive mode the rows are removed and the paths are registered as
-    // ignored. These actions are reusable from the toolbar buttons and from
-    // the global Ctrl+D / Ctrl+H / Ctrl+Shift+H shortcuts in main.qml.
+    // Delete the selected songs. Both modes confirm first: discarding the
+    // file from disk is irreversible, and removing it from the library
+    // hides it from future scans until it is restored in Settings. These
+    // actions are reusable from the row menu, the toolbar buttons and the
+    // global Ctrl+D / Ctrl+H / Ctrl+Shift+H shortcuts in main.qml.
     function applyDelete(deleteFiles) {
         if (songsView.selectedCount === 0)
             return
@@ -196,9 +196,9 @@ Rectangle {
         if (songsView.selectedCount === 0)
             return
         if (AppSettings.deleteFilesFromDisk)
-            deleteFromDiskDialog.open()   // irreversibly deletes files
+            deleteFromDiskDialog.open()        // irreversibly deletes files
         else
-            applyDelete(false)
+            deleteFromLibraryDialog.open()     // reversible: files stay on disk
     }
 
     // Hide the selected songs: they stay on disk and in the database, they
@@ -698,16 +698,19 @@ Rectangle {
         }
     }
 
-    // ---- confirmation before deleting the selected files from disk ----
+    // ---- confirmations before deleting the selected songs ----
     Dialog {
         id: deleteFromDiskDialog
         title: qsTr("Delete from disk")
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
+        // Explicit width: sizing the dialog from the wrapped content re-enters
+        // the Fusion style's implicitWidth binding and warns about a binding
+        // loop.
+        width: 340
 
         contentItem: ColumnLayout {
             spacing: 10
-            implicitWidth: 340
 
             Text {
                 Layout.fillWidth: true
@@ -730,6 +733,43 @@ Rectangle {
         }
 
         onAccepted: songsView.applyDelete(true)
+    }
+
+    // Removing from the library is reversible, but the files are hidden from
+    // every list and from future scans until they are restored in Settings,
+    // so this mode confirms too.
+    Dialog {
+        id: deleteFromLibraryDialog
+        title: qsTr("Remove from library")
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        // Same explicit width as the sibling dialog, for the same reason.
+        width: 340
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: qsTr("%n song(s) will be removed from the library and from any playlist.", "",
+                           songsView.selectedCount)
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: 13 * Theme.fontScale
+            }
+
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: qsTr("The audio files stay on disk and are skipped by future scans. Restore them from Settings, under “Hidden items”.")
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: 11 * Theme.fontScale
+            }
+        }
+
+        onAccepted: songsView.applyDelete(false)
     }
 
     // ---- shared tag editor (single song + batch album/artist) ----

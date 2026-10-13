@@ -162,7 +162,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
-                text: qsTr("“Delete files from disk” permanently removes the audio file (with a confirmation prompt). “Remove from library only” keeps the file on disk but hides it from future scans, like the Hidden items below.")
+                text: qsTr("Both modes confirm before deleting. “Delete files from disk” permanently removes the audio file; “Remove from library only” keeps the file on disk but hides it from future scans, like the Hidden items below.")
                 color: Theme.textMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: 11 * Theme.fontScale
