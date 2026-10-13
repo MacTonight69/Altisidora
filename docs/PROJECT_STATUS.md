@@ -22,7 +22,7 @@ the controllers are in place. All tests pass.
 | Database | `src/database/` | Implemented | `DatabaseManager`: SQLite, prepared statements, schema version table, CRUD. Songs are normalized (artist/album/genre rows resolved on insert); reads JOIN names back and artist/album/genre/playlist queries return `songCount`. Schema v4 adds an `edited` flag: `upsertSong()` CASE-guards the tag-derived columns so a rescan refreshes the file fingerprint (`mtime`/`size`) without clobbering user edits. Tag-update paths: `updateSong`/`updateSongs` (atomic batch), `renameArtist`/`setAlbumIdentity` (collision-refusing), `setArtwork` (content-hash cache), `setAlbumArtwork` (album cover) |
 | Audio | `src/audio/` | Implemented | `PlayerController` wrapping a libmpv session (10-band EQ, repeat-one); `load(url)` for raw URLs and `loadSong(map)` to keep library metadata for the UI |
 | System Integration | `src/mpris/` | Implemented | `MprisPlayer`: MPRIS v2 (`org.mpris.MediaPlayer2.altisidora`) over Qt DBus, registered in `src/main.cpp` |
-| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, re-decodes Shift-JIS mojibake in mislabeled Latin-1 tags, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh + QML-facing tag mutators) |
+| Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, re-decodes Shift-JIS mojibake in mislabeled Latin-1 tags, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/search/refresh + QML-facing tag mutators). A scan also reconciles the library: songs whose file disappeared since the last scan are dropped from the list and the database (see the pruning rules under Known limitations) |
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
 | GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (right-click selects, Ctrl/Shift+right-click extend, Ctrl+A selects all) with batch add to playlist. Tag editing: a per-row actions menu ("Edit tags…", "Add to playlist…", "Delete…") edits title/artist/album/year plus artwork, adds the song to a playlist, or deletes it through the same Settings-driven flow as Ctrl+D; the selection bar batch-reassigns album or artist (field-level only), and the album/artist drill-down header renames the collection |
 | Tests | `tests/` | Implemented | 10 unit + 2 integration suites, all passing; see below |
@@ -89,6 +89,17 @@ Test isolation:
   by the suite.
 - `LibraryController` does not load existing songs in its constructor; callers
   must invoke `refresh()` (done once in `src/main.cpp`; QML does not call it).
+- Scan pruning: a scan forgets the rows whose file disappeared since the last
+  one (deleted in a file manager, moved, or renamed), so a rescan cannot leave
+  phantom entries behind. Removal is deliberately conservative and happens only
+  when all of these hold: the row's path is inside the scanned root (scanning
+  folder A never forgets the songs of folder B), the walk did not see the path,
+  the file itself does not exist, and its parent directory still exists. The
+  last rule separates a real deletion from an unavailable volume: a whole folder
+  that vanished at once (unmounted drive, unplugged disk) looks like "every file
+  missing" and is left untouched until the volume is back, and a scan of a root
+  that does not exist prunes nothing. Hidden songs are kept too — their file is
+  still on disk, the walk merely skips it.
 - Migrations: there is no standalone migration runner; `DatabaseManager`
   applies versioned in-place migrations in `createTables()` (v2 file-stat
   columns, v3 artwork backfill, v4 `edited` flag) and records the version in

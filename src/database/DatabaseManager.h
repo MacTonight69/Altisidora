@@ -108,7 +108,15 @@ public:
     // path -> {mtimeMs, size} for every stored song, used to skip re-reading
     // tags for files that have not changed since the last scan.
     QHash<QString, QPair<qint64, qint64>> songFileStats() const;
+    // id -> path for every stored song, used by the scan's pruning pass to
+    // find the rows whose file no longer exists.
+    QList<QPair<qint64, QString>> songIdsAndPaths() const;
     bool removeSong(qint64 id);
+    // Remove several songs in ONE transaction: their playlist references
+    // first, then the rows, then a single orphan-entity cleanup. Used by the
+    // scan to forget songs whose file disappeared from disk. An empty list is
+    // a no-op and returns false.
+    bool removeSongs(const QList<qint64> &ids);
     Song getSong(qint64 id) const;
     QList<Song> getAllSongs() const;
     QList<Song> searchSongs(const QString &query) const;

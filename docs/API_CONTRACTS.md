@@ -70,6 +70,14 @@ and are notified through `libraryChanged()`.
 run on a worker thread, results are committed on the main thread, and QML is
 notified through `scanStarted()`/`scanFinished()`/`libraryChanged()`.
 
+A scan is also a reconciliation: a song whose file no longer exists inside the
+scanned directory is dropped from the library (list and database). The removal
+is deliberately conservative — it requires the row's path to be inside the
+scanned root, the walk to have missed it, the file to be confirmed absent, and
+its parent directory to still exist — so an unavailable volume (unmounted
+drive, unplugged disk) never costs the user its metadata. See
+`LibraryController::ScanResult` and the pruning notes in `LibraryController.cpp`.
+
 Artist, album and genre names stored on songs are resolved from normalized
 tables (`artists`, `albums`, `genres`) at scan time and joined back on read.
 

@@ -826,29 +826,60 @@ QHash<QString, QPair<qint64, qint64>> DatabaseManager::songFileStats() const
     return stats;
 }
 
+QList<QPair<qint64, QString>> DatabaseManager::songIdsAndPaths() const
+{
+    QList<QPair<qint64, QString>> rows;
+    QSqlQuery query(m_db);
+    if (query.exec(QStringLiteral("SELECT id, path FROM songs"))) {
+        while (query.next()) {
+            rows.append(qMakePair(query.value(0).toLongLong(),
+                                  query.value(1).toString()));
+        }
+    }
+    return rows;
+}
+
 bool DatabaseManager::removeSong(qint64 id)
 {
-    // playlist_songs has no ON DELETE CASCADE and SQLite does not enforce
-    // foreign keys by default, so the song's playlist rows must be removed
-    // first to avoid orphaned references.
-    QSqlQuery query(m_db);
-    query.prepare("DELETE FROM playlist_songs WHERE song_id=:id");
-    query.bindValue(":id", id);
-    if (!query.exec()) {
+    return removeSongs(QList<qint64>{id});
+}
+
+bool DatabaseManager::removeSongs(const QList<qint64> &ids)
+{
+    if (ids.isEmpty()) {
+        return false;
+    }
+    if (!beginTransaction()) {
         return false;
     }
 
-    query.prepare("DELETE FROM songs WHERE id=:id");
-    query.bindValue(":id", id);
-    if (!query.exec()) {
-        return false;
+    // playlist_songs has no ON DELETE CASCADE and SQLite does not enforce
+    // foreign keys by default, so each song's playlist rows must be removed
+    // first to avoid orphaned references. The whole batch shares one
+    // transaction, so a failure halfway leaves the library as it was.
+    QSqlQuery playlistRows(m_db);
+    playlistRows.prepare("DELETE FROM playlist_songs WHERE song_id=:id");
+    QSqlQuery songRows(m_db);
+    songRows.prepare("DELETE FROM songs WHERE id=:id");
+    for (const qint64 id : ids) {
+        playlistRows.bindValue(":id", id);
+        if (!playlistRows.exec()) {
+            rollbackTransaction();
+            return false;
+        }
+        songRows.bindValue(":id", id);
+        if (!songRows.exec()) {
+            rollbackTransaction();
+            return false;
+        }
     }
 
     // Drop artists/albums/genres that no longer have any songs (best-effort
-    // cleanup; the views already hide orphans via HAVING song_count > 0).
+    // cleanup, once for the whole batch; the views already hide orphans via
+    // HAVING song_count > 0).
     cleanupOrphanEntities();
 
-    return true;
+    return commitTransaction();
 }
 
 Song DatabaseManager::getSong(qint64 id) const

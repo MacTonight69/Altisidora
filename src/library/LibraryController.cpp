@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QPair>
+#include <QSet>
 #include <QThread>
 #include <QThreadPool>
 #include <QtConcurrent>
@@ -19,6 +20,67 @@ namespace {
 // real songs: the personal-folder auto-scan skips audio <= this duration.
 constexpr qint64 kMinPersonalAudioDurationMs = 30000;
 
+/**
+ * @brief Rows that a scan must forget because their file is gone.
+ *
+ * A scan is also a reconciliation: a file deleted behind the app's back (a
+ * file manager, another program, an edit that changed the extension) must not
+ * survive as a phantom row. Removal is deliberately conservative, so that an
+ * unavailable library never costs the user its metadata. A stored row is
+ * reported as missing only when every one of these holds:
+ *
+ *  1. its path is inside the scanned root: scanning A never forgets the songs
+ *     of B, whose files this scan did not look at;
+ *  2. the walk did not see the path: a cheap pre-filter, the disk is only
+ *     stat'ed for the few rows the walk missed;
+ *  3. the file itself does not exist;
+ *  4. its parent directory still exists. A whole folder that vanished (an
+ *     unmounted drive, an unplugged disk) makes every file below it "missing"
+ *     at once; that signature is not a deletion, and the row stays until the
+ *     volume is back.
+ *
+ * A root that does not exist at all (unmounted mount point, deleted folder)
+ * prunes nothing: a scan of nothing proves nothing.
+ *
+ * Runs on the scan worker thread: filesystem work stays off the UI thread.
+ */
+QList<qint64> missingSongsUnderRoot(
+    const QString &root,
+    const QVector<Scanner::FileEntry> &entries,
+    const QList<QPair<qint64, QString>> &storedSongs)
+{
+    QList<qint64> missing;
+    if (!QFileInfo::exists(root)) {
+        return missing;
+    }
+
+    QSet<QString> seen;
+    seen.reserve(entries.size());
+    for (const Scanner::FileEntry &entry : entries) {
+        seen.insert(entry.path);
+    }
+
+    // Paths under `root` are `root + "/" + ...` (QDirIterator builds them
+    // that way), so the separator makes the prefix test exact: root "/music"
+    // must not match "/music-archive/song.mp3".
+    const QString prefix =
+        root.endsWith(QDir::separator()) ? root : root + QDir::separator();
+    for (const QPair<qint64, QString> &stored : storedSongs) {
+        const QString &path = stored.second;
+        if (!path.startsWith(prefix) || seen.contains(path)) {
+            continue;
+        }
+        if (QFileInfo::exists(path)) {
+            continue; // hidden, short or otherwise skipped, but still there
+        }
+        if (!QFileInfo::exists(QFileInfo(path).absolutePath())) {
+            continue; // the whole folder is gone: suspended, not deleted
+        }
+        missing.append(stored.first);
+    }
+    return missing;
+}
+
 } // namespace
 
 LibraryController::LibraryController(QObject *parent)
@@ -31,7 +93,7 @@ LibraryController::LibraryController(QObject *parent)
     if (!m_db.open(dataPath + "/library.db"))
         qWarning() << "LibraryController: failed to open database";
 
-    connect(&m_scanWatcher, &QFutureWatcher<QList<Song>>::finished,
+    connect(&m_scanWatcher, &QFutureWatcher<ScanResult>::finished,
             this, &LibraryController::handleScanFinished);
 }
 
@@ -124,17 +186,20 @@ void LibraryController::startScan(const QString &directory, qint64 minDurationMs
 
     // File walking and metadata extraction are CPU/IO-bound and thread-safe:
     // run them off the UI thread with local copies of Scanner/MetadataReader.
-    // Metadata extraction is parallelised further below. Ignored paths and
-    // the stored file fingerprints are captured at scan start (they live in
-    // the database, which may only be touched from this, the main, thread);
-    // new hide/unhide choices apply from the next scan on.
+    // Metadata extraction is parallelised further below. Ignored paths, the
+    // stored file fingerprints and the stored rows (for the pruning pass) are
+    // captured at scan start (they live in the database, which may only be
+    // touched from this, the main, thread); new hide/unhide choices apply from
+    // the next scan on.
+    const QString root = QDir::cleanPath(directory);
     const QStringList ignoredPaths = m_db.ignoredPaths();
     const QHash<QString, QPair<qint64, qint64>> fileStats = m_db.songFileStats();
+    const QList<QPair<qint64, QString>> storedSongs = m_db.songIdsAndPaths();
     m_scanWatcher.setFuture(QtConcurrent::run(
-        [directory, minDurationMs, ignoredPaths, fileStats]() {
+        [root, minDurationMs, ignoredPaths, fileStats, storedSongs]() {
             Scanner scanner;
             const QVector<Scanner::FileEntry> entries =
-                scanner.scanEntries(directory, ignoredPaths);
+                scanner.scanEntries(root, ignoredPaths);
 
             // Read tags only for files that are new or changed. A file whose
             // stored mtime AND size both match its on-disk values is already
@@ -186,14 +251,28 @@ void LibraryController::startScan(const QString &directory, qint64 minDurationMs
                 }
                 songs.append(song);
             }
-            return songs;
+
+            ScanResult result;
+            result.songs = songs;
+            result.missingIds = missingSongsUnderRoot(root, entries, storedSongs);
+            return result;
         }));
 }
 
 // Runs on the main thread (delivered by the event loop).
 void LibraryController::handleScanFinished()
 {
-    const QList<Song> found = m_scanWatcher.result();
+    const ScanResult result = m_scanWatcher.result();
+
+    // Songs whose file disappeared go first: the upserts and the album
+    // artwork rollup below then run on the final set of songs, so a cover
+    // never rolls up from a row that is about to be dropped.
+    if (!result.missingIds.isEmpty()
+        && !m_db.removeSongs(result.missingIds)) {
+        qWarning() << "LibraryController: failed to remove missing songs";
+    }
+
+    const QList<Song> &found = result.songs;
     if (!found.isEmpty()) {
         // One transaction for the whole batch: in autocommit every upsert
         // statement would be its own fsync (~6 statements per song).

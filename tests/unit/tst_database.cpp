@@ -26,6 +26,7 @@ private slots:
     void testRemoveSong();
     void testRemoveSongCleansPlaylistReferences();
     void testRemoveSongCleansOrphanEntities();
+    void testRemoveSongsBatch();
     void testSearchSongs();
     void testSongsByAlbum();
     void testSongsByArtist();
@@ -201,6 +202,44 @@ void TestDatabase::testRemoveSongCleansOrphanEntities()
     // Artists/albums without songs are cleaned up.
     QCOMPARE(m_db.getAllArtists().size(), 0);
     QCOMPARE(m_db.getAllAlbums().size(), 0);
+}
+
+void TestDatabase::testRemoveSongsBatch()
+{
+    Playlist playlist;
+    playlist.name = QStringLiteral("BatchDeleteMe");
+    QVERIFY(m_db.addPlaylist(playlist));
+
+    Song keep;
+    keep.path = QStringLiteral("/music/keep.mp3");
+    keep.artist = QStringLiteral("Keep Artist");
+    Song goneA;
+    goneA.path = QStringLiteral("/music/gone_a.mp3");
+    goneA.artist = QStringLiteral("Gone Artist A");
+    goneA.album = QStringLiteral("Gone Album");
+    Song goneB;
+    goneB.path = QStringLiteral("/music/gone_b.mp3");
+    goneB.artist = QStringLiteral("Gone Artist B");
+    QVERIFY(m_db.addSong(keep));
+    QVERIFY(m_db.addSong(goneA));
+    QVERIFY(m_db.addSong(goneB));
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, keep.id, 1));
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, goneA.id, 2));
+    QVERIFY(m_db.addSongToPlaylist(playlist.id, goneB.id, 3));
+
+    // One batch drops every requested row, its playlist references and the
+    // entities it orphaned, and leaves the unrelated row alone.
+    QVERIFY(m_db.removeSongs(QList<qint64>{goneA.id, goneB.id}));
+    QCOMPARE(m_db.getSong(goneA.id).id, 0);
+    QCOMPARE(m_db.getSong(goneB.id).id, 0);
+    QCOMPARE(m_db.getSong(keep.id).id, keep.id);
+    QCOMPARE(m_db.getPlaylistSongs(playlist.id).size(), 1);
+    QCOMPARE(m_db.getAllArtists().size(), 1);
+    QCOMPARE(m_db.getAllAlbums().size(), 0);
+
+    // An empty batch is a no-op, never a wipe.
+    QVERIFY(!m_db.removeSongs(QList<qint64>()));
+    QCOMPARE(m_db.getAllSongs().size(), 1);
 }
 
 void TestDatabase::testSearchSongs()

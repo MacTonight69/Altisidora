@@ -50,6 +50,10 @@ private slots:
     void testRescanOnlyProcessesChangedFiles();
     void testScanExtractsEmbeddedArtwork();
     void testEditSurvivesRescan();
+    void testScanForgetsDeletedFiles();
+    void testScanKeepsSongsOutsideTheScannedRoot();
+    void testScanKeepsSongsWhenTheirFolderIsGone();
+    void testScanKeepsHiddenSongs();
 
 private:
     void removeDatabaseFiles();
@@ -439,6 +443,147 @@ void tst_library_scan::testEditSurvivesRescan()
         QCOMPARE(controlSong.value(QStringLiteral("title")).toString(),
                  QStringLiteral("Control Retagged Title"));
     }
+}
+
+// A scan is also a reconciliation: a file that disappeared behind the app's
+// back (deleted in a file manager or by another program) must not stay in the
+// library as a phantom row.
+void tst_library_scan::testScanForgetsDeletedFiles()
+{
+    removeDatabaseFiles();
+
+    const QString dir = m_tempDir.filePath(QStringLiteral("prune_music"));
+    QDir().mkpath(dir);
+    const QStringList files = TestHelpers::createTestMusicDirectory(dir, 3);
+    QCOMPARE(files.size(), 3);
+
+    LibraryController controller;
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 3);
+
+    // One file is removed outside the application.
+    QVERIFY(QFile::remove(files.at(1)));
+    QVERIFY(!QFile::exists(files.at(1)));
+
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+
+    // The row is gone, not merely filtered: the other two survive and no
+    // query returns the deleted path any more.
+    QCOMPARE(controller.songCount(), 2);
+    QVERIFY(songByPath(&controller, files.at(1)).isEmpty());
+    QVERIFY(!songByPath(&controller, files.at(0)).isEmpty());
+    QVERIFY(!songByPath(&controller, files.at(2)).isEmpty());
+
+    // ...and it is gone from the database too, so a restart does not bring it
+    // back.
+    LibraryController reopened;
+    reopened.refresh();
+    QCOMPARE(reopened.songCount(), 2);
+    QVERIFY(songByPath(&reopened, files.at(1)).isEmpty());
+}
+
+// Pruning is scoped to the folder that was scanned: scanning A must never
+// forget the songs of B, whose files the scan never looked at.
+void tst_library_scan::testScanKeepsSongsOutsideTheScannedRoot()
+{
+    removeDatabaseFiles();
+
+    const QString dirA = m_tempDir.filePath(QStringLiteral("scope_a"));
+    const QString dirB = m_tempDir.filePath(QStringLiteral("scope_b"));
+    QDir().mkpath(dirA);
+    QDir().mkpath(dirB);
+    QCOMPARE(TestHelpers::createTestMusicDirectory(dirA, 2).size(), 2);
+    const QStringList inB = TestHelpers::createTestMusicDirectory(dirB, 1);
+    QCOMPARE(inB.size(), 1);
+
+    LibraryController controller;
+    controller.scan(dirA);
+    QVERIFY(waitForScanFinished(&controller));
+    controller.scan(dirB);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 3);
+
+    // B's only file disappears, but the next scan walks A only.
+    QVERIFY(QFile::remove(inB.first()));
+
+    controller.scan(dirA);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 3);
+    QVERIFY(!songByPath(&controller, inB.first()).isEmpty());
+
+    // Once its own folder is the scan target, the row is pruned.
+    controller.scan(dirB);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+    QVERIFY(songByPath(&controller, inB.first()).isEmpty());
+}
+
+// A folder that vanished with its volume (unmounted drive, unplugged disk)
+// makes every file below it look missing at once. That signature must not be
+// read as "the user deleted this music": the metadata stays until the volume
+// is back.
+void tst_library_scan::testScanKeepsSongsWhenTheirFolderIsGone()
+{
+    removeDatabaseFiles();
+
+    const QString root = m_tempDir.filePath(QStringLiteral("volume"));
+    QDir().mkpath(root);
+    QCOMPARE(TestHelpers::createTestMusicDirectory(root, 1).size(), 1);
+    const QString removable = root + QStringLiteral("/removable");
+    QDir().mkpath(removable);
+    const QStringList onVolume = TestHelpers::createTestMusicDirectory(removable, 2);
+    QCOMPARE(onVolume.size(), 2);
+
+    LibraryController controller;
+    controller.scan(root);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 3);
+
+    // The whole folder disappears, as if its volume were unmounted.
+    QVERIFY(QDir(removable).removeRecursively());
+
+    controller.scan(root);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 3);
+    QVERIFY(!songByPath(&controller, onVolume.at(0)).isEmpty());
+    QVERIFY(!songByPath(&controller, onVolume.at(1)).isEmpty());
+
+    // A scan of the folder itself (gone) finds nothing and prunes nothing.
+    controller.scan(removable);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 3);
+}
+
+// Hiding a song is not deleting it: the file is still there, so the scan
+// keeps its row (the walk merely skips it).
+void tst_library_scan::testScanKeepsHiddenSongs()
+{
+    removeDatabaseFiles();
+
+    const QString dir = m_tempDir.filePath(QStringLiteral("prune_hidden"));
+    QDir().mkpath(dir);
+    const QStringList files = TestHelpers::createTestMusicDirectory(dir, 2);
+    QCOMPARE(files.size(), 2);
+
+    LibraryController controller;
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 2);
+
+    const QString hidden = files.first();
+    controller.ignorePath(hidden);
+    QCOMPARE(controller.songCount(), 1);
+
+    controller.scan(dir);
+    QVERIFY(waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 1);
+
+    // Unhiding proves the row was never pruned.
+    controller.unignorePath(hidden);
+    QCOMPARE(controller.songCount(), 2);
+    QVERIFY(!songByPath(&controller, hidden).isEmpty());
 }
 
 QTEST_MAIN(tst_library_scan)

@@ -38,6 +38,21 @@ class LibraryController : public QObject
     Q_PROPERTY(bool searchActive READ searchActive NOTIFY searchChanged)
 
 public:
+    /**
+     * @brief What a finished background scan produced.
+     *
+     * songs: files that are new or changed since the last scan and must be
+     *        upserted on the main thread.
+     * missingIds: ids of stored songs, inside the scanned root, whose file no
+     *        longer exists on disk and which must be forgotten by the library.
+     *        The pruning rules (which rows qualify) live in
+     *        LibraryController.cpp.
+     */
+    struct ScanResult {
+        QList<Song> songs;
+        QList<qint64> missingIds;
+    };
+
     explicit LibraryController(QObject *parent = nullptr);
 
     QVector<QVariant> songs() const;
@@ -66,7 +81,9 @@ public slots:
      * scanFinished() on the main thread, so the UI stays responsive.
      *
      * This is the manual scan: every supported audio file is ingested
-     * regardless of its duration.
+     * regardless of its duration. The scan also reconciles the library:
+     * songs, inside @p directory, whose file no longer exists are dropped
+     * from the list and the database (see ScanResult).
      */
     void scan(const QString &directory);
 
@@ -76,7 +93,8 @@ public slots:
      * Used on first launch. Only audio longer than 30 seconds is ingested
      * (short clips, notification sounds, etc. are skipped); files whose
      * stored mtime and size are unchanged are not re-read. When @p directory
-     * is empty, the user's home folder is used.
+     * is empty, the user's home folder is used. Like scan(), it also drops
+     * the stored songs whose file disappeared (see ScanResult).
      */
     void scanPersonalMusic(const QString &directory = QString());
     void refresh();
@@ -218,6 +236,6 @@ private:
 
     // Background scan machinery. Scanner/MetadataReader are used by the
     // worker thread only through local copies created in scan().
-    QFutureWatcher<QList<Song>> m_scanWatcher;
+    QFutureWatcher<ScanResult> m_scanWatcher;
     bool m_scanRunning = false;
 };
