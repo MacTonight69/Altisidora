@@ -41,15 +41,17 @@ ctest --output-on-failure
 ```
 src/
   main.cpp              # Application entry point
-  app/                  # Application controllers
+  app/                  # Application controllers (playlist, settings)
   audio/                # Audio playback module (libmpv)
-  library/              # Library scanning and metadata
+  library/              # Scanning, metadata and the song-list model
   database/             # Database persistence
   models/               # Domain models
   mpris/                # MPRIS v2 desktop integration
 resources/
   qml/                  # QML interface files (the GUI lives here)
-  icons/                # Application icons
+  qml.qrc               # Resource manifest: QML, bundled fonts and images
+fonts/                  # Bundled theme typefaces
+images/                 # Brand logos
 tests/
   unit/                 # Unit tests
   integration/          # Integration tests

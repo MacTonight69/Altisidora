@@ -11,23 +11,32 @@
 | D | Tag editing (individual + batch) | [x] done (`build/static-core-lib`) |
 | E | Final polish: theme rename (`Anarchism`) + new `Maya`; startup-theme bug; album edit adds artist + artwork | [x] done (`build/static-core-lib`) |
 
-Options A–D are implemented and verified (build exit 0, 0 warnings, `ctest`
-12/12, smoke OK). The commit chain lives in git (base `e2b7692` →
-`build/static-core-lib`); the detailed step-by-step specs were removed once
-each option landed. **Open work is option E only**, tracked task-by-task in
-`odd/tasks/theme-and-album-edit.md`. What remains after E is delivery and the
-optional follow-ups tracked in `docs/PROJECT_STATUS.md` (publishing `v0.1.0`;
-`mpris:artUrl`; artwork-cache GC; a player refresh API so the now-playing bar
-follows an edit; `hicolor-icon-theme` in the PKGBUILD depends).
+Options A–E are implemented and verified (build exit 0, 0 warnings, `ctest`
+13/13, smoke OK). The commit chain lives in git (base `e2b7692` →
+`build/static-core-lib`); the detailed step-by-step specs are removed once each
+option lands, so this file is now the plan index and the record of the
+decisions taken along the way. A review-driven **perf & lightening pass**
+landed on the same branch afterwards — see the first entry in the Decisions
+log, which carries its measurements.
+
+Remaining work is delivery and the optional follow-ups tracked in
+`docs/PROJECT_STATUS.md` (publishing `v0.1.0`; `mpris:artUrl`; artwork-cache
+GC; a player refresh API so the now-playing bar follows an edit;
+`hicolor-icon-theme` in the PKGBUILD depends), plus one open process item:
+
+- The RDD review of range `79b9544..0a9615e` never ran: the host runtime
+  cannot dispatch the reviewer subagent (tier restriction). The user decided
+  (2026-10-12) to leave RDD enabled and re-review that range from a runtime
+  that can dispatch agents, via a fresh `review start --base-ref 79b9544`.
 
 ---
 
-## Global verification (after every option)
+## Verification (expected after any change)
 
 ```bash
 cmake -S . -B build
 cmake --build build -j"$(nproc)"          # expect exit 0
-ctest --test-dir build --output-on-failure  # expect 12/12
+ctest --test-dir build --output-on-failure  # expect 13/13
 ```
 
 Smoke run (isolated HOME; must stay alive until timeout with empty stderr):
@@ -43,14 +52,13 @@ env HOME=/tmp/opencode/alt-run/home XDG_DATA_HOME=/tmp/opencode/alt-run/data \
 QML errors go to journald even when stderr is redirected — check
 `journalctl _COMM=altisidora --since "-5 min"` after the smoke run.
 
-Work on a feature branch per option; never edit on `review/project-cleanup`
-directly.
+Work on a feature branch; never edit on `review/project-cleanup` directly.
 
 ---
 
 ## Decisions log
 
-- **Perf & lightening pass (2026-10-14, `522b3b9`..`0d14bfa` on
+- **Perf & lightening pass (2026-10-14, `522b3b9`..`33b4acb` on
   `build/static-core-lib`).** A review of the startup path, the library
   model and the build produced seven findings. Each one was either landed as
   its own commit with its own measurement, or measured and declined — the
@@ -63,7 +71,11 @@ directly.
   `idx_ignored_paths_path` dropped; `selectRange()` no longer building a
   `QVariantMap` per row (5000 rows 38 -> 3 ms); the unused
   `songs: Library.songs` launch binding removed (~14 ms); and the unused
-  `LibraryController::search()` wrapper deleted.
+  `LibraryController::search()` wrapper deleted. That last one is the single
+  deliberate exception to the public-API guardrail below: the method had no
+  production caller (QML searches through `setSearch()`/`searchModel`), only
+  the tests used it, and those tests now run through the production path. If
+  the guardrail should win instead, reverting that one commit is enough.
 
 - **Perf pass: delegate "current row" binding (2026-10-14) — do not
   implement.** The row delegate tests `Player.currentSong.id === model.id`,
@@ -125,9 +137,7 @@ directly.
 - Keep the public API of every method tests call (`addSong`,
   `supportedExtensions`, `isSupportedAudioFile`, …) untouched; add the new
   methods beside them.
-- Do not mix options in one commit; each commit above is a reviewable work
-  unit with its own verification.
-- `git switch -c` before starting an option; never edit on
-  `review/project-cleanup` directly.
+- One reviewable work unit per commit, each with its own verification; do not
+  mix unrelated changes.
 - Update `docs/PROJECT_STATUS.md` only if a number or behaviour claim changes.
-- After each option: tree clean, build exit 0, `ctest` 12/12, smoke run OK.
+- After any change: tree clean, build exit 0, `ctest` 13/13, smoke run OK.
