@@ -106,3 +106,35 @@ nothing to ask. One slice; each task is its own work-unit commit.
 - **Deviations:** none.
 - **Note:** the writer reported `mem_judge` takes a `relation` key, not
   `verdict`, despite the protocol wording. Worth fixing in the protocol text.
+
+### B5 — publish `mpris:artUrl` — CLOSED
+
+- **Commit:** `feat(mpris): publish the track artwork as mpris:artUrl`
+- **Change:** `MprisPlayer::metadata()` reads the song's `"artwork"` key (the
+  QML-facing key from `Song::toVariantMap()`) and, when non-empty, publishes
+  `mpris:artUrl` as `QUrl::fromLocalFile(path).toString()`. MPRIS requires a
+  URL, not a path. The key is omitted entirely when there is no artwork, matching
+  the existing empty-value style. `Song::toVariantMap()` is untouched.
+- **Test:** `loadFakeSong()` gained an artwork entry;
+  `testPlayerInterfaceAndMetadata()` asserts the `file://` URL; a new
+  `loadFakeSongNoArtwork()` + `testMetadataNoArtwork()` assert the key is
+  absent rather than empty.
+- **Delegation:** first launch used the `gentle-ai-worker` agent, which
+  succeeded and applied the change. A second launch was made in error (the
+  parent had mis-read which of two parallel launches had failed) and
+  independently re-verified the same diff.
+- **Verification** (writer-reported, then re-run by the parent):
+  - `cmake --build build -j"$(nproc)"` → exit 0, zero warnings
+  - `ctest --test-dir build --output-on-failure` → 13/13
+  - offscreen smoke → exit 124, no journal entries
+  - `git diff --stat` → exactly the two intended files, +37 lines
+- **Docs:** the `mpris:artUrl` entry was removed from `docs/PROJECT_STATUS.md`
+  → "Next steps" in the same commit.
+- **Deviations:** none in the artifact. The second writer produced RED evidence
+  by stashing only the source file, because the change was already applied.
+
+> **Hazard found (not caused by this work):** the repository already had a
+> `stash@{0}` from `main` ("rename project to Benzaiten"). A writer that runs
+> `git stash`/`git stash pop` around its own edits can pop the wrong stash. Any
+> future delegation that stashes must scope it with `git stash push -- <path>`
+> and verify what it popped.

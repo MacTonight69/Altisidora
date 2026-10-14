@@ -144,11 +144,7 @@ Test isolation:
 
 **Known gaps** — verified against the code, not implemented
 
-4. MPRIS never publishes `mpris:artUrl`. `MprisPlayer::metadata()` sets
-   `mpris:trackid`, `xesam:title`, `xesam:artist`, `xesam:album`,
-   `mpris:length` and `xesam:url` only, so desktop shells and media controls
-   show no artwork.
-5. The artwork cache has no garbage collection. `MetadataReader` writes one
+4. The artwork cache has no garbage collection. `MetadataReader` writes one
    content-addressed file per cover under `AppDataLocation/artwork/` and
    nothing ever removes one — not even when the song is deleted from the
    database, so the directory only grows.

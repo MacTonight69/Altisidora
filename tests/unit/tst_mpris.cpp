@@ -27,11 +27,13 @@ private slots:
     void testPlayerInterfaceAndMetadata();
     void testTransportSlotsRespond();
     void testEmitsPropertiesChanged();
+    void testMetadataNoArtwork();
     void onPropertiesChanged(const QString &interface, const QVariantMap &changed,
                              const QStringList &invalidated);
 
 private:
     void loadFakeSong();
+    void loadFakeSongNoArtwork();
 
     PlayerController *m_player = nullptr;
     MprisPlayer *m_mpris = nullptr;
@@ -66,6 +68,20 @@ void tst_mpris::loadFakeSong()
     song[QStringLiteral("artist")] = QStringLiteral("Test Artist");
     song[QStringLiteral("album")] = QStringLiteral("Test Album");
     song[QStringLiteral("duration")] = 180000; // 3 minutes
+    song[QStringLiteral("artwork")] = QStringLiteral("/tmp/album-art.png");
+    m_player->setQueue({QVariant(song)});
+    m_player->loadSong(song);
+}
+
+void tst_mpris::loadFakeSongNoArtwork()
+{
+    QVariantMap song;
+    song[QStringLiteral("id")] = 43;
+    song[QStringLiteral("path")] = QStringLiteral("/tmp/mpris-nonexistent2.mp3");
+    song[QStringLiteral("title")] = QStringLiteral("Song 2");
+    song[QStringLiteral("artist")] = QStringLiteral("Artist 2");
+    song[QStringLiteral("album")] = QStringLiteral("Album 2");
+    song[QStringLiteral("duration")] = 120000;
     m_player->setQueue({QVariant(song)});
     m_player->loadSong(song);
 }
@@ -115,6 +131,8 @@ void tst_mpris::testPlayerInterfaceAndMetadata()
         meta.value(QStringLiteral("mpris:trackid")).value<QDBusObjectPath>().path();
     QCOMPARE(trackId,
              QStringLiteral("/org/mpris/MediaPlayer2/TrackList/Track/42"));
+    QCOMPARE(meta.value(QStringLiteral("mpris:artUrl")).toString(),
+             QStringLiteral("file:///tmp/album-art.png"));
 }
 
 void tst_mpris::testTransportSlotsRespond()
@@ -192,6 +210,20 @@ void tst_mpris::testEmitsPropertiesChanged()
     QTRY_VERIFY_WITH_TIMEOUT(m_changeCount > 0, 2000);
     QVERIFY(m_playerChanged.contains(QStringLiteral("Volume")));
     QVERIFY(qFuzzyCompare(m_playerChanged.value(QStringLiteral("Volume")).toDouble(), 0.25));
+}
+
+void tst_mpris::testMetadataNoArtwork()
+{
+    loadFakeSongNoArtwork();
+    QDBusInterface iface(QStringLiteral("org.mpris.MediaPlayer2.altisidora"),
+                         QStringLiteral("/org/mpris/MediaPlayer2"),
+                         QStringLiteral("org.mpris.MediaPlayer2.Player"),
+                         QDBusConnection::sessionBus(), this);
+    QVERIFY(iface.isValid());
+    const QVariantMap meta = iface.property("Metadata").toMap();
+    QVERIFY(!meta.contains(QStringLiteral("mpris:artUrl")));
+    QCOMPARE(meta.value(QStringLiteral("xesam:title")).toString(),
+             QStringLiteral("Song 2"));
 }
 
 QTEST_MAIN(tst_mpris)

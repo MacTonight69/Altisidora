@@ -232,6 +232,11 @@ QVariantMap MprisPlayer::metadata() const
         map[QStringLiteral("xesam:url")] = QUrl::fromLocalFile(path).toString();
     }
 
+    const QString artPath = song.value(QStringLiteral("artwork")).toString();
+    if (!artPath.isEmpty()) {
+        map[QStringLiteral("mpris:artUrl")] = QUrl::fromLocalFile(artPath).toString();
+    }
+
     return map;
 }
 
