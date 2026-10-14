@@ -50,6 +50,57 @@ directly.
 
 ## Decisions log
 
+- **Perf & lightening pass (2026-10-14, `522b3b9`..`0d14bfa` on
+  `build/static-core-lib`).** A review of the startup path, the library
+  model and the build produced seven findings. Each one was either landed as
+  its own commit with its own measurement, or measured and declined — the
+  measurements for the declined ones are below. What landed: multi-selection
+  delete/hide in one batch each; artwork roll-up and row patching scoped to
+  the album an edit touched; the four 2000x2000 brand logos re-encoded at
+  512x512 (binary 2 539 200 -> 1 330 880 bytes, −48%); `parseStoredDateTime()`
+  no longer re-resolving the system timezone per row (`getAllSongs()`
+  829 -> 42 ms, `LibraryController::refresh()` 830 -> 45 ms); the redundant
+  `idx_ignored_paths_path` dropped; `selectRange()` no longer building a
+  `QVariantMap` per row (5000 rows 38 -> 3 ms); the unused
+  `songs: Library.songs` launch binding removed (~14 ms); and the unused
+  `LibraryController::search()` wrapper deleted.
+
+- **Perf pass: delegate "current row" binding (2026-10-14) — do not
+  implement.** The row delegate tests `Player.currentSong.id === model.id`,
+  which materialises the current song's `QVariantMap` as a JS object on every
+  evaluation: measured 6.6 µs against 1.3 µs for a scalar id property (~5x).
+  But the song lists are `ListView`s, so only the ~20-40 realised delegates
+  evaluate it and a song change costs well under 0.3 ms. A `currentSongId`
+  property would add a second source of truth to keep in sync with
+  `currentSong` for no measurable gain.
+
+- **Perf pass: lazy `Library.songs`/`albums`/`artists` (2026-10-14) — do not
+  implement.** On the 5000-song library (500 albums / 500 artists) the eager
+  aggregates measured 3.2 ms (`albums()`), 3.3 ms (`artists()`) and 14 ms
+  (`songs()`), and each feeds a view that is on screen, so the work is not
+  wasted. The one piece that *was* wasted — `main.qml` binding
+  `songs: Library.songs` into a `SongsView` that is always fed by
+  `songsModel`, so the list never read it — built the whole list on every
+  launch and was removed instead (see the pass entry above).
+
+- **Perf pass: defer font registration / AOT-compile the QML (2026-10-14) —
+  do not implement.** Startup breakdown on the 5000-song library (offscreen,
+  warm): fonts 1.8 ms, controllers 3.5 ms, DB refresh 50 ms, QML compile
+  37 ms, QML instantiate 140 ms. Registering the seven bundled fonts costs
+  ~5 ms once and ~1 ms when repeated (the font database caches them).
+  `qmlcachegen` would need migrating `qt_add_resources` to
+  `qt_add_qml_module`, which changes every QML URL (module paths, `qmldir`,
+  the `Themes.js` import, the `Theme` singleton) to shave the 37 ms compile
+  step. Do not retry without new evidence.
+
+- **Perf pass: the scan walk (2026-10-14) — do not implement.** A 5000-file
+  tree scans in ~35 ms, of which ~2.5 ms (7%) is the ignored-path match; the
+  per-directory `found += scanEntries(...)` copy costs ~1.3 ms and
+  precomputing normalised ignored prefixes saves ~3.5 ms more (~15% together).
+  The walk already runs off the UI thread (`QtConcurrent::run`), so none of it
+  is on the user's path, and it is dominated by the filesystem (readdir+stat
+  ≈ 6.4 µs/file).
+
 - **A1b (per-scan name→id cache): measured 2026-10-11 — do not implement.**
   Benchmark of the real pipeline (5000 songs, /tmp/opencode/upsert-bench):
   the cache cuts the commit phase 45% (30 403 → 6 243 statements) but saves
