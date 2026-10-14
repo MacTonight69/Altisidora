@@ -209,6 +209,13 @@ QVariantMap SongListModel::songData(int row) const
     return m_songs.at(row).toVariantMap();
 }
 
+int SongListModel::idAt(int row) const
+{
+    if (row < 0 || row >= m_songs.size())
+        return -1;
+    return m_songs.at(row).id;
+}
+
 int SongListModel::rowOfId(int id) const
 {
     for (int i = 0; i < m_songs.size(); ++i) {

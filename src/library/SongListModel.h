@@ -80,6 +80,10 @@ public:
     // queue) or a row lookup by song id.
     Q_INVOKABLE QVariantMap songData(int row) const;
     Q_INVOKABLE int rowOfId(int id) const;
+    // Just the id of a row. Selection walks (select range / select all) need
+    // nothing else, and building a QVariantMap per row for that both costs
+    // ~2 us here and makes QML materialise a 15-property JS object per row.
+    Q_INVOKABLE int idAt(int row) const;
     // Paths of the rows whose id is in @p ids, in row order. Indexes the
     // rows by id once, so it never builds a QVariantMap per scanned row the
     // way calling songData() in a loop would. Used by the multi-select hide

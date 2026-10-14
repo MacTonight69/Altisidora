@@ -161,6 +161,14 @@ void TestModels::testSongListModel()
     QCOMPARE(model.songData(1).value(QStringLiteral("title")).toString(), s2.title);
     QVERIFY(model.songData(9).isEmpty());
 
+    // idAt() is the cheap walk accessor: same id as the row's map, and the
+    // invalid-row sentinel matches what selection checks for.
+    QCOMPARE(model.idAt(0), s1.id);
+    QCOMPARE(model.idAt(1), 7);
+    QCOMPARE(model.idAt(-1), -1);
+    QCOMPARE(model.idAt(9), -1);
+    QCOMPARE(model.idAt(1), model.songData(1).value(QStringLiteral("id")).toInt());
+
     // roleNames() is what Qt Quick uses to expose roles as model.<name>.
     const QHash<int, QByteArray> roles = model.roleNames();
     QCOMPARE(roles.value(SongListModel::TitleRole), QByteArray("title"));

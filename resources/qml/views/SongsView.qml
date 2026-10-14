@@ -33,6 +33,14 @@ Rectangle {
     function songCount() { return songsModel ? songsModel.count : songs.length }
     function songAt(i) { return songsModel ? songsModel.songData(i) : songs[i] }
     function songsArray() { return songsModel ? songsModel.toVariantList() : songs }
+    // Selection only needs the id, so read that instead of materialising a
+    // whole map (and a JS object) per row; "select all" is one call per song.
+    function songIdAt(i) {
+        if (songsModel)
+            return songsModel.idAt(i)
+        var song = songs[i]
+        return song ? song.id : undefined
+    }
 
     // ---- selection state ----
     property var selectedIds: new Set()
@@ -95,9 +103,9 @@ Rectangle {
         var hi = Math.min(Math.max(fromIndex, toIndex), songCount() - 1)
         clearSelection()
         for (var i = lo; i <= hi; ++i) {
-            var song = songAt(i)
-            if (song && song.id !== undefined)
-                selectedIds.add(song.id)
+            var id = songIdAt(i)
+            if (id !== undefined && id !== null && id >= 0)
+                selectedIds.add(id)
         }
         selectedCount = selectedIds.size
     }
