@@ -11,6 +11,7 @@ depends=(
     'qt6-declarative'
     'mpv'
     'taglib'
+    'hicolor-icon-theme'
 )
 makedepends=(
     'cmake'
