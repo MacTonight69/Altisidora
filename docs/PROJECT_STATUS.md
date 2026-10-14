@@ -142,12 +142,5 @@ Test isolation:
    step (the platform-neutral media seam) is Linux-only work that can be done
    now.
 
-**Known gaps** — verified against the code, not implemented
-
-4. The artwork cache has no garbage collection. `MetadataReader` writes one
-   content-addressed file per cover under `AppDataLocation/artwork/` and
-   nothing ever removes one — not even when the song is deleted from the
-   database, so the directory only grows.
-
 Still open from Known limitations above: the now-playing refresh API, and the
 absence of CI (which the AppImage pipeline will need).

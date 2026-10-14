@@ -2,11 +2,14 @@
 
 #include <QSqlDatabase>
 #include <QList>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
 #include <QHash>
 #include <QPair>
+
+#include <optional>
 
 #include "../models/Song.h"
 #include "../models/Artist.h"
@@ -122,6 +125,13 @@ public:
     // id -> path for every stored song, used by the scan's pruning pass to
     // find the rows whose file no longer exists.
     QList<QPair<qint64, QString>> songIdsAndPaths() const;
+    // Every non-empty songs.artwork_path: the authoritative set of artwork
+    // cache files the library still references, used to garbage-collect the
+    // cache after a scan. std::nullopt when the query fails (closed
+    // connection, missing table). A failed read must NEVER be taken as
+    // "nothing is referenced" — that would delete the user's whole cover
+    // cache — so the failure is explicit and the caller skips pruning.
+    std::optional<QSet<QString>> referencedArtworkPaths() const;
     // id -> path for the requested ids, resolved in one (or a few, when the
     // selection exceeds SQLite's variable limit) queries. Ids that are not
     // in the table are simply absent from the map. Used to resolve a

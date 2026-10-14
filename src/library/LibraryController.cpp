@@ -296,6 +296,20 @@ void LibraryController::handleScanFinished()
             qWarning() << "LibraryController: failed to commit scan transaction";
     }
 
+    // Artwork garbage collection, once per finished scan. The database is
+    // authoritative at this point (removals and upserts above are done), so
+    // songs.artwork_path is exactly the set of cache files still in use.
+    // A reference query that fails returns nullopt, which makes
+    // pruneArtworkCache() remove nothing: an unreadable reference set must
+    // never be mistaken for "nothing is referenced".
+    {
+        const int pruned = MetadataReader::pruneArtworkCache(
+            m_db.referencedArtworkPaths());
+        if (pruned > 0)
+            qInfo() << "LibraryController: pruned" << pruned
+                    << "unreferenced artwork file(s)";
+    }
+
     m_songs = m_db.getAllSongs().toVector();
     m_scanRunning = false;
     publishLibrarySnapshot();

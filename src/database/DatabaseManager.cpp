@@ -1108,6 +1108,26 @@ QList<QPair<qint64, QString>> DatabaseManager::songIdsAndPaths() const
     return rows;
 }
 
+std::optional<QSet<QString>> DatabaseManager::referencedArtworkPaths() const
+{
+    QSet<QString> paths;
+    QSqlQuery query(m_db);
+    if (!query.exec(QStringLiteral(
+            "SELECT DISTINCT artwork_path FROM songs "
+            "WHERE artwork_path IS NOT NULL AND artwork_path != ''"))) {
+        // The reference set is what the artwork prune must keep. A failed
+        // read is reported as "unknown" (nullopt), never as an empty set:
+        // the caller must skip the prune rather than delete every file.
+        qWarning() << "referencedArtworkPaths: query failed:"
+                   << query.lastError().text();
+        return std::nullopt;
+    }
+    while (query.next()) {
+        paths.insert(query.value(0).toString());
+    }
+    return paths;
+}
+
 QHash<qint64, QString> DatabaseManager::songPathsByIds(const QList<qint64> &ids) const
 {
     QHash<qint64, QString> paths;

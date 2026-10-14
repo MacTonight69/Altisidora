@@ -1,9 +1,12 @@
 #include <QtTest>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <functional>
+#include <optional>
 
 #include "../TestHelpers.h"
 #include "library/MetadataReader.h"
@@ -99,6 +102,10 @@ private slots:
     void testReadArtworkPrefersFrontCover();
     void testReadArtworkIdempotent();
 
+    // Artwork-cache garbage collection
+    void testPruneArtworkCacheRemovesOnlyUnreferenced();
+    void testPruneArtworkCacheSkipsWhenReferencesUnavailable();
+
     // Error handling tests
     void testReadNonExistentFile();
     void testReadEmptyFile();
@@ -110,6 +117,9 @@ private:
     // ID3v2 tag filled by `fill` (called with the mutable tag).
     bool writeMpegFile(const QString &filePath,
                        const std::function<void(TagLib::Tag *)> &fill = {});
+
+    // Writes raw bytes (e.g. a tiny PNG) to filePath; false on I/O failure.
+    bool writeBytes(const QString &filePath, const QByteArray &bytes);
 
     QTemporaryDir m_tempDir;
 };
@@ -152,6 +162,15 @@ bool TestMetadata::writeMpegFile(const QString &filePath,
     }
     fill(tag);
     return mf.save();
+}
+
+bool TestMetadata::writeBytes(const QString &filePath, const QByteArray &bytes)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    return file.write(bytes) == bytes.size();
 }
 
 void TestMetadata::testReadTitle()
@@ -492,6 +511,92 @@ void TestMetadata::testReadArtworkIdempotent()
     QVERIFY(!first.artworkPath.isEmpty());
     QCOMPARE(second.artworkPath, first.artworkPath);
     QVERIFY(QFile::exists(first.artworkPath));
+}
+
+// The prune is the garbage collector for the cache: a file a song still
+// references survives, a file nothing references is removed, and the
+// return value reports the removals.
+void TestMetadata::testPruneArtworkCacheRemovesOnlyUnreferenced()
+{
+    const QString cacheDir = QStandardPaths::writableLocation(
+                                 QStandardPaths::AppDataLocation)
+                             + QStringLiteral("/artwork");
+    QVERIFY(QDir().mkpath(cacheDir));
+
+    // Two real cache entries written through the public write path, so the
+    // test also pins that the prune resolves the very directory the write
+    // path uses.
+    const QString keepSrc = m_tempDir.filePath(QStringLiteral("prune_keep.png"));
+    const QString dropSrc = m_tempDir.filePath(QStringLiteral("prune_drop.png"));
+    QVERIFY(writeBytes(keepSrc, QByteArray::fromHex(kRedPngHex)));
+    QVERIFY(writeBytes(dropSrc, QByteArray::fromHex(kGreenPngHex)));
+    const QString keep = MetadataReader::cacheArtwork(keepSrc);
+    const QString drop = MetadataReader::cacheArtwork(dropSrc);
+    QVERIFY(!keep.isEmpty());
+    QVERIFY(!drop.isEmpty());
+    QVERIFY(keep != drop);
+    QVERIFY(QFile::exists(keep));
+    QVERIFY(QFile::exists(drop));
+
+    // A nested directory inside the cache (with a file in it) must be left
+    // untouched: the prune names only the files directly in the cache dir.
+    const QString nested = cacheDir + QStringLiteral("/nested");
+    QVERIFY(QDir().mkpath(nested));
+    QVERIFY(writeBytes(nested + QStringLiteral("/inner.png"),
+                       QByteArray::fromHex(kRedPngHex)));
+
+    // A symlink in the cache pointing outside it must never be followed:
+    // its target survives, and the link itself is not enumerated/removed.
+    const QString outsideTarget = m_tempDir.filePath(QStringLiteral("outside_target.png"));
+    QVERIFY(writeBytes(outsideTarget, QByteArray::fromHex(kGreenPngHex)));
+    const QString linkPath = cacheDir + QStringLiteral("/link_outside.png");
+    QFile::remove(linkPath); // drop any leftover from a previous run
+    QVERIFY(QFile::link(outsideTarget, linkPath));
+    QVERIFY(QFileInfo(linkPath).isSymLink());
+
+    // Reference every file currently in the cache except `drop`. The count
+    // is then deterministic even though the shared test-mode directory also
+    // holds leftovers from the earlier artwork tests.
+    QSet<QString> referenced;
+    const QFileInfoList existing =
+        QDir(cacheDir).entryInfoList(QDir::Files | QDir::NoSymLinks);
+    for (const QFileInfo &info : existing) {
+        referenced.insert(info.absoluteFilePath());
+    }
+    referenced.remove(drop);
+
+    const int removed = MetadataReader::pruneArtworkCache(referenced);
+
+    QCOMPARE(removed, 1);
+    QVERIFY(QFile::exists(keep));                    // referenced -> survives
+    QVERIFY(!QFile::exists(drop));                   // unreferenced -> removed
+    QVERIFY(QFile::exists(nested));                  // the directory is never touched
+    QVERIFY(QFile::exists(nested + QStringLiteral("/inner.png"))); // no recursion
+    QVERIFY(QFile::exists(outsideTarget));           // symlink target not followed
+    QVERIFY(QFileInfo(linkPath).isSymLink());        // the link itself is left alone
+}
+
+// A reference set that could not be read (a failed/unavailable query) must
+// prune NOTHING. Represented, as the design does, by std::nullopt: treating
+// "unknown" as "nothing is referenced" would wipe the whole cover cache.
+void TestMetadata::testPruneArtworkCacheSkipsWhenReferencesUnavailable()
+{
+    const QString cacheDir = QStandardPaths::writableLocation(
+                                 QStandardPaths::AppDataLocation)
+                             + QStringLiteral("/artwork");
+    QVERIFY(QDir().mkpath(cacheDir));
+
+    const QString src = m_tempDir.filePath(QStringLiteral("prune_unknown.png"));
+    QVERIFY(writeBytes(src, QByteArray::fromHex(kRedPngHex)));
+    const QString cached = MetadataReader::cacheArtwork(src);
+    QVERIFY(!cached.isEmpty());
+    QVERIFY(QFile::exists(cached));
+
+    const int removed =
+        MetadataReader::pruneArtworkCache(std::optional<QSet<QString>>{});
+
+    QCOMPARE(removed, 0);
+    QVERIFY(QFile::exists(cached));
 }
 
 void TestMetadata::testReadNonExistentFile()

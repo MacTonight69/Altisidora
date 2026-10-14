@@ -12,11 +12,21 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QSet>
 #include <QStandardPaths>
 #include <QStringDecoder>
 #include <QStringEncoder>
 
 namespace {
+
+// The single definition of the artwork cache location. The write path
+// (cacheArtworkBytes) and the garbage collector (pruneArtworkCache) both
+// resolve the directory through here, so they can never drift apart.
+QString artworkCacheDir()
+{
+    return QStandardPaths::writableLocation(
+               QStandardPaths::AppDataLocation) + "/artwork";
+}
 
 // Recovers tags that a legacy (mostly Japanese-ripper-era) tagger wrote as
 // Shift-JIS bytes while declaring the ID3v2 frame ISO-8859-1 (encoding
@@ -166,8 +176,7 @@ QString cacheArtworkBytes(const QByteArray &raw, const QString &ext)
     if (raw.isEmpty() || ext.isEmpty())
         return {};
 
-    const QString cacheDir = QStandardPaths::writableLocation(
-                                 QStandardPaths::AppDataLocation) + "/artwork";
+    const QString cacheDir = artworkCacheDir();
     if (!QDir().mkpath(cacheDir))
         return {};
 
@@ -246,6 +255,43 @@ QString MetadataReader::cacheArtwork(const QString &imagePath)
         return {};
     }
     return cacheArtworkBytes(raw, ext);
+}
+
+int MetadataReader::pruneArtworkCache(const std::optional<QSet<QString>> &referenced)
+{
+    if (!referenced) {
+        // The caller could not read the authoritative reference set (the
+        // database query failed). Treating "unknown" as "nothing is
+        // referenced" would delete the user's entire cover cache, so the
+        // prune is skipped and nothing is removed.
+        qWarning() << "pruneArtworkCache: reference set unavailable; skipping";
+        return 0;
+    }
+
+    QDir dir(artworkCacheDir());
+    if (!dir.exists())
+        return 0;
+
+    // Only regular files directly inside the cache directory: no recursion,
+    // and symlinks are neither followed nor removed (QDir::NoSymLinks), so a
+    // link that points outside the cache cannot take its target with it.
+    const QFileInfoList entries =
+        dir.entryInfoList(QDir::Files | QDir::NoSymLinks);
+
+    int removed = 0;
+    for (const QFileInfo &info : entries) {
+        const QString path = info.absoluteFilePath();
+        if (referenced->contains(path))
+            continue;
+        if (QFile::remove(path)) {
+            ++removed;
+        } else {
+            // One unremovable file (permissions, a race with a writer) must
+            // not abort the pass: log it and leave it for a later scan.
+            qWarning() << "pruneArtworkCache: cannot remove" << path;
+        }
+    }
+    return removed;
 }
 
 Song MetadataReader::read(const QString &filePath) const

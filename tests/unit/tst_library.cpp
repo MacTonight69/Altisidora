@@ -64,6 +64,9 @@ private slots:
     void testSetAlbumIdentityAcceptsACombinedTitleAndArtistChange();
     void testSetAlbumArtworkEmitsOnceAndCoversEverySong();
 
+    // Artwork-cache garbage collection runs in the scan-finished handler.
+    void testScanPrunesUnreferencedArtworkCache();
+
 private:
     void removeDatabaseFiles();
     void clearTempDir();
@@ -1023,6 +1026,52 @@ void tst_library::testSetAlbumArtworkEmitsOnceAndCoversEverySong()
                                            QStringLiteral("Cover Artist 18"),
                                            pickedPath));
     QCOMPARE(changedSpy.count(), 2);
+}
+
+// The scan-finished handler is where the database is authoritative, so it is
+// where the cache is garbage-collected: a completed scan must remove a cache
+// file no song references while keeping the one a song still points at.
+void tst_library::testScanPrunesUnreferencedArtworkCache()
+{
+    // One song whose cover lives in the content-hash cache. The path is
+    // outside the scanned root so the scan's missing-file reconciliation
+    // does not drop the row (which would also drop its artwork reference).
+    const qint64 id = insertSongRow(QStringLiteral("/music/tagged/keeper20.mp3"),
+                                    QStringLiteral("Keeper 20"));
+    QVERIFY(id > 0);
+    const QString picked = m_tempDir.filePath(QStringLiteral("picked_cover20.png"));
+    {
+        QFile pickedFile(picked);
+        QVERIFY(pickedFile.open(QIODevice::WriteOnly));
+        QVERIFY(pickedFile.write(QByteArray::fromHex(kRedPngHex)) > 0);
+    }
+    QVERIFY(m_controller->setArtwork(static_cast<int>(id), picked));
+
+    const QString referenced = m_controller->songs().first().toMap()
+                                   .value(QStringLiteral("artwork")).toString();
+    QVERIFY(!referenced.isEmpty());
+    QVERIFY(QFile::exists(referenced));
+
+    // An orphan cache file that no song references.
+    const QString artworkDir = QStandardPaths::writableLocation(
+                                   QStandardPaths::AppDataLocation)
+                               + QStringLiteral("/artwork");
+    QVERIFY(QDir().mkpath(artworkDir));
+    const QString orphan = artworkDir + QStringLiteral("/orphan20_unreferenced.png");
+    {
+        QFile orphanFile(orphan);
+        QVERIFY(orphanFile.open(QIODevice::WriteOnly));
+        QVERIFY(orphanFile.write(QByteArray::fromHex(kRedPngHex)) > 0);
+    }
+    QVERIFY(QFile::exists(orphan));
+
+    // A finished scan runs the prune (the temp dir has no audio, so the
+    // scan only reconciles and then garbage-collects the cache).
+    m_controller->scan(m_tempDir.path());
+    QVERIFY(waitForScanFinished());
+
+    QVERIFY(!QFile::exists(orphan));      // unreferenced -> removed
+    QVERIFY(QFile::exists(referenced));   // referenced -> survived the scan
 }
 
 QTEST_MAIN(tst_library)

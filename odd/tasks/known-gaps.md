@@ -45,9 +45,9 @@ non-atomic artwork save, playback queue scoping).
 
 | ID | Task | Route | Surfaces | Status |
 |----|------|-------|----------|--------|
-| B4 | Add `hicolor-icon-theme` to the PKGBUILD `depends` | delegated (small model) | `PKGBUILD` | pending |
-| B5 | Publish `mpris:artUrl` from `MprisPlayer::metadata()` | delegated | `src/mpris/MprisPlayer.cpp`, `tests/unit/tst_mpris.cpp` | pending |
-| B6 | Garbage-collect the artwork cache | delegated | `src/library/`, `src/database/`, `tests/unit/` | pending |
+| B4 | Add `hicolor-icon-theme` to the PKGBUILD `depends` | delegated (small model) | `PKGBUILD` | CLOSED |
+| B5 | Publish `mpris:artUrl` from `MprisPlayer::metadata()` | delegated | `src/mpris/MprisPlayer.cpp`, `tests/unit/tst_mpris.cpp` | CLOSED |
+| B6 | Garbage-collect the artwork cache | delegated | `src/library/`, `src/database/`, `tests/unit/` | CLOSED |
 
 ### Route evidence
 
@@ -138,3 +138,52 @@ nothing to ask. One slice; each task is its own work-unit commit.
 > `git stash`/`git stash pop` around its own edits can pop the wrong stash. Any
 > future delegation that stashes must scope it with `git stash push -- <path>`
 > and verify what it popped.
+
+### B6 — garbage-collect the artwork cache — CLOSED
+
+- **Commit:** `feat(library): garbage-collect the artwork cache`
+- **Change:** a prune entry point plus its call site and its reference query.
+  - `MetadataReader::artworkCacheDir()` — a new file-static that is now the
+    **single** definition of the cache location. The write path
+    (`cacheArtworkBytes`) and the prune both resolve the directory through it,
+    so the two cannot drift apart.
+  - `MetadataReader::pruneArtworkCache(const std::optional<QSet<QString>> &)`
+    — enumerates `QDir::Files | QDir::NoSymLinks` (regular files directly
+    inside; no recursion, symlinks neither followed nor removed), removes each
+    file whose absolute path is not referenced, logs and skips individual
+    removal failures instead of aborting the pass, never removes the directory
+    itself, and returns the count removed.
+  - `DatabaseManager::referencedArtworkPaths()` — `SELECT DISTINCT artwork_path
+    FROM songs WHERE artwork_path IS NOT NULL AND artwork_path != ''`.
+  - Hooked in `LibraryController`'s scan-finished handler, after the removals
+    and upserts and after `refreshAlbumArtwork()`, i.e. exactly where the
+    database is authoritative.
+- **Design decision (writer's, and an improvement on the plan):** the plan asked
+  for a plain `QSet` and a documented "skip on failure" instruction. The writer
+  instead made the parameter `std::optional<QSet<QString>>`, so "the reference
+  set is unknown" is a state the type system carries and the function *cannot*
+  silently treat as "nothing is referenced". The catastrophic failure mode (a
+  failed query wiping the whole cover cache) is therefore structural rather than
+  a convention a future caller could forget.
+- **Tests (all observed PASS):**
+  - `tst_metadata`: `testPruneArtworkCacheRemovesOnlyUnreferenced` — writes real
+    entries through the public write path, asserts the referenced file survives,
+    the unreferenced one is removed and counted (`QCOMPARE(removed, 1)`), that a
+    nested directory is not recursed into, and that a symlink pointing outside
+    the cache neither removes its target nor is itself removed.
+  - `tst_metadata`: `testPruneArtworkCacheSkipsWhenReferencesUnavailable` —
+    `nullopt` removes nothing.
+  - `tst_library`: `testScanPrunesUnreferencedArtworkCache` — end-to-end: a real
+    completed scan removes an orphaned cache file and keeps the file a song
+    still points at.
+- **Verification** (writer-reported, then re-run by the parent):
+  - `cmake --build build -j"$(nproc)"` → exit 0, zero warnings
+  - `ctest --test-dir build --output-on-failure` → 13/13
+  - `tst_metadata` → 33 passed; `tst_library` → 29 passed
+  - offscreen smoke → exit 124
+  - `git diff --stat` → 7 files, +275/−2, all within the allowed surfaces
+- **Docs:** the `Known gaps` section of `docs/PROJECT_STATUS.md` → "Next steps"
+  is removed in this commit, because it is now empty. Nothing else changed in
+  that list.
+- **Deviations:** the `std::optional` upgrade described above, which was
+  accepted deliberately.
