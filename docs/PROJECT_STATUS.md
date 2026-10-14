@@ -128,5 +128,32 @@ Test isolation:
 
 ## Next steps
 
-1. Publish: push tag `v0.1.0` upstream and generate real PKGBUILD checksums
-   (see the TODO in `PKGBUILD`).
+**Publish**
+
+1. Push tag `v0.1.0` upstream and generate real PKGBUILD checksums (see the
+   TODO in `PKGBUILD`).
+
+**Export targets** — guides in `docs/`
+
+2. AppImage — see [`docs/PACKAGING_LINUX.md`](PACKAGING_LINUX.md). Open
+   decisions: the build host and its glibc floor, and which Qt to bundle.
+   Depends on an automated container build.
+3. Windows — see [`docs/PACKAGING_WINDOWS.md`](PACKAGING_WINDOWS.md). The first
+   step (the platform-neutral media seam) is Linux-only work that can be done
+   now.
+
+**Known gaps** — verified against the code, not implemented
+
+4. MPRIS never publishes `mpris:artUrl`. `MprisPlayer::metadata()` sets
+   `mpris:trackid`, `xesam:title`, `xesam:artist`, `xesam:album`,
+   `mpris:length` and `xesam:url` only, so desktop shells and media controls
+   show no artwork.
+5. The artwork cache has no garbage collection. `MetadataReader` writes one
+   content-addressed file per cover under `AppDataLocation/artwork/` and
+   nothing ever removes one — not even when the song is deleted from the
+   database, so the directory only grows.
+6. `hicolor-icon-theme` is missing from the PKGBUILD `depends`, although the
+   package installs into `share/icons/hicolor/512x512/apps/`.
+
+Still open from Known limitations above: the now-playing refresh API, and the
+absence of CI (which the AppImage pipeline will need).

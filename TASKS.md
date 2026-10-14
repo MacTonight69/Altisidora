@@ -19,10 +19,12 @@ decisions taken along the way. A review-driven **perf & lightening pass**
 landed on the same branch afterwards — see the first entry in the Decisions
 log, which carries its measurements.
 
-Remaining work is delivery and the optional follow-ups tracked in
-`docs/PROJECT_STATUS.md` (publishing `v0.1.0`; `mpris:artUrl`; artwork-cache
-GC; a player refresh API so the now-playing bar follows an edit;
-`hicolor-icon-theme` in the PKGBUILD depends), plus one open process item:
+Remaining work lives in `docs/PROJECT_STATUS.md` → "Next steps": delivery, the
+two export targets, and the gaps verified against the code. The export guides
+are `docs/PACKAGING_LINUX.md` (AppImage) and `docs/PACKAGING_WINDOWS.md`
+(Windows), with the shared rules in `docs/PACKAGING.md`.
+
+Plus one open process item:
 
 - The RDD review of range `79b9544..0a9615e` never ran: the host runtime
   cannot dispatch the reviewer subagent (tier restriction). The user decided

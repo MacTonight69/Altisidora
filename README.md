@@ -58,6 +58,26 @@ tests/
 docs/                   # Documentation
 ```
 
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module layout and responsibilities |
+| [`docs/API_CONTRACTS.md`](docs/API_CONTRACTS.md) | Controller interfaces the QML layer relies on |
+| [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Current state, known limitations, next steps |
+| [`docs/PACKAGING.md`](docs/PACKAGING.md) | Export targets: glibc floor, platform seam, licensing |
+| [`docs/PACKAGING_LINUX.md`](docs/PACKAGING_LINUX.md) | Building the AppImage |
+| [`docs/PACKAGING_WINDOWS.md`](docs/PACKAGING_WINDOWS.md) | The future Windows port |
+| `TASKS.md` | Implementation plan and decisions log |
+
+## Packaging
+
+| Target | Artifact | Status |
+|---|---|---|
+| Arch / CachyOS | `PKGBUILD` | working |
+| Any current Linux | AppImage | planned — see [`docs/PACKAGING_LINUX.md`](docs/PACKAGING_LINUX.md) |
+| Windows 10/11 | ZIP / installer | future — see [`docs/PACKAGING_WINDOWS.md`](docs/PACKAGING_WINDOWS.md) |
+
 ## License
 
 GPL-3.0 (declared in `PKGBUILD`).
