@@ -142,5 +142,18 @@ Test isolation:
    step (the platform-neutral media seam) is Linux-only work that can be done
    now.
 
+**Review gate** — the accumulated review range cannot be reviewed as one candidate
+
+4. Receipt-driven development is on by default, and the native gate refuses the
+   accumulated range `79b9544..HEAD` with `lens_context_budget_exceeded`: the
+   candidate's complete reviewer evidence exceeds the lens context budget, so no
+   review authority is created, and retrying that same candidate cannot succeed
+   because immutable candidate evidence is never truncated. The prescribed
+   continuation is a chained sequence of smaller candidates, one review per
+   slice. The range holds 27 commits (~4 460 authored lines); the largest single
+   commit (`0a9615e`, 1 159 lines) may itself exceed the budget, so the chain has
+   to be walked rather than divided evenly. This is a process gap, not a defect
+   in the product.
+
 Still open from Known limitations above: the now-playing refresh API, and the
 absence of CI (which the AppImage pipeline will need).

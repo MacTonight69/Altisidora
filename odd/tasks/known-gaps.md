@@ -187,3 +187,53 @@ nothing to ask. One slice; each task is its own work-unit commit.
   that list.
 - **Deviations:** the `std::optional` upgrade described above, which was
   accepted deliberately.
+
+## Outcome
+
+All three tasks are closed and committed on `fix/known-gaps`:
+
+| Commit | Contents |
+|--------|----------|
+| `ba1e3ab` | the plan itself |
+| `e0c8088` | B4 — `hicolor-icon-theme` dependency |
+| `096fa8a` | B5 — `mpris:artUrl` |
+| `516362f` | B6 — artwork cache garbage collection |
+
+~525 authored lines across four commits — under the ~400-per-task heuristic and
+small enough to review as a single candidate.
+
+`docs/PROJECT_STATUS.md` → "Next steps" no longer lists any verified gap: all
+three are closed and the section that held them is gone.
+
+### Review gate
+
+`gentle-ai review assess --base-ref 79b9544 --committed-only` reports
+`review_due: true` with `slice_budget_reached` for the accumulated range. The
+gate then **refuses** that range: `lens_context_budget_exceeded`,
+`mutation_outcome: not_started`, `retry_safe: true`, `next_action: stop`.
+Nothing was consumed and no review authority was created, and the provider states
+that retrying the same candidate cannot succeed because immutable candidate
+evidence is never truncated.
+
+So the backlog must be reviewed as a chained sequence of smaller candidates,
+oldest slice first so the boundary advances. The range is 27 commits / ~4 460
+authored lines, and its largest commit (`0a9615e`, 1 159 lines) may not fit on
+its own either. The four commits of this feature (~525 lines) are the slice most
+likely to fit.
+
+The feature therefore closes with the code and the docs done and verified, and
+the review of the historical backlog still open as a separate process task. That
+task is recorded in `docs/PROJECT_STATUS.md` → "Next steps".
+
+### Delegation notes
+
+- B4 ran on a small/fast model because it was one mechanical line that the
+  parent could verify independently. It succeeded, and every check was re-run.
+- B5 and B6 ran on the default model.
+- `gentle-ai-worker` dispatched correctly in this runtime. `gentle-ai-explore`
+  failed once with a free-tier error, so the B6 mapping was done by the parent
+  from a bounded read instead of a delegated explorer.
+- Two launches were made for B5 because the parent read the two parallel results
+  into the wrong variables and narrated a success as a failure. The duplicate was
+  harmless (it re-verified the same diff) but it was avoidable, and the real fix
+  is to bind each launch to its own named result before describing it.
