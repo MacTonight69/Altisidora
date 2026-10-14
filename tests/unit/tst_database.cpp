@@ -65,6 +65,7 @@ private slots:
     void testSetAlbumIdentityMovesAlbumAndSongs();
     void testSetAlbumIdentityHandlesACombinedTitleAndArtistChange();
     void testSetAlbumArtworkCoversEverySongAndRollsUp();
+    void testParseStoredDateTimeMatchesFromString();
 
 private:
     // Raw read of the edited flag. The Song struct deliberately does not
@@ -1834,6 +1835,52 @@ void TestDatabase::testSetAlbumArtworkCoversEverySongAndRollsUp()
     QVERIFY(!m_db.setAlbumArtwork(QStringLiteral("No Such Album"),
                                   QStringLiteral("Cover Artist"),
                                   QStringLiteral("/cache/none.png")));
+}
+
+void TestDatabase::testParseStoredDateTimeMatchesFromString()
+{
+    // The fast reader must agree with QDateTime::fromString(Qt::ISODate) on
+    // every shape the app can store, including the ones it defers to Qt for.
+    const QStringList cases = {
+        QString(),
+        QStringLiteral("2020-01-01"),
+        QStringLiteral("2020-13-01"),
+        QStringLiteral("2020-02-30"),
+        QStringLiteral("2020-1-1"),
+        QStringLiteral("20200101"),
+        QStringLiteral("2020-01-01T10:20:30"),
+        QStringLiteral("2020-01-01 10:20:30"),
+        QStringLiteral("2020-01-01t10:20:30"),
+        QStringLiteral("2020-01-01T10:20"),
+        QStringLiteral("2020-01-01T10:20:30."),
+        QStringLiteral("2020-01-01T10:20:30.123"),
+        QStringLiteral("2020-01-01T10:20:30.123456"),
+        QStringLiteral("1999-12-31T23:59:59"),
+        QStringLiteral("2024-02-29T00:00:00"),   // leap day
+        QStringLiteral("2023-02-29T00:00:00"),   // not a leap year
+        QStringLiteral("2020-01-01T25:00:00"),
+        QStringLiteral("2020-01-01T10:61:00"),
+        QStringLiteral("2020-01-01T10:20:61"),
+        // Outside the fast grammar: parseStoredDateTime() must fall back to
+        // QDateTime::fromString rather than guess.
+        QStringLiteral("2020-01-01T10:20:30Z"),
+        QStringLiteral("2020-01-01T10:20:30.123Z"),
+        QStringLiteral("2020-01-01T10:20:30+05:00"),
+        QStringLiteral("2020-01-01T10:20:30-08:30"),
+        QStringLiteral("  2020-01-01"),
+        QStringLiteral("2020-01-01x"),
+    };
+
+    const auto check = [&](const QString &text) {
+        const QDateTime expected = QDateTime::fromString(text, Qt::ISODate);
+        const QDateTime actual = DatabaseManager::parseStoredDateTime(text);
+        const QString what = QStringLiteral("input '%1'").arg(text);
+        QVERIFY2(actual.isNull() == expected.isNull(), qPrintable(what));
+        if (!expected.isNull())
+            QCOMPARE(actual.toMSecsSinceEpoch(), expected.toMSecsSinceEpoch());
+    };
+    for (const QString &text : cases)
+        check(text);
 }
 
 QTEST_MAIN(TestDatabase)

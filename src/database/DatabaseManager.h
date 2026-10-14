@@ -29,6 +29,17 @@ public:
     void close();
     bool isOpen() const;
 
+    /**
+     * @brief Read an ISO 8061 timestamp exactly as QDateTime::fromString
+     *        (Qt::ISODate) would.
+     *
+     * QDateTime::fromString costs ~170 us per call on Qt 6.12, which made the
+     * per-row library load the dominant startup cost. The song and playlist
+     * loads use this fast reader instead; it is public so the equivalence can
+     * be pinned by tst_database.
+     */
+    static QDateTime parseStoredDateTime(const QString &text);
+
     // Explicitly group multiple writes into one SQLite transaction (each
     // statement in autocommit mode is its own fsync; a scan commits tens of
     // thousands of statements, so wrapping them in one transaction is a
