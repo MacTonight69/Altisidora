@@ -55,7 +55,7 @@ Responsibilities:
 ```text
 scan(directory)
 refresh()
-search(query)
+setSearch(query) / searchModel / searchActive
 songs        (Q_PROPERTY)
 albums       (Q_PROPERTY)
 artists      (Q_PROPERTY)

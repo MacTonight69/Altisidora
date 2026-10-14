@@ -38,7 +38,6 @@ private slots:
     void testScanFindsAudioFiles();
     void testScanIgnoresUnsupportedFiles();
     void testRescanDoesNotDuplicate();
-    void testSearch();
     void testSearchModelReflectsQuery();
     void testScanSignals();
     void testIgnorePathHidesSong();
@@ -186,21 +185,6 @@ void tst_library::testRescanDoesNotDuplicate()
     QCOMPARE(m_controller->songCount(), 3);
 }
 
-void tst_library::testSearch()
-{
-    TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
-    m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
-    QCOMPARE(m_controller->songCount(), 4);
-
-    // File names follow the pattern trackNN_Artist_Album.ext
-    const QVector<QVariant> results = m_controller->search(QStringLiteral("track01"));
-    QCOMPARE(results.size(), 1);
-
-    // A query matching nothing must return an empty list
-    QVERIFY(m_controller->search(QStringLiteral("zzz_no_such_song")).isEmpty());
-}
-
 void tst_library::testSearchModelReflectsQuery()
 {
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
@@ -302,7 +286,11 @@ void tst_library::testIgnorePathHidesSong()
     for (const QVariant &songVar : remaining) {
         QVERIFY(songVar.toMap().value("path").toString() != files.first());
     }
-    QCOMPARE(m_controller->search(files.first().section(QLatin1Char('/'), -1)).size(), 0);
+    // The hidden song is also absent from search results, which read their
+    // rows from the same database query as the library model.
+    m_controller->setSearch(files.first().section(QLatin1Char('/'), -1));
+    QCOMPARE(m_controller->searchModel()->count(), 0);
+    m_controller->setSearch(QString());
 }
 
 void tst_library::testIgnoreFolderHidesChildren()

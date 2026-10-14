@@ -363,15 +363,6 @@ void LibraryController::setSearch(const QString &query)
     emit searchChanged();
 }
 
-QVector<QVariant> LibraryController::search(const QString &query) const
-{
-    QVector<QVariant> result;
-    for (const Song &song : m_db.searchSongs(query)) {
-        result.append(song.toVariantMap());
-    }
-    return result;
-}
-
 QVector<QVariant> LibraryController::songsByAlbum(const QString &title,
                                                   const QString &artist) const
 {

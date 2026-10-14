@@ -99,7 +99,6 @@ public slots:
     void scanPersonalMusic(const QString &directory = QString());
     void refresh();
     QStringList ignoredPaths() const;
-    QVector<QVariant> search(const QString &query) const;
     int songCount() const;
 
     /**
