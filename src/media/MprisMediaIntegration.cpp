@@ -1,4 +1,4 @@
-#include "MprisPlayer.h"
+#include "MprisMediaIntegration.h"
 
 #include <QCoreApplication>
 #include <QDBusError>
@@ -10,7 +10,7 @@
 
 // ---- org.mpris.MediaPlayer2 ----
 
-MediaPlayer2Adaptor::MediaPlayer2Adaptor(MprisPlayer *parent)
+MediaPlayer2Adaptor::MediaPlayer2Adaptor(MprisMediaIntegration *parent)
     : QDBusAbstractAdaptor(parent)
 {
 }
@@ -22,7 +22,7 @@ void MediaPlayer2Adaptor::Quit()
 
 // ---- org.mpris.MediaPlayer2.Player ----
 
-PlayerAdaptor::PlayerAdaptor(MprisPlayer *parent)
+PlayerAdaptor::PlayerAdaptor(MprisMediaIntegration *parent)
     : QDBusAbstractAdaptor(parent)
     , m_player(parent)
 {
@@ -176,76 +176,14 @@ void PlayerAdaptor::OpenUri(const QString &uri)
     // URI playback is not supported: the library manages local files only.
 }
 
-// ---- MprisPlayer ----
+// ---- MprisMediaIntegration ----
 
-MprisPlayer::MprisPlayer(PlayerController *player, QObject *parent)
-    : QObject(parent)
-    , m_player(player)
+MprisMediaIntegration::MprisMediaIntegration(PlayerController *player, QObject *parent)
+    : MediaIntegration(player, parent)
 {
 }
 
-QString MprisPlayer::playbackStatus() const
-{
-    switch (m_player->playbackState()) {
-    case PlaybackState::Playing:
-        return QStringLiteral("Playing");
-    case PlaybackState::Paused:
-        return QStringLiteral("Paused");
-    default:
-        return QStringLiteral("Stopped");
-    }
-}
-
-QVariantMap MprisPlayer::metadata() const
-{
-    QVariantMap map;
-    const QVariantMap song = m_player->currentSong();
-    if (song.isEmpty()) {
-        return map;
-    }
-
-    map[QStringLiteral("mpris:trackid")] =
-        QVariant::fromValue(QDBusObjectPath(
-            QStringLiteral("/org/mpris/MediaPlayer2/TrackList/Track/%1")
-                .arg(song.value(QStringLiteral("id")).toLongLong())));
-
-    map[QStringLiteral("xesam:title")] =
-        song.value(QStringLiteral("title")).toString();
-
-    const QString artist = song.value(QStringLiteral("artist")).toString();
-    if (!artist.isEmpty()) {
-        map[QStringLiteral("xesam:artist")] = QStringList{artist};
-    }
-
-    const QString album = song.value(QStringLiteral("album")).toString();
-    if (!album.isEmpty()) {
-        map[QStringLiteral("xesam:album")] = album;
-    }
-
-    const qint64 durationMs = song.value(QStringLiteral("duration")).toLongLong();
-    if (durationMs > 0) {
-        map[QStringLiteral("mpris:length")] = durationMs * 1000; // µs
-    }
-
-    const QString path = song.value(QStringLiteral("path")).toString();
-    if (!path.isEmpty()) {
-        map[QStringLiteral("xesam:url")] = QUrl::fromLocalFile(path).toString();
-    }
-
-    const QString artPath = song.value(QStringLiteral("artwork")).toString();
-    if (!artPath.isEmpty()) {
-        map[QStringLiteral("mpris:artUrl")] = QUrl::fromLocalFile(artPath).toString();
-    }
-
-    return map;
-}
-
-qint64 MprisPlayer::positionMicros() const
-{
-    return m_player->position() * 1000;
-}
-
-bool MprisPlayer::registerService()
+bool MprisMediaIntegration::start()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
@@ -272,4 +210,11 @@ bool MprisPlayer::registerService()
     }
 
     return true;
+}
+
+void MprisMediaIntegration::stop()
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    bus.unregisterObject(QStringLiteral("/org/mpris/MediaPlayer2"));
+    bus.unregisterService(QStringLiteral("org.mpris.MediaPlayer2.altisidora"));
 }

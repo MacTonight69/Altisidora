@@ -75,8 +75,8 @@ argues the timing: do it while the code is already being touched.
 
 | ID | Task | Route | Surfaces | Status |
 |----|------|-------|----------|--------|
-| S1 | Introduce the seam: base, MPRIS backend moved behind it, factory, `main.cpp` wired, tests updated. D-Bus still required. | delegated writer | `src/media/` (new), `src/mpris/`, `src/main.cpp`, `CMakeLists.txt`, `tests/unit/tst_mpris.cpp`, `tests/CMakeLists.txt` | pending |
-| S2 | Make the D-Bus backend optional: CMake switch, no-op backend, conditional factory, tests guard, and proof that a D-Bus-off configure still builds. | delegated writer | `src/media/`, `CMakeLists.txt`, `tests/CMakeLists.txt`, `docs/PACKAGING_WINDOWS.md` | pending |
+| S1 | Introduce the seam: base, MPRIS backend moved behind it, factory, `main.cpp` wired, tests updated. D-Bus still required. | delegated writer | `src/media/` (new), `src/mpris/`, `src/main.cpp`, `CMakeLists.txt`, `tests/unit/tst_mpris.cpp`, `tests/CMakeLists.txt` | CLOSED |
+| S2 | Make the D-Bus backend optional: CMake switch, no-op backend, conditional factory, `metadata()` becomes pure virtual in the base with its body (and its `QDBusObjectPath`) moving to the MPRIS backend, tests guard, and proof that a D-Bus-off configure still builds. | delegated writer | `src/media/`, `CMakeLists.txt`, `tests/CMakeLists.txt`, `docs/PACKAGING_WINDOWS.md` | pending |
 | S3 | Record the outcome in `docs/PROJECT_STATUS.md` and this document. | inline (parent) | `docs/PROJECT_STATUS.md`, `odd/tasks/platform-seam.md` | pending |
 
 ## Acceptance criteria
@@ -127,13 +127,53 @@ when the user decides to push.
 
 ## Accepted limitations
 
-- `metadata()` yields MPRIS-flavoured keys from the platform-neutral base, so a
-  future backend reuses keys named after a protocol it does not speak. Accepted
-  for now; the alternative is inventing a key mapping before there is a second
-  consumer to validate it against.
+- `metadata()` yields MPRIS-flavoured keys (`xesam:*`, `mpris:*`) and, in S1's
+  shape, still lives in the base TU with a `QDBusObjectPath` inside — so the
+  base currently does not compile without D-Bus. This is deliberate for S1
+  (zero behaviour change) and is resolved by S2: the base declares
+  `virtual QVariantMap metadata() const = 0;` and the body, with its D-Bus
+  object-path typing, moves to `MprisMediaIntegration`. Rationale: `metadata()`
+  is protocol-shaped by nature — its `mpris:trackid` must marshal as D-Bus type
+  `o` — so a base TU that must compile without D-Bus cannot own it. The keys
+  stay MPRIS-shaped; a future non-MPRIS backend returns its own map.
 - No test asserts that the factory picks the no-op backend when D-Bus is absent,
   because that only exists in the D-Bus-off configuration.
 
 ## Progress log
+
+### S1 — introduce the seam — CLOSED
+
+- **Commit:** `refactor(media): introduce the platform media seam`
+- **Change:** `src/mpris/MprisPlayer` is now `src/media/MprisMediaIntegration`
+  behind `src/media/MediaIntegration`, a platform-neutral base owning the shared
+  state (`playbackStatus()`, `metadata()`, `positionMicros()`) plus the
+  `start()`/`stop()` lifecycle. `src/main.cpp` constructs through
+  `createMediaIntegration()` — the factory is the app's only construction point —
+  and defers `start()` exactly as it deferred `registerService()`.
+  `CMakeLists.txt` swaps the two source paths; D-Bus stays a hard component and
+  link (that is S2). `src/mpris/` is gone. `tst_mpris` keeps every case and
+  assertion; only its include, its type and `registerService()` → `start()`
+  changed.
+- **Fidelity:** the moved body's only real delta is the constructor initializer
+  (`MediaIntegration(player, parent)` instead of
+  `QObject(parent), m_player(player)`), verified by normalizing both bodies and
+  diffing them. `start()` is the old `registerService()` body verbatim; `stop()`
+  is new and does the inverse (unregisters object and service).
+- **Deviations (accepted):**
+  1. The base also exposes `player()`. The guide's shape block omitted it, but
+     the moved adaptors need it for volume and transport. Moved unchanged, not
+     invented.
+  2. `metadata()` — and with it `QDBusObjectPath` — stayed in the base TU. That
+     is the documented shape and S1 must not change behaviour, but it means the
+     base does not compile without D-Bus. This drives the S2 design recorded
+     under "Accepted limitations".
+- **Verification** (writer-reported, then re-run by the parent):
+  - `cmake --build build -j"$(nproc)"` → exit 0, zero warnings
+  - `ctest --test-dir build --output-on-failure` → 13/13
+  - `./build/tests/tst_mpris` → 7 passed, 0 failed, 0 skipped
+  - offscreen smoke → exit 124
+  - no `#ifdef` / `ALTISIDORA_HAS_DBUS` anywhere (grep)
+  - `git diff -M --stat` → 7 files, +177/−104; rename detected, so the moved
+    `.cpp` shows only 85 changed lines and the `.h` 30
 
 _(one entry per task, written when the task is verified)_

@@ -6,7 +6,7 @@
 #include <QDBusObjectPath>
 #include <QDBusReply>
 
-#include "../../src/mpris/MprisPlayer.h"
+#include "../../src/media/MprisMediaIntegration.h"
 #include "../../src/audio/PlayerController.h"
 
 /**
@@ -36,7 +36,7 @@ private:
     void loadFakeSongNoArtwork();
 
     PlayerController *m_player = nullptr;
-    MprisPlayer *m_mpris = nullptr;
+    MprisMediaIntegration *m_mpris = nullptr;
     int m_changeCount = 0;
     QVariantMap m_playerChanged;
 };
@@ -46,8 +46,8 @@ void tst_mpris::initTestCase()
     QVERIFY(QDBusConnection::sessionBus().isConnected());
 
     m_player = new PlayerController(this);
-    m_mpris = new MprisPlayer(m_player, this);
-    QVERIFY(m_mpris->registerService());
+    m_mpris = new MprisMediaIntegration(m_player, this);
+    QVERIFY(m_mpris->start());
 
     // Listen exactly like a desktop shell does: only the standard
     // org.freedesktop.DBus.Properties.PropertiesChanged signal counts.

@@ -20,7 +20,7 @@
 #include "library/LibraryController.h"
 #include "app/PlaylistController.h"
 #include "app/SettingsController.h"
-#include "mpris/MprisPlayer.h"
+#include "media/MediaIntegration.h"
 
 namespace {
 
@@ -174,9 +174,11 @@ int main(int argc, char *argv[])
         library.scanPersonalMusic(personalFolder);
     }
 
-    // Expose playback to the desktop as an MPRIS media player, so MangoWM /
-    // system media controls see the audio while it is playing.
-    MprisPlayer mpris(&player);
+    // Expose playback to the desktop so the platform media session (MPRIS on
+    // Linux, so MangoWM / system media controls) sees the audio while it is
+    // playing. The factory picks the platform backend; the object is owned by
+    // the application so it outlives main()'s scope.
+    auto *media = createMediaIntegration(&player, &app);
 
     QQmlApplicationEngine engine;
 
@@ -215,12 +217,11 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // Defer MPRIS registration until after the first paint: registerService()
-    // does synchronous D-Bus round-trips that would block startup. mpris is a
-    // stack local that lives for the duration of main(), so capturing its
-    // address is safe.
-    QTimer::singleShot(0, &mpris, [&mpris]() {
-        mpris.registerService();
+    // Defer MPRIS registration until after the first paint: start() does
+    // synchronous D-Bus round-trips that would block startup. media is owned
+    // by the application, so capturing the pointer is safe.
+    QTimer::singleShot(0, media, [media]() {
+        media->start();
     });
 
     // Clicking anywhere outside the search bar drops its focus. The rest

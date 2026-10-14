@@ -45,8 +45,10 @@ set(CORE_SOURCES
     src/library/Scanner.cpp
     src/library/MetadataReader.cpp
     src/database/DatabaseManager.cpp
-    src/mpris/MprisPlayer.cpp
-    src/mpris/MprisPlayer.h
+    src/media/MediaIntegration.cpp
+    src/media/MediaIntegration.h
+    src/media/MprisMediaIntegration.cpp
+    src/media/MprisMediaIntegration.h
     src/models/Song.cpp
 )
 

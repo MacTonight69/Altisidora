@@ -1,12 +1,10 @@
 #pragma once
 
-#include <QObject>
-#include <QVariantMap>
 #include <QDBusConnection>
 #include <QDBusObjectPath>
 #include <QDBusAbstractAdaptor>
 
-class PlayerController;
+#include "MediaIntegration.h"
 
 /**
  * @brief Exposes Altisidora playback as an MPRIS v2 media player.
@@ -15,27 +13,23 @@ class PlayerController;
  * desktop shell and system media controls (MangoWM media indicators,
  * media keys, sound menus) recognise the app while audio is playing.
  */
-class MprisPlayer : public QObject
+class MprisMediaIntegration : public MediaIntegration
 {
     Q_OBJECT
 
 public:
-    explicit MprisPlayer(PlayerController *player, QObject *parent = nullptr);
+    explicit MprisMediaIntegration(PlayerController *player, QObject *parent = nullptr);
 
     /**
      * @brief Register the D-Bus service and object.
      * @return true when the MPRIS service is live on the session bus
      */
-    bool registerService();
+    bool start() override;
 
-    // Data accessors used by the D-Bus adaptors.
-    PlayerController *player() const { return m_player; }
-    QString playbackStatus() const;
-    QVariantMap metadata() const;
-    qint64 positionMicros() const;
-
-private:
-    PlayerController *m_player;
+    /**
+     * @brief Unregister the D-Bus service and object.
+     */
+    void stop() override;
 };
 
 /**
@@ -55,7 +49,7 @@ class MediaPlayer2Adaptor : public QDBusAbstractAdaptor
     Q_PROPERTY(QStringList SupportedMimeTypes READ supportedMimeTypes CONSTANT)
 
 public:
-    explicit MediaPlayer2Adaptor(MprisPlayer *parent);
+    explicit MediaPlayer2Adaptor(MprisMediaIntegration *parent);
 
     bool canQuit() const { return true; }
     bool canRaise() const { return false; }
@@ -95,7 +89,7 @@ class PlayerAdaptor : public QDBusAbstractAdaptor
     Q_PROPERTY(bool CanControl READ canControl CONSTANT)
 
 public:
-    explicit PlayerAdaptor(MprisPlayer *parent);
+    explicit PlayerAdaptor(MprisMediaIntegration *parent);
 
     QString playbackStatus() const;
     QString loopStatus() const { return QStringLiteral("None"); }
@@ -136,7 +130,7 @@ signals:
 private:
     void emitPropertiesChanged(const QVariantMap &changed);
 
-    MprisPlayer *m_player;
+    MprisMediaIntegration *m_player;
     // Last whole second relayed through the (non-standard) positionChanged
     // D-Bus signal; used to coalesce the ~6.7/s poll into ~1/s.
     qint64 m_lastPositionSecond = -1;
