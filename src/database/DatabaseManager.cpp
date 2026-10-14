@@ -545,11 +545,16 @@ bool DatabaseManager::createTables()
     execute("CREATE INDEX IF NOT EXISTS idx_songs_album_id  ON songs(album_id)");
     execute("CREATE INDEX IF NOT EXISTS idx_songs_genre_id  ON songs(genre_id)");
     execute("CREATE INDEX IF NOT EXISTS idx_playlist_songs_song_id ON playlist_songs(song_id)");
-    execute("CREATE INDEX IF NOT EXISTS idx_ignored_paths_path ON ignored_paths(path)");
     // The artists/albums LEFT JOIN in getAllArtists() probes albums by
     // artist_id on every (artist, song) row; without this index each probe
     // is a full table scan.
     execute("CREATE INDEX IF NOT EXISTS idx_albums_artist_id ON albums(artist_id)");
+
+    // ignored_paths.path is UNIQUE NOT NULL, so SQLite already keeps an
+    // autoindex on it; the explicit idx_ignored_paths_path was a second copy of
+    // the same column that only added write cost to every hidden path. Remove
+    // it from databases that still carry it (fresh ones never create it).
+    execute("DROP INDEX IF EXISTS idx_ignored_paths_path");
 
     return true;
 }

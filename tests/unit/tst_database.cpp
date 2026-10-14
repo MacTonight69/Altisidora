@@ -21,6 +21,7 @@ private slots:
     void cleanup();
 
     void testOpenCreatesSchema();
+    void testIgnoredPathsKeepsOnlyTheUniqueIndex();
     void testAddAndGetSongWithNormalization();
     void testDuplicateSongPathRejected();
     void testRemoveSong();
@@ -108,6 +109,43 @@ void TestDatabase::testOpenCreatesSchema()
     QVERIFY(query.exec(QStringLiteral(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='songs'")));
     QVERIFY(query.next());
+}
+
+void TestDatabase::testIgnoredPathsKeepsOnlyTheUniqueIndex()
+{
+    // ignored_paths.path is UNIQUE, so SQLite maintains sqlite_autoindex_...;
+    // a second explicit index on the same column would only be write overhead.
+    QSqlQuery query(QSqlDatabase::database());
+    QVERIFY(query.exec(QStringLiteral(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='ignored_paths'")));
+
+    QStringList indexes;
+    while (query.next())
+        indexes << query.value(0).toString();
+
+    QCOMPARE(indexes.size(), 1);
+    QVERIFY2(indexes.first().startsWith(QStringLiteral("sqlite_autoindex_ignored_paths")),
+             qPrintable(indexes.join(QStringLiteral(", "))));
+
+    // A database written by an older build still carries the explicit index;
+    // reopening must drop it.
+    QSqlQuery create(QSqlDatabase::database());
+    QVERIFY(create.exec(QStringLiteral(
+        "CREATE INDEX idx_ignored_paths_path ON ignored_paths(path)")));
+
+    const QString path = QSqlDatabase::database().databaseName();
+    m_db.close();
+    QVERIFY(m_db.open(path));
+
+    QSqlQuery after(QSqlDatabase::database());
+    QVERIFY(after.exec(QStringLiteral(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='ignored_paths'")));
+    QStringList reindexed;
+    while (after.next())
+        reindexed << after.value(0).toString();
+    QCOMPARE(reindexed.size(), 1);
+    QVERIFY2(!reindexed.contains(QStringLiteral("idx_ignored_paths_path")),
+             qPrintable(reindexed.join(QStringLiteral(", "))));
 }
 
 void TestDatabase::testAddAndGetSongWithNormalization()
