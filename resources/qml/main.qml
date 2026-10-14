@@ -580,8 +580,10 @@ ApplicationWindow {
         SongsView {
             // Both the full library and the active search render through a
             // role-based SongListModel; QML only switches which model feeds
-            // the list (the array stays as the fallback for drill-downs).
-            songs: Library.songs
+            // the list. songsModel is always set here, so the array fallback
+            // (used by the album/artist drill-downs) is deliberately left
+            // empty: binding `songs: Library.songs` built a QVariantList of
+            // every song on each launch, and the list never read it.
             songsModel: Library.searchActive ? Library.searchModel : Library.songsModel
         }
     }
