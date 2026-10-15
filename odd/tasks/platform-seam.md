@@ -77,7 +77,7 @@ argues the timing: do it while the code is already being touched.
 |----|------|-------|----------|--------|
 | S1 | Introduce the seam: base, MPRIS backend moved behind it, factory, `main.cpp` wired, tests updated. D-Bus still required. | delegated writer | `src/media/` (new), `src/mpris/`, `src/main.cpp`, `CMakeLists.txt`, `tests/unit/tst_mpris.cpp`, `tests/CMakeLists.txt` | CLOSED |
 | S2 | Make the D-Bus backend optional: CMake switch, no-op backend, conditional factory, `metadata()` becomes pure virtual in the base with its body (and its `QDBusObjectPath`) moving to the MPRIS backend, tests guard, and proof that a D-Bus-off configure still builds. | delegated writer | `src/media/`, `CMakeLists.txt`, `tests/CMakeLists.txt`, `docs/PACKAGING_WINDOWS.md` | CLOSED |
-| S3 | Record the outcome in `docs/PROJECT_STATUS.md` and this document. | inline (parent) | `docs/PROJECT_STATUS.md`, `odd/tasks/platform-seam.md` | pending |
+| S3 | Record the outcome in `docs/PROJECT_STATUS.md` and this document. | inline (parent) | `docs/PROJECT_STATUS.md`, `odd/tasks/platform-seam.md` | CLOSED |
 
 ## Acceptance criteria
 
@@ -223,4 +223,43 @@ when the user decides to push.
     exactly the factory pair and its test mirror (the `#ifndef THEME_QML_DIR` /
     `VIEWS_QML_DIR` pairs in the theme tests are pre-existing).
 
-_(one entry per task, written when the task is verified)_
+### S3 — record the outcome — CLOSED
+
+- **Commit:** `docs: record the platform seam outcome`
+- **Change:** `docs/PROJECT_STATUS.md` — the System Integration row now points at
+  `src/media/` and names `MprisMediaIntegration` behind the seam (the old row
+  named `src/mpris/MprisPlayer`, which no longer exists); the test table
+  describes `tst_mpris` correctly and gains `tst_media`; the Windows entry in
+  "Next steps" no longer says the seam "can be done now" — it records that it is
+  done, that the D-Bus-off build is proven, and what actually remains
+  (toolchain decision, `.ico`/manifest, packaging choice), none of it doable
+  from a Linux box.
+- **Review gate after the work-unit commits** (read-only check, no ceremony per
+  the user's decision to advance with the slice transaction frozen): the
+  accumulated range `79b9544..HEAD` assesses as `medium`, 49 paths / 5 528
+  lines, `review_due: true` (`slice_budget_reached`); the frozen slice
+  transaction `review-67649326ac451c51` remains in state `reviewing` with its
+  collect slot offered, resumable from a runtime whose reviewer provider works.
+  Per-commit outcome recorded as **unavailable** — the native reviewer provider
+  failed twice (`provider_failed`) in this runtime; no consent envelope was
+  re-presented for commits the gate cannot actually review.
+
+## Outcome
+
+Both work units landed on `feat/platform-seam`, stacked on `fix/known-gaps`:
+
+| Commit | Contents |
+|--------|----------|
+| `6f5d470` | the plan itself |
+| `bc22fc5` | S1 — the seam (base + MPRIS moved behind it + factory) |
+| `7675bf9` | S2 — D-Bus optional, null backend, `metadata()` to the backend |
+| S3 commit | the status docs |
+
+- Every acceptance criterion is checked and evidenced in the progress log.
+- The deliverable Windows needs — a configure without D-Bus that builds, links
+  and runs — is proven, not assumed: 13/13 in the off build with `tst_mpris`
+  absent and `tst_media` asserting that the factory picked the null backend.
+- `docs/PACKAGING_WINDOWS.md` has its two Linux-side checklist items ticked.
+- The branch is feature-sized and should land as its own pull request when the
+  user decides to push; `fix/known-gaps` lands first, because this branch is
+  stacked on it.

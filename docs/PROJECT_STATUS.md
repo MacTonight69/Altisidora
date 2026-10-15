@@ -21,7 +21,7 @@ the controllers are in place. All tests pass.
 | Models | `src/models/` | Implemented | Song, Artist, Album, Playlist (plain structs + QVariantMap conversion) |
 | Database | `src/database/` | Implemented | `DatabaseManager`: SQLite, prepared statements, schema version table, CRUD. Songs are normalized (artist/album/genre rows resolved on insert); reads JOIN names back and artist/album/genre/playlist queries return `songCount`. Schema v4 adds an `edited` flag: `upsertSong()` CASE-guards the tag-derived columns so a rescan refreshes the file fingerprint (`mtime`/`size`) without clobbering user edits. Tag-update paths: `updateSong`/`updateSongs` (atomic batch), `renameArtist`/`setAlbumIdentity` (collision-refusing), `setArtwork` (content-hash cache), `setAlbumArtwork` (album cover) |
 | Audio | `src/audio/` | Implemented | `PlayerController` wrapping a libmpv session (10-band EQ, repeat-one); `load(url)` for raw URLs and `loadSong(map)` to keep library metadata for the UI |
-| System Integration | `src/mpris/` | Implemented | `MprisPlayer`: MPRIS v2 (`org.mpris.MediaPlayer2.altisidora`) over Qt DBus, registered in `src/main.cpp` |
+| System Integration | `src/media/` | Implemented | `MprisMediaIntegration`: MPRIS v2 (`org.mpris.MediaPlayer2.altisidora`) over Qt DBus behind the platform-neutral `MediaIntegration` seam; `main.cpp` only calls `createMediaIntegration()`, and a build without D-Bus gets `NullMediaIntegration` |
 | Library | `src/library/` | Implemented | `Scanner` (recursive, extension filter), `MetadataReader` (TagLib, falls back to file name for title, re-decodes Shift-JIS mojibake in mislabeled Latin-1 tags, extracts embedded artwork into a content-hash cache under `AppDataLocation/artwork/`), `LibraryController` (scan/refresh, search through `setSearch()`/`searchModel`, plus QML-facing tag mutators), `SongListModel` (role-based render model for the song lists). A scan also reconciles the library: songs whose file disappeared since the last scan are dropped from the list and the database, and `scanFinished(removedCount)` reports how many (see the pruning rules under Known limitations) |
 | Application | `src/app/` | Implemented | `PlaylistController` (CRUD + song counts), `SettingsController` (QSettings persistence) |
 | GUI | `resources/qml/` | Implemented | Sidebar navigation, Songs/Albums/Artists/Playlists/Settings views, search bar, player controls (seek/volume/errors), scan flow with overlay, add-to-playlist menu, multi-selection of songs (right-click selects, Ctrl/Shift+right-click extend, Ctrl+A selects all) with batch add to playlist. Tag editing: a per-row actions menu ("Edit tags…", "Add to playlist…", "Delete…") edits title/artist/album/year plus artwork, adds the song to a playlist, or deletes it through the same Settings-driven flow as Ctrl+D; the selection bar batch-reassigns album or artist (field-level only), and the album/artist drill-down header renames the collection. A scan that drops songs whose file no longer exists reports how many in a transient notice above the player bar |
@@ -56,7 +56,8 @@ Run with `ctest --output-on-failure` from the build directory.
 | tst_playlist | unit (real PlaylistController) | Real tests |
 | tst_settings | unit (real SettingsController) | Real tests |
 | tst_theme_fonts | unit (real SettingsController + bundled theme QML) | Real tests |
-| tst_mpris | unit (real MprisPlayer over a private D-Bus session) | Real tests |
+| tst_mpris | unit (real MprisMediaIntegration over a private D-Bus session) | Real tests |
+| tst_media | unit (MediaIntegration seam: null-backend contract, factory picks the compiled backend) | Real tests |
 | tst_detail_view | unit (real album/artist drill-down view + bundled theme QML) | Real tests |
 | tst_library_scan | integration (real scan + persistence across restart) | Real tests |
 | tst_playback | integration (scan → library → `loadSong` data flow) | Actual audio playback needs a media backend, not exercised by the suite |
@@ -138,9 +139,12 @@ Test isolation:
 2. AppImage — see [`docs/PACKAGING_LINUX.md`](PACKAGING_LINUX.md). Open
    decisions: the build host and its glibc floor, and which Qt to bundle.
    Depends on an automated container build.
-3. Windows — see [`docs/PACKAGING_WINDOWS.md`](PACKAGING_WINDOWS.md). The first
-   step (the platform-neutral media seam) is Linux-only work that can be done
-   now.
+3. Windows — see [`docs/PACKAGING_WINDOWS.md`](PACKAGING_WINDOWS.md). The
+   platform seam is in place and the build already configures, builds and links
+   without D-Bus (proven on Linux with `-DALTISIDORA_WITH_DBUS=OFF`), so the
+   remaining work is the toolchain decision (guide §3: MSYS2 or MSVC + vcpkg),
+   the Windows-only resources (`.ico`, application manifest) and the packaging
+   choice (§5). None of it can be done from this Linux box.
 
 **Review gate** — the accumulated review range cannot be reviewed as one candidate
 
