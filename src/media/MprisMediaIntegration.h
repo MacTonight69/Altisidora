@@ -30,6 +30,12 @@ public:
      * @brief Unregister the D-Bus service and object.
      */
     void stop() override;
+
+    /**
+     * @brief Track metadata with `mpris:trackid` marshalled as a D-Bus
+     * object path (`o`), as the MPRIS wire format requires.
+     */
+    QVariantMap metadata() const override;
 };
 
 /**

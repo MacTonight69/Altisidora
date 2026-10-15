@@ -34,8 +34,17 @@ public:
     // Data accessors used by the D-Bus adaptors.
     PlayerController *player() const { return m_player; }
     QString playbackStatus() const;
-    QVariantMap metadata() const;
     qint64 positionMicros() const;
+
+    /**
+     * @brief Metadata of the current track, in the platform's wire shape.
+     *
+     * Protocol-shaped, so each backend owns it: the MPRIS backend must
+     * marshal `mpris:trackid` as a D-Bus object path (`o`), which a base TU
+     * that compiles without D-Bus cannot do. playbackStatus() and
+     * positionMicros() are plain strings/integers and stay in the base.
+     */
+    virtual QVariantMap metadata() const = 0;
 
 protected:
     PlayerController *m_player;

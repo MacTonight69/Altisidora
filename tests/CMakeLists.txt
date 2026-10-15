@@ -27,9 +27,15 @@ set(UNIT_TESTS
     tst_playlist
     tst_settings
     tst_theme_fonts
-    tst_mpris
+    tst_media
     tst_detail_view
 )
+
+# tst_mpris registers a real D-Bus service on a private session bus (see the
+# special case below), so it only exists when the D-Bus backend is compiled in.
+if(ALTISIDORA_HAS_DBUS)
+    list(APPEND UNIT_TESTS tst_mpris)
+endif()
 
 # Integration tests
 set(INTEGRATION_TESTS
@@ -39,7 +45,8 @@ set(INTEGRATION_TESTS
 
 # All tests link the shared production core (compiled once) instead of each
 # recompiling the production .cpp files it needs. `altisidora_core` PUBLIC-links
-# Qt Core/Sql/Concurrent/DBus, TagLib and mpv, so consumers inherit them.
+# Qt Core/Sql/Concurrent (and DBus when the D-Bus backend is on), TagLib and
+# mpv, so consumers inherit them.
 foreach(test_name ${UNIT_TESTS} ${INTEGRATION_TESTS})
     if(test_name IN_LIST INTEGRATION_TESTS)
         set(test_subdir integration)

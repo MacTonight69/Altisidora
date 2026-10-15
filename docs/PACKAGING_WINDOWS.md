@@ -152,8 +152,8 @@ and the in-app controls do not depend on the seam.
 
 ## Verification checklist
 
-- [ ] Linux build still produces MPRIS with the seam in place (`tst_mpris` green).
-- [ ] `cmake` configures with DBus absent and `tst_mpris` is not added.
+- [x] Linux build still produces MPRIS with the seam in place (`tst_mpris` green).
+- [x] `cmake` configures with DBus absent and `tst_mpris` is not added.
 - [ ] Windows build launches, plays audio, scans a library, edits tags.
 - [ ] QML loads (no blank window) — the `qml.qrc` path is compiler-independent,
       but plugin/QML discovery still needs `windeployqt` to run.

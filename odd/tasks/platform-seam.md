@@ -76,19 +76,19 @@ argues the timing: do it while the code is already being touched.
 | ID | Task | Route | Surfaces | Status |
 |----|------|-------|----------|--------|
 | S1 | Introduce the seam: base, MPRIS backend moved behind it, factory, `main.cpp` wired, tests updated. D-Bus still required. | delegated writer | `src/media/` (new), `src/mpris/`, `src/main.cpp`, `CMakeLists.txt`, `tests/unit/tst_mpris.cpp`, `tests/CMakeLists.txt` | CLOSED |
-| S2 | Make the D-Bus backend optional: CMake switch, no-op backend, conditional factory, `metadata()` becomes pure virtual in the base with its body (and its `QDBusObjectPath`) moving to the MPRIS backend, tests guard, and proof that a D-Bus-off configure still builds. | delegated writer | `src/media/`, `CMakeLists.txt`, `tests/CMakeLists.txt`, `docs/PACKAGING_WINDOWS.md` | pending |
+| S2 | Make the D-Bus backend optional: CMake switch, no-op backend, conditional factory, `metadata()` becomes pure virtual in the base with its body (and its `QDBusObjectPath`) moving to the MPRIS backend, tests guard, and proof that a D-Bus-off configure still builds. | delegated writer | `src/media/`, `CMakeLists.txt`, `tests/CMakeLists.txt`, `docs/PACKAGING_WINDOWS.md` | CLOSED |
 | S3 | Record the outcome in `docs/PROJECT_STATUS.md` and this document. | inline (parent) | `docs/PROJECT_STATUS.md`, `odd/tasks/platform-seam.md` | pending |
 
 ## Acceptance criteria
 
-- [ ] `src/mpris/` no longer contains the only platform-specific code path: the
+- [x] `src/mpris/` no longer contains the only platform-specific code path: the
       app constructs media integration through the factory and never names the
       D-Bus type.
-- [ ] Linux behaviour is unchanged, proven by the existing test suite, and the
+- [x] Linux behaviour is unchanged, proven by the existing test suite, and the
       MPRIS test still exercises a real D-Bus service.
-- [ ] A configure with D-Bus disabled succeeds and the resulting binary links,
+- [x] A configure with D-Bus disabled succeeds and the resulting binary links,
       which is the actual deliverable for Windows.
-- [ ] No QML, playback, library or database file is modified.
+- [x] No QML, playback, library or database file is modified.
 
 ## Checks
 
@@ -127,17 +127,17 @@ when the user decides to push.
 
 ## Accepted limitations
 
-- `metadata()` yields MPRIS-flavoured keys (`xesam:*`, `mpris:*`) and, in S1's
-  shape, still lives in the base TU with a `QDBusObjectPath` inside — so the
-  base currently does not compile without D-Bus. This is deliberate for S1
-  (zero behaviour change) and is resolved by S2: the base declares
-  `virtual QVariantMap metadata() const = 0;` and the body, with its D-Bus
-  object-path typing, moves to `MprisMediaIntegration`. Rationale: `metadata()`
-  is protocol-shaped by nature — its `mpris:trackid` must marshal as D-Bus type
-  `o` — so a base TU that must compile without D-Bus cannot own it. The keys
-  stay MPRIS-shaped; a future non-MPRIS backend returns its own map.
-- No test asserts that the factory picks the no-op backend when D-Bus is absent,
-  because that only exists in the D-Bus-off configuration.
+- `metadata()` yields MPRIS-flavoured keys (`xesam:*`, `mpris:*`), so the
+  platform-neutral interface is shaped by the one protocol that currently
+  consumes it. Deliberate: inventing a key mapping before there is a second
+  consumer to validate it against would be speculation. S2 made the base
+  declaration pure virtual precisely because `mpris:trackid` must marshal as
+  D-Bus type `o`; a future non-MPRIS backend returns its own map.
+- The factory's selection is asserted per configuration (`qobject_cast` in
+  `tst_media`), not by one test covering both backends at once — the two
+  configurations cannot exist in the same binary. Inherent to conditional
+  compilation, not a gap. (`tst_media` resolved the earlier limitation that
+  nothing asserted the no-op pick at all.)
 
 ## Progress log
 
@@ -175,5 +175,52 @@ when the user decides to push.
   - no `#ifdef` / `ALTISIDORA_HAS_DBUS` anywhere (grep)
   - `git diff -M --stat` → 7 files, +177/−104; rename detected, so the moved
     `.cpp` shows only 85 changed lines and the `.h` 30
+
+### S2 — make the D-Bus backend optional — CLOSED
+
+- **Commit:** `feat(media): make the D-Bus backend optional`
+- **Incident, recorded honestly:** the writer session was interrupted mid-run
+  (`Tool execution interrupted`) after writing all ten files but before
+  reporting any verification. The parent captured the tree, reviewed every
+  file against the fixed design, and ran the entire verification itself; the
+  parent's runs below are the evidence of record, not a writer's report.
+  Nothing had to be reverted — the work on disk matched the design exactly.
+- **Change:**
+  - `MediaIntegration::metadata()` is now pure virtual: it is protocol-shaped
+    (`mpris:trackid` must marshal as D-Bus type `o`), so a base TU that must
+    compile without D-Bus cannot own it. The body moved byte-identical to
+    `MprisMediaIntegration` (only the qualifier and `override` changed) and the
+    base TU dropped `<QDBusObjectPath>` and `<QUrl>` — zero D-Bus in the base.
+  - `src/media/NullMediaIntegration.{h,cpp}`: `start()` returns false (there is
+    no platform media service, which the base contract calls "unavailable"),
+    `stop()` is a no-op, `metadata()` returns an empty map. Always compiled, so
+    the factory's other branch stays real and testable in every configuration.
+  - `CMakeLists.txt`: `DBus` out of the main components;
+    `option(ALTISIDORA_WITH_DBUS ... ON)` guarded by `UNIX AND NOT APPLE`; the
+    MPRIS backend sources, the `Qt6::DBus` link and the `ALTISIDORA_HAS_DBUS=1`
+    define exist only when on. The `ALTISIDORA_WITH_DBUS` override exists so
+    the off-build can be proven on this Linux machine.
+  - The factory pair in `MediaIntegration.cpp` is the only preprocessor
+    conditional in production code.
+  - `tests/unit/tst_media.cpp`: the null-backend contract plus the factory
+    selection via `qobject_cast`, with a conditional mirroring the factory's.
+  - `tst_mpris` and its private-bus special case are added only when
+    `ALTISIDORA_HAS_DBUS` — `tst_mpris` registers a real D-Bus service, so it
+    must not exist in an off build.
+  - The two Linux-side checklist items in `docs/PACKAGING_WINDOWS.md` are
+    ticked. The writer ticked them before verifying; the parent confirmed both
+    are true and would have reverted them otherwise.
+- **Verification** (all run by the parent — the evidence of record):
+  - On: build exit 0, zero warnings; `ctest` **14/14** (`tst_media` new);
+    `tst_mpris` 7 passed / 0 failed / 0 skipped; `tst_media` 4 passed; offscreen
+    smoke 124.
+  - Off: `cmake -DALTISIDORA_WITH_DBUS=OFF` configures; full build exit 0, zero
+    warnings; `ctest` 13/13 with `tst_mpris` **absent** (`-R tst_mpris` finds
+    no test) and `tst_media` passing — including the
+    `qobject_cast<NullMediaIntegration *>` factory assertion; the off binary's
+    offscreen smoke exits 124.
+  - Greps: `QDBus` → zero hits in the base TU; new preprocessor conditionals →
+    exactly the factory pair and its test mirror (the `#ifndef THEME_QML_DIR` /
+    `VIEWS_QML_DIR` pairs in the theme tests are pre-existing).
 
 _(one entry per task, written when the task is verified)_

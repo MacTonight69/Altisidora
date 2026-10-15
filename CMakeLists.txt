@@ -22,9 +22,19 @@ find_package(Qt6 REQUIRED COMPONENTS
     QuickControls2
     Sql
     Concurrent
-    DBus
     Test
 )
+
+# D-Bus (MPRIS) media integration: optional, so platforms without it still
+# configure, build and link. The ALTISIDORA_WITH_DBUS override exists so the
+# off-build can be proven on this Linux machine; the bare platform test
+# alone cannot be exercised here.
+option(ALTISIDORA_WITH_DBUS "Build the D-Bus (MPRIS) media integration backend" ON)
+set(ALTISIDORA_HAS_DBUS OFF)
+if(ALTISIDORA_WITH_DBUS AND UNIX AND NOT APPLE)
+    find_package(Qt6 REQUIRED COMPONENTS DBus)
+    set(ALTISIDORA_HAS_DBUS ON)
+endif()
 
 # Find TagLib
 find_package(PkgConfig REQUIRED)
@@ -47,10 +57,20 @@ set(CORE_SOURCES
     src/database/DatabaseManager.cpp
     src/media/MediaIntegration.cpp
     src/media/MediaIntegration.h
-    src/media/MprisMediaIntegration.cpp
-    src/media/MprisMediaIntegration.h
+    src/media/NullMediaIntegration.cpp
+    src/media/NullMediaIntegration.h
     src/models/Song.cpp
 )
+
+# The D-Bus backend exists only when the platform provides it; the no-op
+# backend always compiles, so the factory's other branch stays real (and
+# testable by tst_media) in every configuration.
+if(ALTISIDORA_HAS_DBUS)
+    list(APPEND CORE_SOURCES
+        src/media/MprisMediaIntegration.cpp
+        src/media/MprisMediaIntegration.h
+    )
+endif()
 
 add_library(altisidora_core STATIC ${CORE_SOURCES})
 
@@ -65,10 +85,16 @@ target_link_libraries(altisidora_core PUBLIC
     Qt6::Core
     Qt6::Sql
     Qt6::Concurrent
-    Qt6::DBus
     ${TAGLIB_LIBRARIES}
     PkgConfig::MPV
 )
+
+# PUBLIC on both: consumers (the app and every test) must see the same
+# backend selection as the factory's single conditional.
+if(ALTISIDORA_HAS_DBUS)
+    target_link_libraries(altisidora_core PUBLIC Qt6::DBus)
+    target_compile_definitions(altisidora_core PUBLIC ALTISIDORA_HAS_DBUS=1)
+endif()
 
 # Resources
 qt_add_resources(RESOURCES resources/qml.qrc)
