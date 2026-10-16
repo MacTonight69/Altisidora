@@ -445,12 +445,26 @@ ApplicationWindow {
                         anchors.rightMargin: 20
                         spacing: 12
 
-                        Text {
-                            text: root.navLabels[root.currentNav]
-                            color: Theme.textPrimary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 17 * Theme.fontScale
-                            font.bold: true
+                        RowLayout {
+                            spacing: 6
+
+                            Text {
+                                text: root.navLabels[root.currentNav]
+                                color: Theme.textPrimary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 17 * Theme.fontScale
+                                font.bold: true
+                            }
+
+                            Text {
+                                // Live count of recognized songs, Songs section
+                                // only; follows libraryChanged via Library.songs.
+                                visible: root.currentNav === 0
+                                text: Library.songs.length
+                                color: Theme.textMuted
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 17 * Theme.fontScale
+                            }
                         }
 
                         Item {
