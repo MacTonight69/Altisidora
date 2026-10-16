@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.altisidora.Altisidora</id>
+  <name>Altisidora</name>
+  <summary>Play and organise a local music library</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      Altisidora is a native music player for Linux, written in C++20 with Qt 6.
+      Point it at a folder of audio files, and it scans the folder, reads the
+      metadata and keeps the results in a local database.
+    </p>
+    <p>
+      Playback runs through mpv, so the common formats work out of the box along
+      with a ten-band equaliser. The interface follows the desktop's light or
+      dark theme.
+    </p>
+  </description>
+  <launchable type="desktop-id">altisidora.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+</component>

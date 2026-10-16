@@ -8,13 +8,16 @@ this page is the map, plus the rules that both targets share.
 | Target | Artifact | Platform | Status | Guide |
 |--------|----------|----------|--------|-------|
 | Arch package | `altisidora-<version>-1-x86_64.pkg.tar.zst` | Arch / CachyOS | working | `PKGBUILD` |
-| AppImage | one self-contained `Altisidora-<version>-x86_64.AppImage` | any current Linux | **planned** | [PACKAGING_LINUX.md](PACKAGING_LINUX.md) |
+| AppImage | `Altisidora-0.1.0-x86_64.AppImage` (122,497,528 bytes, ~122 MB) | any Linux with glibc ≥ 2.35 | working | [PACKAGING_LINUX.md](PACKAGING_LINUX.md) |
 | Windows | portable ZIP and/or installer | Windows 10/11 | **future** | [PACKAGING_WINDOWS.md](PACKAGING_WINDOWS.md) |
 
 The Arch package is the native path and is already verified end to end
 (`makepkg`, `pacman -Qp`, `desktop-file-validate`, packaged-binary smoke run).
-The AppImage and Windows guides describe work that is **not implemented yet**;
-they record the intended pipeline and the decisions it depends on.
+The AppImage pipeline is also implemented: `bash packaging/appimage/make.sh`
+builds `dist/Altisidora-0.1.0-x86_64.AppImage` (122,497,528 bytes, ~122 MB) in
+an `ubuntu:22.04` container with a glibc 2.35 floor. The Windows guide describes
+work that is **not implemented yet**; it records the intended pipeline and the
+decisions it depends on.
 
 ## What the codebase already gives you
 
@@ -74,6 +77,7 @@ this table — a distro's build flags decide them.
 
 ## Next step
 
-Pick the Linux compatibility floor (Rule 1) — that decision drives the container,
-the FFmpeg build and the final size. It is the first item in
+The Linux compatibility floor is decided (glibc 2.35) and the AppImage pipeline
+builds and runs; the remaining item for Linux is publishing a release — a
+`v0.1.0` tag and real `sha256sums`. See
 [PACKAGING_LINUX.md](PACKAGING_LINUX.md).

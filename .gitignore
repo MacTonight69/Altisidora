@@ -39,3 +39,6 @@ Thumbs.db
 # Package
 *.pkg.tar.zst
 *.pkg.tar.xz
+
+# AppImage packaging output
+dist/

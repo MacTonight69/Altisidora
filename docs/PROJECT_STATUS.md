@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-10-14
+Last updated: 2026-10-16
 
 ## Summary
 
@@ -136,9 +136,12 @@ Test isolation:
 
 **Export targets** — guides in `docs/`
 
-2. AppImage — see [`docs/PACKAGING_LINUX.md`](PACKAGING_LINUX.md). Open
-   decisions: the build host and its glibc floor, and which Qt to bundle.
-   Depends on an automated container build.
+2. AppImage — **done.** See [`docs/PACKAGING_LINUX.md`](PACKAGING_LINUX.md).
+   `bash packaging/appimage/make.sh` builds
+   `dist/Altisidora-0.1.0-x86_64.AppImage` (122,497,528 bytes, ~122 MB) in an
+   `ubuntu:22.04` container with a glibc 2.35 floor, and it starts in `debian:12`
+   and `ubuntu:24.04` with the desktop runtime installed. Only publishing — a
+   `v0.1.0` tag and real `sha256sums` — remains.
 3. Windows — see [`docs/PACKAGING_WINDOWS.md`](PACKAGING_WINDOWS.md). The
    platform seam is in place and the build already configures, builds and links
    without D-Bus (proven on Linux with `-DALTISIDORA_WITH_DBUS=OFF`), so the
@@ -160,4 +163,4 @@ Test isolation:
    in the product.
 
 Still open from Known limitations above: the now-playing refresh API, and the
-absence of CI (which the AppImage pipeline will need).
+absence of CI (which the AppImage pipeline still needs).
