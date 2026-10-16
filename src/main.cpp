@@ -7,9 +7,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QIcon>
-#include <QStandardPaths>
 #include <QDir>
-#include <QFileInfo>
 #include <QMouseEvent>
 #include <QRectF>
 #include <QTimer>
@@ -25,16 +23,14 @@
 namespace {
 
 /**
- * @brief The user's personal music folder to default to on first launch.
+ * @brief The user's personal folder, where the "Scan library" picker opens
+ * and the first-launch scan defaults to.
  *
- * Prefers the standard Music location (respects the desktop locale, e.g.
- * ~/Música); falls back to the home folder when it does not exist.
+ * Always the home folder: the standard Music location is avoided because it
+ * can be deleted, which would leave the picker pointing at nothing.
  */
 QString personalMusicFolder()
 {
-    const QString location = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
-    if (!location.isEmpty() && QFileInfo(location).isDir())
-        return location;
     return QDir::homePath();
 }
 
