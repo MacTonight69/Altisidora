@@ -448,7 +448,6 @@ Rectangle {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: chooseAlbumArtworkButton
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Choose cover…")
                     onClicked: albumArtworkFileDialog.open()
@@ -456,7 +455,6 @@ Rectangle {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: removeAlbumArtworkButton
                     focusPolicy: Qt.NoFocus
                     visible: detail.headerArtwork !== ""
                              || renameDialog.pickedArtwork !== ""
@@ -497,7 +495,6 @@ Rectangle {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: renameCancelButton
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Cancel")
                     onClicked: renameDialog.close()
@@ -505,7 +502,6 @@ Rectangle {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: renameSaveButton
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Save")
                     enabled: renameField.text.trim().length > 0

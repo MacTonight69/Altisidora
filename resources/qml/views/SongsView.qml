@@ -334,7 +334,6 @@ Rectangle {
 
         // ---- selection toolbar (visible when songs are selected) ----
         RowLayout {
-            id: selectionBar
             Layout.fillWidth: true
             Layout.preferredHeight: 34
             Layout.topMargin: 8
@@ -574,8 +573,18 @@ Rectangle {
         id: addToMenu
         title: qsTr("Add to playlist")
 
+        // Snapshot of Playlists.playlists taken when the menu opens. Binding
+        // the Instantiator directly to the controller property rebuilds every
+        // item when playlistsChanged() fires; addSongs() emits it while the
+        // menu is activating the clicked item, so the delegate is destroyed
+        // mid-click and the menu never closes (the first click looks
+        // ignored). Refreshing between openings keeps the items alive for the
+        // whole click and still shows new playlists the next time.
+        property var playlistItems: []
+        onAboutToShow: playlistItems = Playlists.playlists
+
         Instantiator {
-            model: Playlists.playlists
+            model: addToMenu.playlistItems
             delegate: MenuItem {
                 font.family: Theme.fontFamily
                 required property var modelData

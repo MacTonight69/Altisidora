@@ -72,8 +72,7 @@ directly.
 ## Guardrails
 
 - Keep the public API of every method tests call (`addSong`,
-  `supportedExtensions`, `isSupportedAudioFile`, …) untouched; add the new
-  methods beside them.
+  `isSupportedAudioFile`, …) untouched; add the new methods beside them.
 - Do not mix options in one commit; each commit above is a reviewable work
   unit with its own verification.
 - `git switch -c` before starting an option; never edit on

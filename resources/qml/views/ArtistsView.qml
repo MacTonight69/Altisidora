@@ -96,7 +96,6 @@ Rectangle {
             ScrollBar.vertical: ScrollBar { }
 
             delegate: Rectangle {
-                id: artistRow
                 required property var modelData
                 width: artistList.width
                 height: 52

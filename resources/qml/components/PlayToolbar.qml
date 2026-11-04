@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 
 // Section play toolbar used by Songs, Albums and Artists: starts the whole

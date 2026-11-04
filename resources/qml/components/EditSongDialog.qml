@@ -283,7 +283,6 @@ Dialog {
                 spacing: 8
 
                 Image {
-                    id: artworkPreview
                     Layout.preferredWidth: 64
                     Layout.preferredHeight: 64
                     visible: status === Image.Ready
@@ -298,7 +297,6 @@ Dialog {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: chooseArtworkButton
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Choose…")
                     onClicked: artworkFileDialog.open()
@@ -306,7 +304,6 @@ Dialog {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: removeArtworkButton
                     focusPolicy: Qt.NoFocus
                     visible: editSongDialog.currentArtwork !== ""
                              || editSongDialog.pickedArtwork !== ""
@@ -378,7 +375,6 @@ Dialog {
 
             Button {
                 font.family: Theme.fontFamily
-                id: cancelButton
                 focusPolicy: Qt.NoFocus
                 text: qsTr("Cancel")
                 onClicked: editSongDialog.close()

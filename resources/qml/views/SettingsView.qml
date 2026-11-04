@@ -78,7 +78,6 @@ Rectangle {
                 ComboBox {
                     font.family: Theme.fontFamily
                     font.pixelSize: 13 * Theme.fontScale
-                    id: themeCombo
                     Layout.preferredWidth: 250
                     Layout.preferredHeight: settingsView.buttonHeight()
                     model: Theme.themeNames
@@ -111,7 +110,6 @@ Rectangle {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: chooseButton
                     Layout.preferredHeight: settingsView.buttonHeight()
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Choose…")
@@ -149,7 +147,6 @@ Rectangle {
                 ComboBox {
                     font.family: Theme.fontFamily
                     font.pixelSize: 13 * Theme.fontScale
-                    id: deleteModeCombo
                     Layout.preferredWidth: 250
                     Layout.preferredHeight: settingsView.buttonHeight()
                     model: [qsTr("Delete files from disk"),
@@ -187,7 +184,6 @@ Rectangle {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: hideFolderButton
                     Layout.preferredHeight: settingsView.buttonHeight()
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Hide folder…")
@@ -259,7 +255,6 @@ Rectangle {
 
                 Button {
                     font.family: Theme.fontFamily
-                    id: restoreAllButton
                     Layout.preferredHeight: settingsView.buttonHeight()
                     focusPolicy: Qt.NoFocus
                     text: qsTr("Restore all")

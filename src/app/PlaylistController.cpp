@@ -1,7 +1,6 @@
 #include "PlaylistController.h"
 
 #include <QStandardPaths>
-#include <QDir>
 
 PlaylistController::PlaylistController(QObject *parent)
     : QObject(parent)

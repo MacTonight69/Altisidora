@@ -1,7 +1,7 @@
 #include "MprisPlayer.h"
 
 #include <QCoreApplication>
-#include <QDBusError>
+#include <QDBusConnection>
 #include <QDBusMessage>
 #include <QUrl>
 

@@ -5,7 +5,6 @@
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 #include <taglib/audioproperties.h>
-#include <taglib/tvariant.h>
 
 #include <QCryptographicHash>
 #include <QDir>

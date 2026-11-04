@@ -8,8 +8,6 @@
 #include <QFont>
 #include <QSettings>
 #include <QTemporaryDir>
-#include <QStringList>
-#include <QVariantMap>
 
 #include "../../src/app/SettingsController.h"
 

@@ -1,11 +1,9 @@
 #include <QtTest>
 #include <QFile>
-#include <QFileInfo>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <functional>
 
-#include "../TestHelpers.h"
 #include "library/MetadataReader.h"
 
 #include <taglib/mpegfile.h>

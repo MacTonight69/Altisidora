@@ -16,6 +16,11 @@ makedepends=(
     'cmake'
     'pkgconf'
 )
+optdepends=(
+    'noto-fonts-cjk: Japanese/Chinese/Korean glyphs in song metadata'
+    'adobe-source-han-sans-jp-fonts: lighter Japanese-only alternative'
+    'otf-ipafont: smallest Japanese-only alternative'
+)
 
 # TODO: Before publishing, push tag v0.1.0 upstream (the remote has no tags
 # yet; v1.0 exists as a local tag only)

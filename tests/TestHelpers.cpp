@@ -2,12 +2,6 @@
 
 #include <QDir>
 #include <QFile>
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QSqlRecord>
-#include <QDateTime>
-#include <QUuid>
-#include <QDebug>
 
 TestHelpers::TestHelpers(QObject *parent)
     : QObject(parent)
@@ -88,11 +82,6 @@ bool TestHelpers::createMpegAudioFile(const QString &filePath, int frameCount)
     file.close();
 
     return QFile::exists(filePath);
-}
-
-QString TestHelpers::uniqueString(const QString &prefix)
-{
-    return QStringLiteral("%1_%2").arg(prefix, QUuid::createUuid().toString(QUuid::Id128));
 }
 
 QStringList TestHelpers::createTestMusicDirectory(const QString &basePath, int fileCount)

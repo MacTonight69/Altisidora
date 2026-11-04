@@ -2,7 +2,6 @@
 
 #include <QObject>
 #include <QVariantMap>
-#include <QDBusConnection>
 #include <QDBusObjectPath>
 #include <QDBusAbstractAdaptor>
 

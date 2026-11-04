@@ -51,13 +51,6 @@ public:
                                      const QString &album);
 
     /**
-     * @brief Generates a unique string for test data
-     * @param prefix Optional prefix for the unique string
-     * @return Unique string
-     */
-    static QString uniqueString(const QString &prefix = QStringLiteral("test"));
-
-    /**
      * @brief Creates a test directory structure with audio files
      * @param basePath Base directory path
      * @param fileCount Number of audio files to create

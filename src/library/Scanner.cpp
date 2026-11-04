@@ -46,11 +46,6 @@ Scanner::Scanner()
 {
 }
 
-QStringList Scanner::supportedExtensions()
-{
-    return kSupportedExtensions; // API preserved for callers and tests
-}
-
 bool Scanner::isSupportedAudioFile(const QString &filePath)
 {
     return kSupportedExtensionSet.contains(QFileInfo(filePath).suffix().toLower());

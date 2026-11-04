@@ -6,7 +6,6 @@
 #include <QQmlContext>
 #include <QQuickItem>
 #include <QQuickWindow>
-#include <QIcon>
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
@@ -16,7 +15,6 @@
 #include <QUrl>
 
 #include "audio/PlayerController.h"
-#include "audio/PlaybackState.h"
 #include "library/LibraryController.h"
 #include "app/PlaylistController.h"
 #include "app/SettingsController.h"

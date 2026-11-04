@@ -50,7 +50,4 @@ public:
      * @brief Check if a file extension is a supported audio format.
      */
     static bool isSupportedAudioFile(const QString &filePath);
-
-private:
-    static QStringList supportedExtensions();
 };

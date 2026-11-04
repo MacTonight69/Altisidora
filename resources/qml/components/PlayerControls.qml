@@ -273,7 +273,6 @@ Rectangle {
                 }
 
                 Slider {
-                    id: seekSlider
                     Layout.fillWidth: true
                     Layout.preferredHeight: 22
                     focusPolicy: Qt.NoFocus
@@ -325,7 +324,6 @@ Rectangle {
             }
 
             Slider {
-                id: volumeSlider
                 Layout.preferredWidth: 120
                 Layout.preferredHeight: 22
                 focusPolicy: Qt.NoFocus
@@ -420,7 +418,6 @@ Rectangle {
                         spacing: 2
 
                         Slider {
-                            id: bandSlider
                             width: 26
                             height: 120
                             anchors.horizontalCenter: parent.horizontalCenter

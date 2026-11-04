@@ -21,6 +21,11 @@ A native Linux music player built with C++20 and Qt 6.
 - libmpv (pkg-config `mpv`)
 - TagLib
 - C++20 compiler (GCC 11+ or Clang 14+)
+- Optional: a Japanese/CJK font such as `adobe-source-han-sans-jp-fonts`,
+  `noto-fonts-cjk` (all CJK scripts) or `otf-ipafont` (smallest). The player
+  reads CJK tags correctly without one, but the system needs a font that
+  contains the glyphs to display them (otherwise they appear as empty
+  boxes). Qt falls back to it automatically.
 
 ### Build instructions
 

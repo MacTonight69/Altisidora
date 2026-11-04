@@ -541,7 +541,6 @@ Rectangle {
 
                 // ---- selection toolbar (visible when songs are selected) ----
                 RowLayout {
-                    id: playlistSelectionBar
                     Layout.fillWidth: true
                     Layout.preferredHeight: 34
                     spacing: 10

@@ -5,7 +5,6 @@
 #include <QQuickItem>
 #include <QStandardPaths>
 #include <QUrl>
-#include <QStringList>
 
 #include "../../src/app/PlaylistController.h"
 #include "../../src/app/SettingsController.h"
