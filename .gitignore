@@ -37,3 +37,6 @@ Thumbs.db
 # Package
 *.pkg.tar.zst
 *.pkg.tar.xz
+
+# AppImage artifacts
+dist/

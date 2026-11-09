@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.altisidora.Altisidora</id>
+  <name>Altisidora</name>
+  <summary>Native Linux music player</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      Altisidora is a native Linux music player built with C++20 and Qt 6,
+      focused on a fast local library and a clean desktop experience.
+    </p>
+    <p>
+      It scans a music library, reads tags and embedded artwork, and plays
+      audio through libmpv.
+    </p>
+  </description>
+  <launchable type="desktop-id">altisidora.desktop</launchable>
+  <url type="homepage">https://github.com/MacTonight69/Altisidora</url>
+  <developer_name>Altisidora Team</developer_name>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-09"/>
+  </releases>
+</component>

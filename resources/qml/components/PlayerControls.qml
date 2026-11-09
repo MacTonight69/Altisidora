@@ -336,7 +336,6 @@ Rectangle {
     // ---- ecualizador (10 bandas vía Player eq API) ----
     Popup {
         id: eqPopup
-        popupType: Popup.Item
         parent: controls
         x: controls.width - width - 16
         // The popup lives inside the bottom bar; y is relative to it, so a

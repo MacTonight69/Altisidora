@@ -27,6 +27,13 @@ A native Linux music player built with C++20 and Qt 6.
   contains the glyphs to display them (otherwise they appear as empty
   boxes). Qt falls back to it automatically.
 
+### AppImage
+
+A reproducible AppImage build lives in `packaging/appimage/`. The script writes
+`dist/Altisidora-<version>-x86_64.AppImage` and its `.sha256` file. See
+`packaging/appimage/README.md` for the recommended build base and the Docker
+recipe.
+
 ### Build instructions
 
 ```bash
