@@ -15,16 +15,6 @@
 #include <taglib/tbytevector.h>
 #include <taglib/tstring.h>
 
-namespace {
-
-// Minimal valid 1x1 red PNG (69 bytes), the same test picture used by
-// tst_metadata: small enough to inline, real enough to decode.
-const char kRedPngHex[] =
-    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
-    "0000000c4944415478da63f8cfc0000003010100f70341430000000049454e44ae426082";
-
-} // namespace
-
 /**
  * @brief Integration test for the library scan workflow.
  *
@@ -51,13 +41,11 @@ private slots:
     void testScanExtractsEmbeddedArtwork();
     void testEditSurvivesRescan();
     void testScanForgetsDeletedFiles();
-    void testScanKeepsSongsOutsideTheScannedRoot();
-    void testScanKeepsSongsWhenTheirFolderIsGone();
+    void testScanRemovesMissingSongsOutsideTheScannedRoot();
+    void testScanRemovesSongsWhenTheirFolderIsGone();
     void testScanKeepsHiddenSongs();
 
 private:
-    void removeDatabaseFiles();
-    bool waitForScanFinished(LibraryController *controller);
     QVariantMap songByPath(LibraryController *controller, const QString &path) const;
     // Write ID3v2 title/artist/album tags to a real MPEG file (the
     // file-rewrite half of the edit-vs-rescan story).
@@ -72,27 +60,11 @@ void tst_library_scan::initTestCase()
     QStandardPaths::setTestModeEnabled(true);
     QCoreApplication::setApplicationName(QStringLiteral("tst_library_scan"));
     QVERIFY(m_tempDir.isValid());
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 }
 
 void tst_library_scan::cleanupTestCase()
 {
-}
-
-void tst_library_scan::removeDatabaseFiles()
-{
-    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataPath);
-
-    const QStringList suffixes = {
-        QString(),
-        QStringLiteral("-journal"),
-        QStringLiteral("-wal"),
-        QStringLiteral("-shm")
-    };
-    for (const QString &suffix : suffixes) {
-        QFile::remove(dataPath + QStringLiteral("/library.db") + suffix);
-    }
 }
 
 void tst_library_scan::testFullScanWorkflow()
@@ -105,7 +77,7 @@ void tst_library_scan::testFullScanWorkflow()
 
     // Step 3: scan (asynchronous)
     controller.scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
 
     // Step 4: songs were ingested
     QCOMPARE(controller.songCount(), 5);
@@ -125,14 +97,14 @@ void tst_library_scan::testFullScanWorkflow()
     txtFile.close();
 
     controller.scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 5);
 }
 
 void tst_library_scan::testPersistenceAcrossRestart()
 {
     // Start from a fresh database so only this session's songs count
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     // Simulated first session: scan a fresh directory
     const QString restartDir = m_tempDir.filePath(QStringLiteral("restart_music"));
@@ -142,7 +114,7 @@ void tst_library_scan::testPersistenceAcrossRestart()
     {
         LibraryController firstSession;
         firstSession.scan(restartDir);
-        QVERIFY(waitForScanFinished(&firstSession));
+        QVERIFY(TestHelpers::waitForScanFinished(&firstSession));
         QCOMPARE(firstSession.songCount(), 3);
     } // firstSession destroyed -> application restart
 
@@ -151,12 +123,6 @@ void tst_library_scan::testPersistenceAcrossRestart()
     LibraryController secondSession;
     secondSession.refresh();
     QCOMPARE(secondSession.songCount(), 3);
-}
-
-bool tst_library_scan::waitForScanFinished(LibraryController *controller)
-{
-    QSignalSpy finishedSpy(controller, &LibraryController::scanFinished);
-    return finishedSpy.wait(10000);
 }
 
 QVariantMap tst_library_scan::songByPath(LibraryController *controller,
@@ -173,7 +139,7 @@ QVariantMap tst_library_scan::songByPath(LibraryController *controller,
 
 void tst_library_scan::testPersonalScanFilterAndDedupe()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString dir = m_tempDir.filePath(QStringLiteral("duration_filter"));
     QDir().mkpath(dir);
@@ -189,25 +155,25 @@ void tst_library_scan::testPersonalScanFilterAndDedupe()
     // startScan(dir, 30000) mimics the personal-folder auto-scan: only
     // audio longer than 30 s passes the filter.
     controller.startScan(dir, 30000);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 1);
     QCOMPARE(controller.songs().at(0).toMap().value(QStringLiteral("path")).toString(),
              longPath);
 
     // A normal scan also ingests the short clip.
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 
     // Re-scanning never duplicates previously added songs (dedupe by path).
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 }
 
 void tst_library_scan::testRescanOnlyProcessesChangedFiles()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString dir = m_tempDir.filePath(QStringLiteral("rescan_music"));
     QDir().mkpath(dir);
@@ -223,7 +189,7 @@ void tst_library_scan::testRescanOnlyProcessesChangedFiles()
 
     // First scan: both files are new and get ingested.
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 
     const QVariantMap changedBefore = songByPath(&controller, changedPath);
@@ -234,7 +200,7 @@ void tst_library_scan::testRescanOnlyProcessesChangedFiles()
 
     // Rescan with nothing changed: no new rows, no duplicates.
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 
     // Rewrite one file (different frame count => different size/duration and
@@ -243,7 +209,7 @@ void tst_library_scan::testRescanOnlyProcessesChangedFiles()
     QVERIFY(TestHelpers::createMpegAudioFile(changedPath, 1200)); // ~31.3 s
 
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 
     const QVariantMap changedAfter = songByPath(&controller, changedPath);
@@ -270,7 +236,7 @@ void tst_library_scan::testRescanOnlyProcessesChangedFiles()
 
 void tst_library_scan::testScanExtractsEmbeddedArtwork()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString dir = m_tempDir.filePath(QStringLiteral("artwork_music"));
     QDir().mkpath(dir);
@@ -278,7 +244,7 @@ void tst_library_scan::testScanExtractsEmbeddedArtwork()
     QVERIFY(TestHelpers::createMpegAudioFile(path, 40)); // ~1 s
 
     // Tag the file and embed a front-cover picture.
-    const QByteArray art = QByteArray::fromHex(kRedPngHex);
+    const QByteArray art = QByteArray::fromHex(TestHelpers::kRedPngHex);
     {
         TagLib::MPEG::File mf(path.toStdString().c_str());
         QVERIFY(mf.isValid());
@@ -297,7 +263,7 @@ void tst_library_scan::testScanExtractsEmbeddedArtwork()
 
     LibraryController controller;
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 1);
 
     // The ingested song row carries the extracted artwork path.
@@ -338,7 +304,7 @@ bool tst_library_scan::tagMpegFile(const QString &path, const QString &title,
 //       again — no permanent re-read loop (the v3 artwork lesson).
 void tst_library_scan::testEditSurvivesRescan()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString dir = m_tempDir.filePath(QStringLiteral("edit_rescan"));
     QDir().mkpath(dir);
@@ -357,7 +323,7 @@ void tst_library_scan::testEditSurvivesRescan()
 
     LibraryController controller;
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 
     const QVariantMap scannedEdited = songByPath(&controller, editedPath);
@@ -376,7 +342,7 @@ void tst_library_scan::testEditSurvivesRescan()
     // (a) Rescan with unchanged files: the fingerprint check skips them
     // and the edit is intact.
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     {
         const QVariantMap song = songByPath(&controller, editedPath);
         QCOMPARE(song.value(QStringLiteral("title")).toString(),
@@ -396,7 +362,7 @@ void tst_library_scan::testEditSurvivesRescan()
                          QStringLiteral("Control Retagged Album")));
 
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 
     {
@@ -431,7 +397,7 @@ void tst_library_scan::testEditSurvivesRescan()
     // (c) Third scan, nothing changed: every value sits exactly where
     // (b) left it.
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
     {
         const QVariantMap editedSong = songByPath(&controller, editedPath);
@@ -450,7 +416,7 @@ void tst_library_scan::testEditSurvivesRescan()
 // library as a phantom row.
 void tst_library_scan::testScanForgetsDeletedFiles()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString dir = m_tempDir.filePath(QStringLiteral("prune_music"));
     QDir().mkpath(dir);
@@ -463,7 +429,7 @@ void tst_library_scan::testScanForgetsDeletedFiles()
     QSignalSpy removedSpy(&controller, &LibraryController::scanFinished);
 
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 3);
     // First scan only ingests: nothing was dropped, and it says so.
     QCOMPARE(removedSpy.count(), 1);
@@ -476,7 +442,7 @@ void tst_library_scan::testScanForgetsDeletedFiles()
 
     removedSpy.clear();
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
 
     // The scan reports exactly the one row it dropped.
     QCOMPARE(removedSpy.count(), 1);
@@ -498,11 +464,12 @@ void tst_library_scan::testScanForgetsDeletedFiles()
     QVERIFY(songByPath(&reopened, files.at(1)).isEmpty());
 }
 
-// Pruning is scoped to the folder that was scanned: scanning A must never
-// forget the songs of B, whose files the scan never looked at.
-void tst_library_scan::testScanKeepsSongsOutsideTheScannedRoot()
+// Reconciliation covers the whole library, not only the folder being walked:
+// a row whose file disappeared must not survive just because another folder
+// was scanned. This is what cleans up stale paths after reorganizing music.
+void tst_library_scan::testScanRemovesMissingSongsOutsideTheScannedRoot()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString dirA = m_tempDir.filePath(QStringLiteral("scope_a"));
     const QString dirB = m_tempDir.filePath(QStringLiteral("scope_b"));
@@ -513,38 +480,45 @@ void tst_library_scan::testScanKeepsSongsOutsideTheScannedRoot()
     QCOMPARE(inB.size(), 1);
 
     LibraryController controller;
+    QSignalSpy removedSpy(&controller, &LibraryController::scanFinished);
     controller.scan(dirA);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     controller.scan(dirB);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 3);
 
-    // B's only file disappears, but the next scan walks A only.
+    // B's only file disappears. Scanning A still walks only A, but the
+    // reconciliation checks every stored path and drops B's phantom row.
     QVERIFY(QFile::remove(inB.first()));
 
+    removedSpy.clear();
     controller.scan(dirA);
-    QVERIFY(waitForScanFinished(&controller));
-    QCOMPARE(controller.songCount(), 3);
-    QVERIFY(!songByPath(&controller, inB.first()).isEmpty());
-
-    // Once its own folder is the scan target, the row is pruned.
-    controller.scan(dirB);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
     QVERIFY(songByPath(&controller, inB.first()).isEmpty());
+    QCOMPARE(removedSpy.count(), 1);
+    QCOMPARE(removedSpy.first().at(0).toInt(), 1);
+
+    // The row is gone from the database too, so a restart does not bring it
+    // back.
+    LibraryController reopened;
+    reopened.refresh();
+    QCOMPARE(reopened.songCount(), 2);
+    QVERIFY(songByPath(&reopened, inB.first()).isEmpty());
 }
 
-// A folder that vanished with its volume (unmounted drive, unplugged disk)
-// makes every file below it look missing at once. That signature must not be
-// read as "the user deleted this music": the metadata stays until the volume
-// is back.
-void tst_library_scan::testScanKeepsSongsWhenTheirFolderIsGone()
+// A folder that disappears (deleted, or moved as part of a reorganization)
+// must not leave phantom rows behind. The parent of those paths is gone too,
+// which is exactly the case the old root-scoped guard refused to prune; now
+// the scan reconciles them away.
+void tst_library_scan::testScanRemovesSongsWhenTheirFolderIsGone()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString root = m_tempDir.filePath(QStringLiteral("volume"));
     QDir().mkpath(root);
-    QCOMPARE(TestHelpers::createTestMusicDirectory(root, 1).size(), 1);
+    const QStringList inRoot = TestHelpers::createTestMusicDirectory(root, 1);
+    QCOMPARE(inRoot.size(), 1);
     const QString removable = root + QStringLiteral("/removable");
     QDir().mkpath(removable);
     const QStringList onVolume = TestHelpers::createTestMusicDirectory(removable, 2);
@@ -553,34 +527,37 @@ void tst_library_scan::testScanKeepsSongsWhenTheirFolderIsGone()
     LibraryController controller;
     QSignalSpy removedSpy(&controller, &LibraryController::scanFinished);
     controller.scan(root);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 3);
 
-    // The whole folder disappears, as if its volume were unmounted.
+    // The whole folder disappears, as if it were deleted or moved away.
     QVERIFY(QDir(removable).removeRecursively());
 
     removedSpy.clear();
     controller.scan(root);
-    QVERIFY(waitForScanFinished(&controller));
-    QCOMPARE(controller.songCount(), 3);
-    // Kept, and the report says nothing was dropped: the count never claims a
-    // removal the guards refused.
-    QCOMPARE(removedSpy.first().size(), 1);
-    QCOMPARE(removedSpy.first().at(0).toInt(), 0);
-    QVERIFY(!songByPath(&controller, onVolume.at(0)).isEmpty());
-    QVERIFY(!songByPath(&controller, onVolume.at(1)).isEmpty());
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
+    // Only the song still on disk survives; the two rows under the vanished
+    // folder are pruned.
+    QCOMPARE(controller.songCount(), 1);
+    QVERIFY(!songByPath(&controller, inRoot.first()).isEmpty());
+    QVERIFY(songByPath(&controller, onVolume.at(0)).isEmpty());
+    QVERIFY(songByPath(&controller, onVolume.at(1)).isEmpty());
+    QCOMPARE(removedSpy.count(), 1);
+    QCOMPARE(removedSpy.first().at(0).toInt(), 2);
 
-    // A scan of the folder itself (gone) finds nothing and prunes nothing.
+    // A scan of a root that does not exist proves nothing and must not prune
+    // the remaining library.
     controller.scan(removable);
-    QVERIFY(waitForScanFinished(&controller));
-    QCOMPARE(controller.songCount(), 3);
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
+    QCOMPARE(controller.songCount(), 1);
+    QVERIFY(!songByPath(&controller, inRoot.first()).isEmpty());
 }
 
 // Hiding a song is not deleting it: the file is still there, so the scan
 // keeps its row (the walk merely skips it).
 void tst_library_scan::testScanKeepsHiddenSongs()
 {
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 
     const QString dir = m_tempDir.filePath(QStringLiteral("prune_hidden"));
     QDir().mkpath(dir);
@@ -589,7 +566,7 @@ void tst_library_scan::testScanKeepsHiddenSongs()
 
     LibraryController controller;
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 2);
 
     const QString hidden = files.first();
@@ -597,7 +574,7 @@ void tst_library_scan::testScanKeepsHiddenSongs()
     QCOMPARE(controller.songCount(), 1);
 
     controller.scan(dir);
-    QVERIFY(waitForScanFinished(&controller));
+    QVERIFY(TestHelpers::waitForScanFinished(&controller));
     QCOMPARE(controller.songCount(), 1);
 
     // Unhiding proves the row was never pruned.

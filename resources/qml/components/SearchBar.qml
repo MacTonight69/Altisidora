@@ -5,8 +5,6 @@ import QtQuick.Layouts
 Rectangle {
     id: searchBar
 
-    property alias text: field.text
-    property alias placeholderText: field.placeholderText
     signal queryChanged(string query)
 
     implicitWidth: 320

@@ -8,17 +8,6 @@
 #include "../../src/library/LibraryController.h"
 #include "../TestHelpers.h"
 
-namespace {
-
-// Minimal valid 1x1 red PNG (the same test picture tst_library_scan
-// uses): small enough to inline, real enough for the artwork cache's
-// magic-byte sniff.
-const char kRedPngHex[] =
-    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
-    "0000000c4944415478da63f8cfc0000003010100f70341430000000049454e44ae426082";
-
-} // namespace
-
 /**
  * @brief Tests for LibraryController
  *
@@ -61,9 +50,7 @@ private slots:
     void testSetAlbumArtworkEmitsOnceAndCoversEverySong();
 
 private:
-    void removeDatabaseFiles();
     void clearTempDir();
-    bool waitForScanFinished();
     // Insert a bare song row on the controller's shared connection so a
     // test can edit without scanning. Returns 0 on failure (QVERIFY
     // cannot appear in a function with a return value).
@@ -81,7 +68,7 @@ void tst_library::initTestCase()
     QCoreApplication::setApplicationName(QStringLiteral("tst_library"));
 
     QVERIFY(m_tempDir.isValid());
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
     m_controller = new LibraryController(this);
 }
 
@@ -89,22 +76,6 @@ void tst_library::cleanupTestCase()
 {
     delete m_controller;
     m_controller = nullptr;
-}
-
-void tst_library::removeDatabaseFiles()
-{
-    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataPath);
-
-    const QStringList suffixes = {
-        QString(),
-        QStringLiteral("-journal"),
-        QStringLiteral("-wal"),
-        QStringLiteral("-shm")
-    };
-    for (const QString &suffix : suffixes) {
-        QFile::remove(dataPath + QStringLiteral("/library.db") + suffix);
-    }
 }
 
 void tst_library::clearTempDir()
@@ -142,7 +113,7 @@ void tst_library::testScanFindsAudioFiles()
     QCOMPARE(files.size(), 5);
 
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
 
     QCOMPARE(m_controller->songCount(), 5);
     QCOMPARE(m_controller->songs().size(), 5);
@@ -162,7 +133,7 @@ void tst_library::testScanIgnoresUnsupportedFiles()
     listFile.close();
 
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
 
     QCOMPARE(m_controller->songCount(), 0);
 }
@@ -172,12 +143,12 @@ void tst_library::testRescanDoesNotDuplicate()
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
 
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 3);
 
     // Scanning the same directory again must not create duplicates
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 3);
 }
 
@@ -185,7 +156,7 @@ void tst_library::testSearch()
 {
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 4);
 
     // File names follow the pattern trackNN_Artist_Album.ext
@@ -200,7 +171,7 @@ void tst_library::testSearchModelReflectsQuery()
 {
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 4);
 
     SongListModel *searchModel = m_controller->searchModel();
@@ -270,19 +241,11 @@ void tst_library::testScanSignals()
     QVERIFY(changedSpy.count() >= 1);
 }
 
-bool tst_library::waitForScanFinished()
-{
-    // The scan already started; waiting on the spy lets the event loop
-    // deliver the queued scanFinished() from the worker thread.
-    QSignalSpy finishedSpy(m_controller, &LibraryController::scanFinished);
-    return finishedSpy.wait(10000);
-}
-
 void tst_library::testIgnorePathHidesSong()
 {
     const QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 4);
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 4);
 
     // Ignoring one song removes it from the library view but not from disk.
@@ -308,7 +271,7 @@ void tst_library::testIgnoreFolderHidesChildren()
     TestHelpers::createTestMusicDirectory(subDir.path(), 3);
 
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 5);
 
     // Hiding the folder hides all the songs inside it at once.
@@ -320,7 +283,7 @@ void tst_library::testUnignoreRestoresSongs()
 {
     const QStringList files = TestHelpers::createTestMusicDirectory(m_tempDir.path(), 3);
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
 
     m_controller->ignorePath(files.first());
     QCOMPARE(m_controller->songCount(), 2);
@@ -339,7 +302,7 @@ void tst_library::testRescanSkipsIgnored()
     const QStringList hidden = TestHelpers::createTestMusicDirectory(subDir.path(), 2);
 
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 4);
 
     // Ignore the folder, then rescan: ignored songs are not re-added and
@@ -348,7 +311,7 @@ void tst_library::testRescanSkipsIgnored()
     QCOMPARE(m_controller->songCount(), 2);
 
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 2);
     QVERIFY(!hidden.isEmpty());
 }
@@ -357,7 +320,7 @@ void tst_library::testRemoveSongsDeletesFile()
 {
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 2);
 
     const QVariantMap song = m_controller->songs().first().toMap();
@@ -381,7 +344,7 @@ void tst_library::testRemoveSongsIgnoresFile()
 {
     TestHelpers::createTestMusicDirectory(m_tempDir.path(), 2);
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 2);
 
     const QVariantMap song = m_controller->songs().first().toMap();
@@ -400,7 +363,7 @@ void tst_library::testRemoveSongsIgnoresFile()
 
     // A rescan must not re-import the ignored path.
     m_controller->scan(m_tempDir.path());
-    QVERIFY(waitForScanFinished());
+    QVERIFY(TestHelpers::waitForScanFinished(m_controller));
     QCOMPARE(m_controller->songCount(), 1);
 }
 
@@ -672,7 +635,7 @@ void tst_library::testSetArtworkEmitsOnceAndCachesFile()
     {
         QFile picked(pickedPath);
         QVERIFY(picked.open(QIODevice::WriteOnly));
-        QVERIFY(picked.write(QByteArray::fromHex(kRedPngHex)) > 0);
+        QVERIFY(picked.write(QByteArray::fromHex(TestHelpers::kRedPngHex)) > 0);
         picked.close();
     }
 
@@ -836,7 +799,7 @@ void tst_library::testSetAlbumArtworkEmitsOnceAndCoversEverySong()
     {
         QFile picked(pickedPath);
         QVERIFY(picked.open(QIODevice::WriteOnly));
-        QVERIFY(picked.write(QByteArray::fromHex(kRedPngHex)) > 0);
+        QVERIFY(picked.write(QByteArray::fromHex(TestHelpers::kRedPngHex)) > 0);
         picked.close();
     }
 

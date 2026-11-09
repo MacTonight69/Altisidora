@@ -23,28 +23,25 @@ constexpr qint64 kMinPersonalAudioDurationMs = 30000;
 /**
  * @brief Rows that a scan must forget because their file is gone.
  *
- * A scan is also a reconciliation: a file deleted behind the app's back (a
- * file manager, another program, an edit that changed the extension) must not
- * survive as a phantom row. Removal is deliberately conservative, so that an
- * unavailable library never costs the user its metadata. A stored row is
- * reported as missing only when every one of these holds:
+ * A scan is also a reconciliation of the whole library, not just of the
+ * folder it walks. A file disappears when it is deleted, renamed, or when its
+ * parent folder is moved or reorganized; in the last case the old directory
+ * is gone too, so a root-scoped check that requires the parent to exist can
+ * never forget the row. Those stale rows are what later look like duplicate
+ * songs with wrong paths. A stored row is reported as missing only when:
  *
- *  1. its path is inside the scanned root: scanning A never forgets the songs
- *     of B, whose files this scan did not look at;
+ *  1. the scan root still exists: a scan of a missing or unmounted root
+ *     proves nothing and must not wipe the library;
  *  2. the walk did not see the path: a cheap pre-filter, the disk is only
- *     stat'ed for the few rows the walk missed;
- *  3. the file itself does not exist;
- *  4. its parent directory still exists. A whole folder that vanished (an
- *     unmounted drive, an unplugged disk) makes every file below it "missing"
- *     at once; that signature is not a deletion, and the row stays until the
- *     volume is back.
+ *     stat'ed for rows outside the scanned tree;
+ *  3. the file itself does not exist.
  *
- * A root that does not exist at all (unmounted mount point, deleted folder)
- * prunes nothing: a scan of nothing proves nothing.
+ * Hidden songs are safe: hiding makes the walk skip them, but their file is
+ * still on disk, so the existence check keeps the row.
  *
  * Runs on the scan worker thread: filesystem work stays off the UI thread.
  */
-QList<qint64> missingSongsUnderRoot(
+QList<qint64> missingSongs(
     const QString &root,
     const QVector<Scanner::FileEntry> &entries,
     const QList<QPair<qint64, QString>> &storedSongs)
@@ -60,21 +57,13 @@ QList<qint64> missingSongsUnderRoot(
         seen.insert(entry.path);
     }
 
-    // Paths under `root` are `root + "/" + ...` (QDirIterator builds them
-    // that way), so the separator makes the prefix test exact: root "/music"
-    // must not match "/music-archive/song.mp3".
-    const QString prefix =
-        root.endsWith(QDir::separator()) ? root : root + QDir::separator();
     for (const QPair<qint64, QString> &stored : storedSongs) {
         const QString &path = stored.second;
-        if (!path.startsWith(prefix) || seen.contains(path)) {
+        if (seen.contains(path)) {
             continue;
         }
         if (QFileInfo::exists(path)) {
-            continue; // hidden, short or otherwise skipped, but still there
-        }
-        if (!QFileInfo::exists(QFileInfo(path).absolutePath())) {
-            continue; // the whole folder is gone: suspended, not deleted
+            continue; // outside the walk, hidden, short, but still there
         }
         missing.append(stored.first);
     }
@@ -254,7 +243,7 @@ void LibraryController::startScan(const QString &directory, qint64 minDurationMs
 
             ScanResult result;
             result.songs = songs;
-            result.missingIds = missingSongsUnderRoot(root, entries, storedSongs);
+            result.missingIds = missingSongs(root, entries, storedSongs);
             return result;
         }));
 }
@@ -296,11 +285,7 @@ void LibraryController::handleScanFinished()
             qWarning() << "LibraryController: failed to commit scan transaction";
     }
 
-    m_songs = m_db.getAllSongs().toVector();
-    m_songsStale = true;
-    m_albumsStale = true;
-    m_artistsStale = true;
-    m_songsModel.applySnapshot(m_songs);
+    reloadFromDatabase();
     m_scanRunning = false;
     emit libraryChanged();
     emit scanFinished(removed);
@@ -308,12 +293,17 @@ void LibraryController::handleScanFinished()
 
 void LibraryController::refresh()
 {
+    reloadFromDatabase();
+    emit libraryChanged();
+}
+
+void LibraryController::reloadFromDatabase()
+{
     m_songs = m_db.getAllSongs().toVector();
     m_songsStale = true;
     m_albumsStale = true;
     m_artistsStale = true;
     m_songsModel.applySnapshot(m_songs);
-    emit libraryChanged();
 }
 
 void LibraryController::setSearch(const QString &query)

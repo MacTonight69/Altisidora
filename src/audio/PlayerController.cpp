@@ -331,9 +331,7 @@ void PlayerController::setEqGain(int index, double valueDb)
 void PlayerController::resetEq()
 {
     const auto flat = presetGains(QStringLiteral("Plano"));
-    if (!flat) {
-        return; // Unreachable: "Plano" is always defined.
-    }
+    Q_ASSERT(flat);
 
     bool samePreset = (m_eqPreset == QLatin1String("Plano"));
     bool sameGains = true;
@@ -428,7 +426,7 @@ QString PlayerController::buildEqFilterString(const std::array<double, kEqBandCo
 {
     bool flat = true;
     for (double gain : gains) {
-        if (qAbs(gain) > 0.001) {
+        if (qAbs(gain) > kGainEps) {
             flat = false;
             break;
         }

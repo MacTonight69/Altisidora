@@ -11,11 +11,11 @@
 | D | Tag editing (individual + batch) | [x] done (`build/static-core-lib`) |
 | E | Final polish: theme rename (`Anarchism`) + new `Maya`; startup-theme bug; album edit adds artist + artwork | [x] done (`build/static-core-lib`) |
 
-Options A–D are implemented and verified (build exit 0, 0 warnings, `ctest`
-12/12, smoke OK). The commit chain lives in git (base `e2b7692` →
+Options A–E are implemented and verified (build exit 0, 0 warnings, `ctest`
+13/13, smoke OK). The commit chain lives in git (base `e2b7692` →
 `build/static-core-lib`); the detailed step-by-step specs were removed once
-each option landed. **Open work is option E only**, tracked task-by-task in
-`odd/tasks/theme-and-album-edit.md`. What remains after E is delivery and the
+each option landed. Option E is tracked task-by-task in
+`odd/tasks/theme-and-album-edit.md`. What remains is delivery and the
 optional follow-ups tracked in `docs/PROJECT_STATUS.md` (publishing `v0.1.0`;
 `mpris:artUrl`; artwork-cache GC; a player refresh API so the now-playing bar
 follows an edit; `hicolor-icon-theme` in the PKGBUILD depends).
@@ -27,14 +27,14 @@ follows an edit; `hicolor-icon-theme` in the PKGBUILD depends).
 ```bash
 cmake -S . -B build
 cmake --build build -j"$(nproc)"          # expect exit 0
-ctest --test-dir build --output-on-failure  # expect 12/12
+ctest --test-dir build --output-on-failure  # expect 13/13
 ```
 
 Smoke run (isolated HOME; must stay alive until timeout with empty stderr):
 
 ```bash
 rm -rf /tmp/opencode/alt-run && mkdir -p /tmp/opencode/alt-run/home
-cd /home/bautistaac/Proyectos/Altisidora
+cd "$(git rev-parse --show-toplevel)"
 env HOME=/tmp/opencode/alt-run/home XDG_DATA_HOME=/tmp/opencode/alt-run/data \
     XDG_CONFIG_HOME=/tmp/opencode/alt-run/config QT_QPA_PLATFORM=offscreen \
     timeout 6 ./build/altisidora; echo "exit=$?  (124 = OK)"
@@ -78,4 +78,4 @@ directly.
 - `git switch -c` before starting an option; never edit on
   `review/project-cleanup` directly.
 - Update `docs/PROJECT_STATUS.md` only if a number or behaviour claim changes.
-- After each option: tree clean, build exit 0, `ctest` 12/12, smoke run OK.
+- After each option: tree clean, build exit 0, `ctest` 13/13, smoke run OK.

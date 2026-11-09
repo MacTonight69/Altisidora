@@ -6,6 +6,7 @@
 #include <QSqlQuery>
 
 #include "../../src/app/PlaylistController.h"
+#include "../TestHelpers.h"
 
 /**
  * @brief Tests for PlaylistController
@@ -34,7 +35,6 @@ private slots:
     void testAddSongsBatch();
 
 private:
-    void removeDatabaseFiles();
     void clearPlaylists();
     QList<qint64> playlistIds() const;
 
@@ -46,7 +46,7 @@ void tst_playlist::initTestCase()
     QStandardPaths::setTestModeEnabled(true);
     QCoreApplication::setApplicationName(QStringLiteral("tst_playlist"));
 
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
     m_controller = new PlaylistController(this);
 }
 
@@ -54,22 +54,6 @@ void tst_playlist::cleanupTestCase()
 {
     delete m_controller;
     m_controller = nullptr;
-}
-
-void tst_playlist::removeDatabaseFiles()
-{
-    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataPath);
-
-    const QStringList suffixes = {
-        QString(),
-        QStringLiteral("-journal"),
-        QStringLiteral("-wal"),
-        QStringLiteral("-shm")
-    };
-    for (const QString &suffix : suffixes) {
-        QFile::remove(dataPath + QStringLiteral("/library.db") + suffix);
-    }
 }
 
 void tst_playlist::clearPlaylists()

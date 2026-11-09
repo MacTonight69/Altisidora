@@ -29,8 +29,6 @@ private slots:
     void testScanLibraryAndLoadSongIntoPlayer();
 
 private:
-    void removeDatabaseFiles();
-
     QTemporaryDir m_musicDir;
 };
 
@@ -39,29 +37,12 @@ void tst_playback::initTestCase()
     QStandardPaths::setTestModeEnabled(true);
     QCoreApplication::setApplicationName(QStringLiteral("tst_playback"));
     QVERIFY(m_musicDir.isValid());
-    removeDatabaseFiles();
+    TestHelpers::removeDatabaseFiles();
 }
 
 void tst_playback::cleanupTestCase()
 {
     QStandardPaths::setTestModeEnabled(false);
-}
-
-// Start from a clean database so only this session's songs count.
-void tst_playback::removeDatabaseFiles()
-{
-    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataPath);
-
-    const QStringList suffixes = {
-        QString(),
-        QStringLiteral("-journal"),
-        QStringLiteral("-wal"),
-        QStringLiteral("-shm")
-    };
-    for (const QString &suffix : suffixes) {
-        QFile::remove(dataPath + QStringLiteral("/library.db") + suffix);
-    }
 }
 
 void tst_playback::testScanLibraryAndLoadSongIntoPlayer()

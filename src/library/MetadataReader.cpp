@@ -2,9 +2,39 @@
 
 #include "Scanner.h"
 
+#include <taglib/audioproperties.h>
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
-#include <taglib/audioproperties.h>
+#include <taglib/taglib.h>
+
+// TagLib 2.0 replaced the per-format artwork APIs with the unified
+// complexProperties("PICTURE") interface. Keep the old formats working
+// on TagLib 1.x (1.12 is the oldest version we test): the fallback below
+// reads pictures from each container's native tag type.
+#if TAGLIB_MAJOR_VERSION < 2
+#include <taglib/aifffile.h>
+#include <taglib/apetag.h>
+#include <taglib/asfattribute.h>
+#include <taglib/asffile.h>
+#include <taglib/asfpicture.h>
+#include <taglib/asftag.h>
+#include <taglib/attachedpictureframe.h>
+#include <taglib/flacfile.h>
+#include <taglib/flacpicture.h>
+#include <taglib/id3v2tag.h>
+#include <taglib/mp4coverart.h>
+#include <taglib/mp4file.h>
+#include <taglib/mp4item.h>
+#include <taglib/mp4tag.h>
+#include <taglib/mpegfile.h>
+#include <taglib/oggflacfile.h>
+#include <taglib/opusfile.h>
+#include <taglib/speexfile.h>
+#include <taglib/tfile.h>
+#include <taglib/vorbisfile.h>
+#include <taglib/wavfile.h>
+#include <taglib/xiphcomment.h>
+#endif
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -182,11 +212,239 @@ QString cacheArtworkBytes(const QByteArray &raw, const QString &ext)
     return outPath;
 }
 
+QByteArray byteVectorToQByteArray(const TagLib::ByteVector &bytes)
+{
+    return QByteArray(bytes.data(), static_cast<qsizetype>(bytes.size()));
+}
+
+#if TAGLIB_MAJOR_VERSION < 2
+
+struct LegacyPicture
+{
+    QByteArray data;
+    QString mimeType;
+    bool frontCover = false;
+};
+
+QString imageMimeFromFileName(const QString &fileName)
+{
+    const QString suffix = QFileInfo(fileName).suffix().toLower();
+    if (suffix == "jpg" || suffix == "jpeg") return QStringLiteral("image/jpeg");
+    if (suffix == "png")  return QStringLiteral("image/png");
+    if (suffix == "webp") return QStringLiteral("image/webp");
+    if (suffix == "gif")  return QStringLiteral("image/gif");
+    if (suffix == "bmp")  return QStringLiteral("image/bmp");
+    return {};
+}
+
+void appendId3v2Pictures(TagLib::ID3v2::Tag *tag,
+                         QList<LegacyPicture> &pictures)
+{
+    if (!tag)
+        return;
+
+    const TagLib::ID3v2::FrameList frames = tag->frameList("APIC");
+    for (TagLib::ID3v2::Frame *frame : frames) {
+        auto *picture = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(frame);
+        if (!picture)
+            continue;
+        const TagLib::ByteVector bytes = picture->picture();
+        if (bytes.isEmpty())
+            continue;
+        pictures.append({
+            byteVectorToQByteArray(bytes),
+            tagStringToQString(picture->mimeType()).toLower(),
+            picture->type() == TagLib::ID3v2::AttachedPictureFrame::FrontCover
+        });
+    }
+}
+
+void appendFlacPictures(const TagLib::List<TagLib::FLAC::Picture *> &flacPictures,
+                        QList<LegacyPicture> &pictures)
+{
+    for (const TagLib::FLAC::Picture *picture : flacPictures) {
+        if (!picture)
+            continue;
+        const TagLib::ByteVector bytes = picture->data();
+        if (bytes.isEmpty())
+            continue;
+        pictures.append({
+            byteVectorToQByteArray(bytes),
+            tagStringToQString(picture->mimeType()).toLower(),
+            picture->type() == TagLib::FLAC::Picture::FrontCover
+        });
+    }
+}
+
+void appendMp4Pictures(TagLib::MP4::Tag *tag,
+                       QList<LegacyPicture> &pictures)
+{
+    if (!tag || !tag->contains("covr"))
+        return;
+
+    const TagLib::MP4::CoverArtList covers = tag->item("covr").toCoverArtList();
+    for (const TagLib::MP4::CoverArt &cover : covers) {
+        const TagLib::ByteVector bytes = cover.data();
+        if (bytes.isEmpty())
+            continue;
+
+        QString mime;
+        switch (cover.format()) {
+        case TagLib::MP4::CoverArt::JPEG: mime = QStringLiteral("image/jpeg"); break;
+        case TagLib::MP4::CoverArt::PNG:  mime = QStringLiteral("image/png");  break;
+        case TagLib::MP4::CoverArt::BMP:  mime = QStringLiteral("image/bmp");  break;
+        case TagLib::MP4::CoverArt::GIF:  mime = QStringLiteral("image/gif");  break;
+        case TagLib::MP4::CoverArt::Unknown: break;
+        }
+
+        // MP4 has no picture-type field; the first item is the cover.
+        pictures.append({
+            byteVectorToQByteArray(bytes),
+            mime,
+            pictures.isEmpty()
+        });
+    }
+}
+
+void appendAsfPictures(TagLib::ASF::Tag *tag,
+                       QList<LegacyPicture> &pictures)
+{
+    if (!tag)
+        return;
+
+    const TagLib::ASF::AttributeList attributes = tag->attribute("WM/Picture");
+    for (const TagLib::ASF::Attribute &attribute : attributes) {
+        const TagLib::ASF::Picture picture = attribute.toPicture();
+        if (!picture.isValid())
+            continue;
+        const TagLib::ByteVector bytes = picture.picture();
+        if (bytes.isEmpty())
+            continue;
+        pictures.append({
+            byteVectorToQByteArray(bytes),
+            tagStringToQString(picture.mimeType()).toLower(),
+            picture.type() == TagLib::ASF::Picture::FrontCover
+        });
+    }
+}
+
+void appendApePictures(TagLib::APE::Tag *tag,
+                       QList<LegacyPicture> &pictures)
+{
+    if (!tag)
+        return;
+
+    // APE stores cover art as a binary item whose value starts with the
+    // original file name, a NUL separator, and then the image bytes.
+    const TagLib::APE::ItemListMap &items = tag->itemListMap();
+    for (auto it = items.begin(); it != items.end(); ++it) {
+        const TagLib::String key = it->first.upper();
+        const bool isFront = key == "COVER ART (FRONT)";
+        if (!isFront && key != "COVER ART (BACK)")
+            continue;
+
+        const TagLib::APE::Item &item = it->second;
+        if (item.type() != TagLib::APE::Item::Binary)
+            continue;
+
+        TagLib::ByteVector bytes = item.binaryData();
+        QString mime;
+        const int separator = bytes.find('\0');
+        if (separator >= 0) {
+            const auto nameLength = static_cast<unsigned int>(separator);
+            const QByteArray name = byteVectorToQByteArray(bytes.mid(0, nameLength));
+            mime = imageMimeFromFileName(QString::fromLatin1(name));
+            bytes = bytes.mid(nameLength + 1);
+        }
+        if (bytes.isEmpty())
+            continue;
+
+        pictures.append({
+            byteVectorToQByteArray(bytes),
+            mime,
+            isFront
+        });
+    }
+}
+
+void appendXiphPictures(TagLib::Ogg::XiphComment *xiph,
+                        QList<LegacyPicture> &pictures)
+{
+    if (xiph)
+        appendFlacPictures(xiph->pictureList(), pictures);
+}
+
+void collectLegacyPictures(TagLib::File *file,
+                           QList<LegacyPicture> &pictures)
+{
+    if (!file)
+        return;
+
+    // TagLib 1.x's generic File::tag() does not necessarily return the
+    // format-specific tag object (and its docs warn against casting it),
+    // so ask each File subclass for its own tag accessor instead.
+    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file)) {
+        appendId3v2Pictures(mpeg->ID3v2Tag(false), pictures);
+        appendApePictures(mpeg->APETag(false), pictures);
+    } else if (auto *flac = dynamic_cast<TagLib::FLAC::File *>(file)) {
+        appendFlacPictures(flac->pictureList(), pictures);
+        appendId3v2Pictures(flac->ID3v2Tag(false), pictures);
+        appendXiphPictures(flac->xiphComment(false), pictures);
+    } else if (auto *vorbis = dynamic_cast<TagLib::Ogg::Vorbis::File *>(file)) {
+        appendXiphPictures(vorbis->tag(), pictures);
+    } else if (auto *opus = dynamic_cast<TagLib::Ogg::Opus::File *>(file)) {
+        appendXiphPictures(opus->tag(), pictures);
+    } else if (auto *speex = dynamic_cast<TagLib::Ogg::Speex::File *>(file)) {
+        appendXiphPictures(speex->tag(), pictures);
+    } else if (auto *oggFlac = dynamic_cast<TagLib::Ogg::FLAC::File *>(file)) {
+        appendXiphPictures(oggFlac->tag(), pictures);
+    } else if (auto *mp4 = dynamic_cast<TagLib::MP4::File *>(file)) {
+        appendMp4Pictures(dynamic_cast<TagLib::MP4::Tag *>(mp4->tag()), pictures);
+    } else if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file)) {
+        appendId3v2Pictures(wav->ID3v2Tag(), pictures);
+    } else if (auto *aiff = dynamic_cast<TagLib::RIFF::AIFF::File *>(file)) {
+        appendId3v2Pictures(aiff->tag(), pictures);
+    } else if (auto *asf = dynamic_cast<TagLib::ASF::File *>(file)) {
+        appendAsfPictures(dynamic_cast<TagLib::ASF::Tag *>(asf->tag()), pictures);
+    }
+}
+
+QString extractArtworkLegacy(const TagLib::FileRef &file)
+{
+    QList<LegacyPicture> pictures;
+    collectLegacyPictures(file.file(), pictures);
+    if (pictures.isEmpty())
+        return {};
+
+    // Same preference as the TagLib 2.x path: front cover first, otherwise
+    // the first picture in tag order.
+    const LegacyPicture *chosen = &pictures.first();
+    for (const LegacyPicture &picture : pictures) {
+        if (picture.frontCover) {
+            chosen = &picture;
+            break;
+        }
+    }
+
+    QString ext = imageExtensionFromMime(chosen->mimeType);
+    if (ext.isEmpty())
+        ext = imageExtensionFromMagicBytes(chosen->data);
+    if (ext.isEmpty())
+        ext = QStringLiteral("jpg");
+
+    return cacheArtworkBytes(chosen->data, ext);
+}
+
+#endif // TAGLIB_MAJOR_VERSION < 2
+
 // Extracts the embedded front-cover picture (falls back to the first
 // picture found) and persists it under a content-hash name. Returns the
 // absolute cache file path, or an empty string when there is no artwork.
 QString extractArtwork(const TagLib::FileRef &file)
 {
+#if TAGLIB_MAJOR_VERSION < 2
+    return extractArtworkLegacy(file);
+#else
     const TagLib::List<TagLib::VariantMap> pictures =
         file.complexProperties("PICTURE");
     if (pictures.isEmpty())
@@ -211,7 +469,7 @@ QString extractArtwork(const TagLib::FileRef &file)
     // the fallback (some tags lie or omit the MIME type). A tag that
     // claims to embed art but decodes to no known magic keeps the
     // historical "jpg" default rather than dropping the picture.
-    const QByteArray raw(bytes.data(), bytes.size());
+    const QByteArray raw = byteVectorToQByteArray(bytes);
     QString ext = imageExtensionFromMime(chosen->contains("mimeType")
         ? tagStringToQString((*chosen)["mimeType"].toString()).toLower() : QString());
     if (ext.isEmpty())
@@ -220,6 +478,7 @@ QString extractArtwork(const TagLib::FileRef &file)
         ext = QStringLiteral("jpg");
 
     return cacheArtworkBytes(raw, ext);
+#endif
 }
 
 } // namespace

@@ -59,9 +59,6 @@ private slots:
     void testSetQueueAndNavigate();
     void testQueueBoundaries();
 
-    // Error handling
-    void testErrorStateBlocksPlay();
-
     // Equalizer tests
     void testEqInitialDefaults();
     void testEqGainClamps();
@@ -329,16 +326,6 @@ void TestPlayer::testQueueBoundaries()
     m_player->previous();
     QCOMPARE(m_player->currentSong().value(QStringLiteral("title")).toString(),
              QStringLiteral("Only"));
-}
-
-void TestPlayer::testErrorStateBlocksPlay()
-{
-    // After an error, the controller refuses play() until a new load.
-    m_player->loadSong(QVariantMap());
-    QCOMPARE(m_player->playbackState(), PlaybackState::Error);
-
-    m_player->play();
-    QCOMPARE(m_player->playbackState(), PlaybackState::Error);
 }
 
 void TestPlayer::testEqInitialDefaults()

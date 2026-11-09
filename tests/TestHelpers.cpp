@@ -2,25 +2,13 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QSignalSpy>
+#include <QStandardPaths>
 
-TestHelpers::TestHelpers(QObject *parent)
-    : QObject(parent)
-{
-}
+namespace TestHelpers {
 
-TestHelpers::~TestHelpers() = default;
-
-bool TestHelpers::createDummyAudioFile(const QString &filePath)
-{
-    return createDummyAudioFile(filePath, QStringLiteral("Test Title"),
-                               QStringLiteral("Test Artist"),
-                               QStringLiteral("Test Album"));
-}
-
-bool TestHelpers::createDummyAudioFile(const QString &filePath,
-                                        const QString &title,
-                                        const QString &artist,
-                                        const QString &album)
+bool createDummyAudioFile(const QString &filePath)
 {
     QDir().mkpath(QFileInfo(filePath).absolutePath());
 
@@ -48,18 +36,13 @@ bool TestHelpers::createDummyAudioFile(const QString &filePath,
     // Pad with zeros to make it a reasonable size
     dummyData.append(QByteArray(1024 - dummyData.size(), '\0'));
 
-    // Write metadata as a simple text block at the end
-    QString metadata = QString("TITLE=%1\nARTIST=%2\nALBUM=%3\n")
-                           .arg(title, artist, album);
-    dummyData.append(metadata.toUtf8());
-
     qint64 written = file.write(dummyData);
     file.close();
 
     return written > 0;
 }
 
-bool TestHelpers::createMpegAudioFile(const QString &filePath, int frameCount)
+bool createMpegAudioFile(const QString &filePath, int frameCount)
 {
     QDir().mkpath(QFileInfo(filePath).absolutePath());
 
@@ -84,7 +67,7 @@ bool TestHelpers::createMpegAudioFile(const QString &filePath, int frameCount)
     return QFile::exists(filePath);
 }
 
-QStringList TestHelpers::createTestMusicDirectory(const QString &basePath, int fileCount)
+QStringList createTestMusicDirectory(const QString &basePath, int fileCount)
 {
     QStringList createdFiles;
     QDir baseDir(basePath);
@@ -106,13 +89,42 @@ QStringList TestHelpers::createTestMusicDirectory(const QString &basePath, int f
 
         QString filePath = baseDir.filePath(fileName);
 
-        if (createDummyAudioFile(filePath,
-                                 QStringLiteral("Track %1").arg(i + 1),
-                                 artist,
-                                 album)) {
+        if (createDummyAudioFile(filePath)) {
             createdFiles.append(filePath);
         }
     }
 
     return createdFiles;
 }
+
+bool removeDatabaseFiles()
+{
+    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dataPath);
+
+    const QStringList suffixes = {
+        QString(),
+        QStringLiteral("-journal"),
+        QStringLiteral("-wal"),
+        QStringLiteral("-shm")
+    };
+    bool ok = true;
+    for (const QString &suffix : suffixes) {
+        const QString path = dataPath + QStringLiteral("/library.db") + suffix;
+        if (QFile::exists(path) && !QFile::remove(path)) {
+            ok = false;
+        }
+    }
+    return ok;
+}
+
+bool waitForScanFinished(QObject *controller)
+{
+    // Name the signal instead of taking its address: TestHelpers is linked
+    // into every test, including ones that do not link the library core, so
+    // a typed connection would create an unwanted link dependency.
+    QSignalSpy finishedSpy(controller, SIGNAL(scanFinished(int)));
+    return finishedSpy.wait(10000);
+}
+
+} // namespace TestHelpers

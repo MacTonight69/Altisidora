@@ -13,7 +13,6 @@ cmake-build-*/
 # Qt
 *.user
 *.user.*
-CMakeLists.txt.user
 
 # Compiled files
 *.o
@@ -30,7 +29,6 @@ CMakeLists.txt.user
 test-results/
 Testing/
 *.log
-.atl/
 
 # OS
 .DS_Store

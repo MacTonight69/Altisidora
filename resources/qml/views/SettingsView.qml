@@ -276,7 +276,6 @@ Rectangle {
 
             Button {
                 font.family: Theme.fontFamily
-                id: saveButton
                 Layout.preferredHeight: settingsView.buttonHeight()
                 focusPolicy: Qt.NoFocus
                 text: qsTr("Save settings")

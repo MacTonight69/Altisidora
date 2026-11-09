@@ -43,7 +43,7 @@ public:
      *
      * songs: files that are new or changed since the last scan and must be
      *        upserted on the main thread.
-     * missingIds: ids of stored songs, inside the scanned root, whose file no
+     * missingIds: ids of stored songs, anywhere in the library, whose file no
      *        longer exists on disk and which must be forgotten by the library.
      *        The pruning rules (which rows qualify) live in
      *        LibraryController.cpp.
@@ -81,9 +81,10 @@ public slots:
      * scanFinished() on the main thread, so the UI stays responsive.
      *
      * This is the manual scan: every supported audio file is ingested
-     * regardless of its duration. The scan also reconciles the library:
-     * songs, inside @p directory, whose file no longer exists are dropped
-     * from the list and the database (see ScanResult).
+     * regardless of its duration. The scan also reconciles the whole
+     * library: any stored song whose file no longer exists is dropped from
+     * the list and the database, even if it lived outside @p directory (see
+     * ScanResult).
      */
     void scan(const QString &directory);
 
@@ -237,6 +238,10 @@ private:
     void rebuildSongsCache() const;
     void rebuildAlbumsCache() const;
     void rebuildArtistsCache() const;
+
+    // Reload the full song snapshot from the database and mark every
+    // QML-facing view stale. Shared by refresh() and handleScanFinished().
+    void reloadFromDatabase();
 
     // Background scan machinery. Scanner/MetadataReader are used by the
     // worker thread only through local copies created in scan().

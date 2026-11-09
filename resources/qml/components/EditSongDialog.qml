@@ -382,7 +382,6 @@ Dialog {
 
             Button {
                 font.family: Theme.fontFamily
-                id: saveButton
                 focusPolicy: Qt.NoFocus
                 text: qsTr("Save")
                 enabled: editSongDialog.saveEnabled

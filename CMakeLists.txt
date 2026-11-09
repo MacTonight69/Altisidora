@@ -11,8 +11,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
 
 # Find Qt6 components
 find_package(Qt6 REQUIRED COMPONENTS
@@ -26,9 +24,11 @@ find_package(Qt6 REQUIRED COMPONENTS
     Test
 )
 
-# Find TagLib
+# Find TagLib. 1.12 is the oldest release we support: the metadata reader
+# has a compatibility path for its per-format artwork APIs, while TagLib 2.x
+# uses the unified complexProperties("PICTURE") interface.
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(TAGLIB REQUIRED taglib)
+pkg_check_modules(TAGLIB REQUIRED taglib>=1.12)
 pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
 
 # Shared production core: compiled once as a static library and linked by both

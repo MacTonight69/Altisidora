@@ -30,8 +30,6 @@ Rectangle {
         id: tButton
         font.family: Theme.fontFamily
         property string iconText: ""
-        property bool primary: false
-        property bool circular: false
         // Toggle-style "on" state (e.g. repeat-one): tints the icon and
         // fills a soft highlight so the active mode is obvious at a glance.
         property bool active: false
@@ -41,26 +39,20 @@ Rectangle {
 
         contentItem: Text {
             text: tButton.iconText
-            color: tButton.primary ? Theme.accentText
-                 : tButton.active ? Theme.accent : Theme.textPrimary
+            color: tButton.active ? Theme.accent : Theme.textPrimary
             // A replaced contentItem does not inherit the control's font, so
             // it must bind to it explicitly; otherwise the label falls back
             // to the system default instead of the active theme typeface.
             font.family: tButton.font.family
-            font.pixelSize: (tButton.primary ? 17 : 14) * Theme.fontScale
+            font.pixelSize: 14 * Theme.fontScale
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
-            // circular => a perfect circle (radius follows the height);
-            // otherwise keep the rounded look.
-            radius: tButton.circular ? height / 2
-                   : tButton.primary ? 17 : 6
-            color: tButton.primary
-                   ? (tButton.down ? Theme.accentPressed : tButton.hovered ? Theme.accentHover : Theme.accent)
-                   : tButton.active
-                     ? (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : Theme.selection)
-                     : (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : "transparent")
+            radius: 6
+            color: tButton.active
+                   ? (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : Theme.selection)
+                   : (tButton.down ? Theme.borderPressed : tButton.hovered ? Theme.border : "transparent")
             Behavior on color {
                 ColorAnimation { duration: 100 }
             }

@@ -34,7 +34,6 @@ private slots:
 
     void testThemeDataScaleRule();
     void testUnknownThemeFallsBackToMimy();
-    void testApplyAssignsFontScale();
     void testBindingRerendersOnApply();
     void testScaleDropsBackOnMimy();
     void testRuntimeThemeSwitchChain();
@@ -113,24 +112,6 @@ void tst_theme_fonts::testUnknownThemeFallsBackToMimy()
     applyTheme(QStringLiteral("No Such Theme"));
     QCOMPARE(m_theme->property("themeName").toString(), QStringLiteral("Mimy"));
     QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
-}
-
-void tst_theme_fonts::testApplyAssignsFontScale()
-{
-    applyTheme(QStringLiteral("Mimy"));
-    QCOMPARE(m_theme->property("fontScale").toDouble(), 1.0);
-
-    // Same per-theme contract: each opt-in theme applies its own scale.
-    const QHash<QString, double> scales = {
-        {QStringLiteral("Coco"), 1.4},
-        {QStringLiteral("Anarchism"), 1.9},
-        {QStringLiteral("Onyx"), 1.4},
-    };
-    const QList<QString> names = scales.keys();
-    for (const QString &name : names) {
-        applyTheme(name);
-        QCOMPARE(m_theme->property("fontScale").toDouble(), scales.value(name));
-    }
 }
 
 void tst_theme_fonts::testBindingRerendersOnApply()

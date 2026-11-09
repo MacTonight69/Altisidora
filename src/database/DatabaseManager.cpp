@@ -422,34 +422,9 @@ bool DatabaseManager::addSong(Song &song)
         }
     }
 
-    const qint64 artistId = resolveNamedRow(m_db, QStringLiteral("artists"), song.artist);
-    const qint64 albumId = resolveAlbum(m_db, song.album, artistId, song.year);
-    const qint64 genreId = resolveNamedRow(m_db, QStringLiteral("genres"), song.genre);
-
-    QSqlQuery query(m_db);
-    query.prepare("INSERT INTO songs (path, title, artist_id, album_id, genre_id, year, track_number, disc_number, duration, artwork_path, date_added, last_played, play_count, favorite) "
-                  "VALUES (:path, :title, :artist_id, :album_id, :genre_id, :year, :track_number, :disc_number, :duration, :artwork_path, :date_added, :last_played, :play_count, :favorite)");
-    query.bindValue(":path", song.path);
-    query.bindValue(":title", song.title);
-    query.bindValue(":artist_id", artistId > 0 ? QVariant(artistId) : QVariant());
-    query.bindValue(":album_id", albumId > 0 ? QVariant(albumId) : QVariant());
-    query.bindValue(":genre_id", genreId > 0 ? QVariant(genreId) : QVariant());
-    query.bindValue(":year", song.year);
-    query.bindValue(":track_number", song.trackNumber);
-    query.bindValue(":disc_number", song.discNumber);
-    query.bindValue(":duration", song.duration);
-    query.bindValue(":artwork_path", song.artworkPath);
-    query.bindValue(":date_added", song.dateAdded.toString(Qt::ISODate));
-    query.bindValue(":last_played", song.lastPlayed.toString(Qt::ISODate));
-    query.bindValue(":play_count", song.playCount);
-    query.bindValue(":favorite", song.favorite ? 1 : 0);
-
-    if (!query.exec()) {
-        qWarning() << "Failed to add song:" << query.lastError().text();
-        return false;
-    }
-    song.id = query.lastInsertId().toLongLong();
-    return true;
+    // The duplicate check above guarantees this is a fresh path, so the
+    // upsert always inserts (and never clobbers user data).
+    return upsertSong(song);
 }
 
 bool DatabaseManager::upsertSong(Song &song)
@@ -853,10 +828,10 @@ bool DatabaseManager::removeSongs(const QList<qint64> &ids)
         return false;
     }
 
-    // playlist_songs has no ON DELETE CASCADE and SQLite does not enforce
-    // foreign keys by default, so each song's playlist rows must be removed
-    // first to avoid orphaned references. The whole batch shares one
-    // transaction, so a failure halfway leaves the library as it was.
+    // The schema enables PRAGMA foreign_keys = ON, but playlist_songs has no
+    // ON DELETE CASCADE, so each song's playlist rows must be removed first
+    // to avoid orphaned references. The whole batch shares one transaction,
+    // so a failure halfway leaves the library as it was.
     QSqlQuery playlistRows(m_db);
     playlistRows.prepare("DELETE FROM playlist_songs WHERE song_id=:id");
     QSqlQuery songRows(m_db);

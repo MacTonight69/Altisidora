@@ -19,7 +19,7 @@ A native Linux music player built with C++20 and Qt 6.
 - CMake >= 3.20
 - Qt 6 (Core, Gui, Quick, QuickControls2, Sql, Concurrent, DBus, Test)
 - libmpv (pkg-config `mpv`)
-- TagLib
+- TagLib >= 1.12 (2.x recommended; both artwork APIs are supported)
 - C++20 compiler (GCC 11+ or Clang 14+)
 - Optional: a Japanese/CJK font such as `adobe-source-han-sans-jp-fonts`,
   `noto-fonts-cjk` (all CJK scripts) or `otf-ipafont` (smallest). The player
@@ -54,7 +54,8 @@ src/
   mpris/                # MPRIS v2 desktop integration
 resources/
   qml/                  # QML interface files (the GUI lives here)
-  icons/                # Application icons
+images/                 # Application icons and logos
+fonts/                  # Bundled theme fonts
 tests/
   unit/                 # Unit tests
   integration/          # Integration tests

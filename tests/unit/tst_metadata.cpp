@@ -5,22 +5,23 @@
 #include <functional>
 
 #include "library/MetadataReader.h"
+#include "../TestHelpers.h"
 
 #include <taglib/mpegfile.h>
 #include <taglib/id3v2tag.h>
 #include <taglib/attachedpictureframe.h>
+#include <taglib/flacfile.h>
+#include <taglib/flacpicture.h>
 #include <taglib/textidentificationframe.h>
 #include <taglib/tag.h>
 #include <taglib/tstring.h>
 
 namespace {
 
-// Minimal valid 1x1 PNGs (69 bytes each, red and green pixels): small
-// enough to inline, real enough that image decoders accept them. The
-// different pixel colours make front/back cover selection observable.
-const char kRedPngHex[] =
-    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
-    "0000000c4944415478da63f8cfc0000003010100f70341430000000049454e44ae426082";
+// Minimal valid 1x1 green PNG (69 bytes): small enough to inline, real
+// enough that image decoders accept it. The red counterpart lives in
+// TestHelpers and the different pixel colours make front/back cover
+// selection observable.
 const char kGreenPngHex[] =
     "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de"
     "0000000c4944415478da6360f8cf00000202010045f452d40000000049454e44ae426082";
@@ -96,6 +97,7 @@ private slots:
     void testReadArtworkFromFrontCover();
     void testReadArtworkPrefersFrontCover();
     void testReadArtworkIdempotent();
+    void testReadArtworkFromFlac();
 
     // Error handling tests
     void testReadNonExistentFile();
@@ -108,6 +110,10 @@ private:
     // ID3v2 tag filled by `fill` (called with the mutable tag).
     bool writeMpegFile(const QString &filePath,
                        const std::function<void(TagLib::Tag *)> &fill = {});
+
+    // Writes a minimal valid FLAC stream (STREAMINFO only) and attaches a
+    // front-cover picture, exercising the FLAC branch of artwork extraction.
+    bool writeFlacFile(const QString &filePath, const QByteArray &art);
 
     QTemporaryDir m_tempDir;
 };
@@ -150,6 +156,46 @@ bool TestMetadata::writeMpegFile(const QString &filePath,
     }
     fill(tag);
     return mf.save();
+}
+
+bool TestMetadata::writeFlacFile(const QString &filePath, const QByteArray &art)
+{
+    // Minimal FLAC stream: the "fLaC" marker plus a single STREAMINFO
+    // block. No audio frames are needed to read tags or pictures.
+    QByteArray data("fLaC", 4);
+    data.append('\x80'); // last metadata block, type STREAMINFO
+    data.append('\x00');
+    data.append('\x00');
+    data.append('\x22'); // 34-byte payload
+    data.append('\x10'); data.append('\x00'); // min block size 4096
+    data.append('\x10'); data.append('\x00'); // max block size 4096
+    data.append(QByteArray(6, '\0'));         // min/max frame size
+    // 20-bit sample rate 44100, 3-bit channels-1 = 1, 5-bit bps-1 = 15,
+    // 36-bit total samples = 0.
+    const quint64 packed = (quint64(44100) << 44) | (quint64(1) << 41)
+                         | (quint64(15) << 36);
+    for (int i = 7; i >= 0; --i)
+        data.append(static_cast<char>((packed >> (i * 8)) & 0xFF));
+    data.append(QByteArray(16, '\0')); // MD5 signature
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)
+        || file.write(data) != data.size()) {
+        return false;
+    }
+    file.close();
+
+    TagLib::FLAC::File flac(filePath.toStdString().c_str());
+    if (!flac.isValid()) {
+        return false;
+    }
+    auto *picture = new TagLib::FLAC::Picture();
+    picture->setType(TagLib::FLAC::Picture::FrontCover);
+    picture->setMimeType("image/png");
+    picture->setData(TagLib::ByteVector(art.constData(),
+                                        static_cast<unsigned int>(art.size())));
+    flac.addPicture(picture);
+    return flac.save();
 }
 
 void TestMetadata::testReadTitle()
@@ -440,7 +486,7 @@ void TestMetadata::testShiftJisMojibakeCorpus()
 void TestMetadata::testReadArtworkFromFrontCover()
 {
     const QString filePath = m_tempDir.filePath(QStringLiteral("artwork.mp3"));
-    const QByteArray art = QByteArray::fromHex(kRedPngHex);
+    const QByteArray art = QByteArray::fromHex(TestHelpers::kRedPngHex);
     QVERIFY(writeMpegFile(filePath, [&art](TagLib::Tag *tag) {
         attachPicture(tag, TagLib::ID3v2::AttachedPictureFrame::FrontCover, art);
     }));
@@ -461,7 +507,7 @@ void TestMetadata::testReadArtworkFromFrontCover()
 void TestMetadata::testReadArtworkPrefersFrontCover()
 {
     const QString filePath = m_tempDir.filePath(QStringLiteral("artwork_order.mp3"));
-    const QByteArray back = QByteArray::fromHex(kRedPngHex);
+    const QByteArray back = QByteArray::fromHex(TestHelpers::kRedPngHex);
     const QByteArray front = QByteArray::fromHex(kGreenPngHex);
     QVERIFY(writeMpegFile(filePath, [&back, &front](TagLib::Tag *tag) {
         attachPicture(tag, TagLib::ID3v2::AttachedPictureFrame::BackCover, back);
@@ -490,6 +536,25 @@ void TestMetadata::testReadArtworkIdempotent()
     QVERIFY(!first.artworkPath.isEmpty());
     QCOMPARE(second.artworkPath, first.artworkPath);
     QVERIFY(QFile::exists(first.artworkPath));
+}
+
+// FLAC stores pictures in PICTURE metadata blocks rather than ID3v2
+// frames; TagLib 1.x and 2.x expose them through different APIs, so this
+// covers the format-specific compatibility path.
+void TestMetadata::testReadArtworkFromFlac()
+{
+    const QString filePath = m_tempDir.filePath(QStringLiteral("artwork.flac"));
+    const QByteArray art = QByteArray::fromHex(TestHelpers::kRedPngHex);
+    QVERIFY(writeFlacFile(filePath, art));
+
+    const Song song = MetadataReader().read(filePath);
+    QVERIFY(!song.artworkPath.isEmpty());
+    QVERIFY(song.artworkPath.endsWith(QStringLiteral(".png")));
+    QVERIFY(QFile::exists(song.artworkPath));
+
+    QFile cached(song.artworkPath);
+    QVERIFY(cached.open(QIODevice::ReadOnly));
+    QCOMPARE(cached.readAll(), art);
 }
 
 void TestMetadata::testReadNonExistentFile()
